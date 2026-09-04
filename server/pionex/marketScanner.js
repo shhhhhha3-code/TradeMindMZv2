@@ -4,6 +4,10 @@ import {
   getMarketKlines,
 } from "./pionexClient.js";
 
+import {
+  runTradeMindEngine,
+} from "../../engine/index.js";
+
 /*
  * TradeMindMZ V2
  * Pionex → Local Market Scanner
@@ -625,12 +629,30 @@ export async function scanPionexMarket({
       })
       .slice(0, 5);
 
-  return {
+
+  const engineResult = runTradeMindEngine(
+    topFive,
+    { limit: 5 }
+  );
+
+return {
     success: true,
     scanned:
       rankedUniverse.length,
     candidates: topFive,
     updatedAt:
       new Date().toISOString(),
+
+    engine: engineResult,
+
+    engineDecision:
+      engineResult.decision,
+
+    engineRecommendation:
+      engineResult.recommendation,
+
+    engineTop5:
+      engineResult.top5,
+
   };
 }
