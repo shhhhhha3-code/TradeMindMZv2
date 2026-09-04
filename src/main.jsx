@@ -13,6 +13,7 @@ import { fetchDashboardData } from "./services/dashboardService.js";
 import "./ui/trademind-v3.css";
 import "./ui/trademind-v4.css";
 import "./ui/trademind-v41.css";
+import "./ui/trademind-v42.css";
 function Logo(){
   return (
     <div className="brand">
@@ -59,7 +60,7 @@ const updateAiSetting=(key,value)=>{const next={...aiSettings,[key]:value};setAi
     : tab==='settings'
       ? <SettingsPage settings={aiSettings} updateSetting={updateAiSetting}/>
       : tab==='dashboard'
-        ? <Dashboard/>
+        ? <><TopFiveCommandCenter/><Dashboard/></>
         : tab==='market'
           ? <MarketOverview/>
           : tab==='history'
@@ -608,6 +609,411 @@ function LivePionexBalance(){
     </div>
   );
 }
+
+
+function TopFiveCommandCenter() {
+
+  const {
+    data,
+    loading,
+    refreshing,
+    error,
+    refresh,
+  } = useLiveAiSignal({
+    scanLimit: 100,
+    maxMarkets: 25,
+    preferredProvider: "groq",
+  });
+
+  const rawCandidates =
+    data?.candidates ??
+    data?.topCandidates ??
+    data?.top5 ??
+    data?.markets ??
+    [];
+
+  const candidates = Array.isArray(rawCandidates)
+    ? rawCandidates
+        .map((item, index) => ({
+          ...item,
+          __rank: index + 1,
+        }))
+        .sort((a, b) => {
+          const sa = Number(
+            a.score ??
+            a.aiScore ??
+            a.signalScore ??
+            0
+          );
+
+          const sb = Number(
+            b.score ??
+            b.aiScore ??
+            b.signalScore ??
+            0
+          );
+
+          return sb - sa;
+        })
+        .slice(0, 5)
+    : [];
+
+  const number = (value, digits = 2) => {
+    const n = Number(value);
+
+    if (!Number.isFinite(n)) {
+      return "—";
+    }
+
+    return n.toLocaleString("en-US", {
+      maximumFractionDigits: digits,
+    });
+  };
+
+  const percent = (value) => {
+    const n = Number(value);
+
+    if (!Number.isFinite(n)) {
+      return "—";
+    }
+
+    return `${number(n, 1)}%`;
+  };
+
+  const candidateScore = (item) =>
+    Number(
+      item.score ??
+      item.aiScore ??
+      item.signalScore ??
+      0
+    );
+
+  const candidateConfidence = (item) =>
+    Number(
+      item.confidence ??
+      item.aiConfidence ??
+      0
+    );
+
+  const candidateRR = (item) =>
+    Number(
+      item.riskReward ??
+      item.rr ??
+      item.risk_reward ??
+      0
+    );
+
+  const candidateRSI = (item) =>
+    Number(
+      item.rsi ??
+      item.RSI ??
+      item.rsi14 ??
+      0
+    );
+
+  const candidateVolume = (item) =>
+    Number(
+      item.volumeRatio ??
+      item.volume_ratio ??
+      item.volume ??
+      0
+    );
+
+  const getDecision = (item) => {
+    const score = candidateScore(item);
+    const confidence = candidateConfidence(item);
+    const rr = candidateRR(item);
+
+    if (
+      score >= 85 &&
+      confidence >= 90 &&
+      rr >= 2
+    ) {
+      return {
+        label: "TRADE",
+        className: "tm42-trade",
+      };
+    }
+
+    if (
+      score >= 75 &&
+      confidence >= 80 &&
+      rr >= 2
+    ) {
+      return {
+        label: "WATCH",
+        className: "tm42-watch",
+      };
+    }
+
+    return {
+      label: "NO TRADE",
+      className: "tm42-no-trade",
+    };
+  };
+
+  const getTrend = (item) =>
+    String(
+      item.trend ??
+      item.direction ??
+      item.bias ??
+      "NEUTRAL"
+    ).toUpperCase();
+
+  return (
+    <div className="tm42-top5">
+
+      <div className="tm42-topbar">
+
+        <div>
+          <div className="tm42-eyebrow">
+            MARKET INTELLIGENCE
+          </div>
+
+          <div className="tm42-title-row">
+            <h2>
+              TOP 5 OPPORTUNITIES
+            </h2>
+
+            <span className="tm42-live-pill">
+              <i />
+              LIVE
+            </span>
+          </div>
+
+          <p>
+            Pionex scanner → local scoring → AI comparison
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="tm42-refresh"
+          onClick={refresh}
+          disabled={refreshing}
+        >
+          <RefreshCw
+            size={15}
+            className={refreshing ? "tm42-spin" : ""}
+          />
+
+          {refreshing
+            ? "SCANNING..."
+            : "REFRESH TOP 5"}
+        </button>
+
+      </div>
+
+      {loading && !candidates.length ? (
+        <div className="tm42-loading">
+          <div className="tm42-loader-line" />
+          <div>
+            <strong>
+              Scanning Pionex markets...
+            </strong>
+
+            <span>
+              Building the best five candidates.
+            </span>
+          </div>
+        </div>
+      ) : error ? (
+        <div className="tm42-error">
+
+          <div>
+            <strong>
+              TOP 5 unavailable
+            </strong>
+
+            <span>
+              {error}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            onClick={refresh}
+            className="tm42-small-btn"
+          >
+            Retry
+          </button>
+
+        </div>
+      ) : candidates.length ? (
+
+        <div className="tm42-list">
+
+          {candidates.map((item, index) => {
+
+            const symbol =
+              item.symbol ??
+              item.market ??
+              item.pair ??
+              "UNKNOWN";
+
+            const score =
+              candidateScore(item);
+
+            const confidence =
+              candidateConfidence(item);
+
+            const rr =
+              candidateRR(item);
+
+            const rsi =
+              candidateRSI(item);
+
+            const volume =
+              candidateVolume(item);
+
+            const decision =
+              getDecision(item);
+
+            const trend =
+              getTrend(item);
+
+            const best =
+              index === 0;
+
+            return (
+              <div
+                className={
+                  best
+                    ? "tm42-row tm42-best"
+                    : "tm42-row"
+                }
+                key={`${symbol}-${index}`}
+              >
+
+                <div className="tm42-rank">
+                  <span>
+                    #{index + 1}
+                  </span>
+
+                  {best && (
+                    <small>
+                      BEST
+                    </small>
+                  )}
+                </div>
+
+                <div className="tm42-symbol">
+                  <strong>
+                    {symbol}
+                  </strong>
+
+                  <span>
+                    {trend}
+                  </span>
+                </div>
+
+                <div className="tm42-metric">
+                  <small>
+                    SCORE
+                  </small>
+
+                  <strong>
+                    {number(score, 0)}
+                  </strong>
+                </div>
+
+                <div className="tm42-metric">
+                  <small>
+                    CONF
+                  </small>
+
+                  <strong>
+                    {percent(confidence)}
+                  </strong>
+                </div>
+
+                <div className="tm42-metric tm42-hide-mobile">
+                  <small>
+                    RSI
+                  </small>
+
+                  <strong>
+                    {number(rsi, 1)}
+                  </strong>
+                </div>
+
+                <div className="tm42-metric tm42-hide-mobile">
+                  <small>
+                    RR
+                  </small>
+
+                  <strong>
+                    {rr > 0
+                      ? `${number(rr, 1)} : 1`
+                      : "—"}
+                  </strong>
+                </div>
+
+                <div className="tm42-metric tm42-hide-mobile">
+                  <small>
+                    VOL
+                  </small>
+
+                  <strong>
+                    {volume > 0
+                      ? `${number(volume, 2)}x`
+                      : "—"}
+                  </strong>
+                </div>
+
+                <div className="tm42-decision">
+                  <span className={decision.className}>
+                    {decision.label}
+                  </span>
+                </div>
+
+              </div>
+            );
+          })}
+
+        </div>
+
+      ) : (
+
+        <div className="tm42-empty">
+
+          <div className="tm42-empty-icon">
+            <Target size={20} />
+          </div>
+
+          <div>
+            <strong>
+              NO QUALIFIED OPPORTUNITIES
+            </strong>
+
+            <span>
+              Scanneren fant ingen kandidater som
+              tilfredsstiller TradeMindMZ-kriteriene.
+            </span>
+          </div>
+
+        </div>
+
+      )}
+
+      <div className="tm42-footer">
+
+        <span>
+          {candidates.length
+            ? `${candidates.length} candidates ranked`
+            : "Waiting for market data"}
+        </span>
+
+        <span>
+          AI does not execute trades
+        </span>
+
+      </div>
+
+    </div>
+  );
+}
+
 
 function Dashboard(){
 
