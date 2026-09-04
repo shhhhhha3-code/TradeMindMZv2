@@ -1,0 +1,769 @@
+/* ============================================================
+   TRADEMINDMZ V4.1
+   AI COMMAND CENTER
+   Visual / navigation layer only.
+   ============================================================ */
+
+/* ------------------------------------------------------------
+   Dashboard detection
+   Existing Dashboard uses:
+   .hero
+   .grid
+   .card
+   .levels
+   .wallet-total
+   .position-row
+   .activity
+   ------------------------------------------------------------ */
+
+main > section > .hero {
+  position: relative;
+  isolation: isolate;
+}
+
+main > section > .hero::after {
+  content: "LIVE MARKET COMMAND CENTER";
+
+  position: absolute;
+
+  right: 0;
+  top: 22px;
+
+  padding:
+    7px 10px;
+
+  border:
+    1px solid rgba(0,220,255,.16);
+
+  border-radius:
+    999px;
+
+  background:
+    rgba(0,220,255,.04);
+
+  color:
+    rgba(0,220,255,.65);
+
+  font-size:
+    8px;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    .16em;
+
+  pointer-events:
+    none;
+
+  box-shadow:
+    0 0 24px rgba(0,220,255,.035);
+}
+
+main > section > .hero h1 {
+  max-width:
+    880px !important;
+
+  font-size:
+    clamp(34px, 4.4vw, 54px) !important;
+
+  letter-spacing:
+    -.055em !important;
+
+  line-height:
+    .98 !important;
+
+  background:
+    linear-gradient(
+      100deg,
+      #ffffff 0%,
+      #dbe6f4 42%,
+      #71eaff 72%,
+      #9b7cff 100%
+    );
+
+  -webkit-background-clip:
+    text;
+
+  background-clip:
+    text;
+
+  color:
+    transparent !important;
+}
+
+main > section > .hero p {
+  max-width:
+    760px !important;
+
+  font-size:
+    12px !important;
+
+  color:
+    #8290a7 !important;
+}
+
+/* ------------------------------------------------------------
+   COMMAND CENTER GRID
+   ------------------------------------------------------------ */
+
+main > section > .grid {
+  position:
+    relative;
+
+  margin-top:
+    10px !important;
+}
+
+main > section > .grid::before {
+  content: "";
+
+  position:
+    absolute;
+
+  left:
+    0;
+
+  right:
+    0;
+
+  top:
+    -9px;
+
+  height:
+    1px;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(0,245,160,.18),
+      rgba(0,220,255,.12),
+      rgba(141,92,255,.16),
+      transparent
+    );
+
+  pointer-events:
+    none;
+}
+
+/* ------------------------------------------------------------
+   PRIMARY AI CARD
+   ------------------------------------------------------------ */
+
+main > section > .grid > .main.panel {
+  min-height:
+    430px;
+
+  background:
+    radial-gradient(
+      circle at 88% 8%,
+      rgba(0,220,255,.09),
+      transparent 29%
+    ),
+    radial-gradient(
+      circle at 5% 92%,
+      rgba(0,245,160,.055),
+      transparent 28%
+    ),
+    linear-gradient(
+      145deg,
+      rgba(12,20,35,.98),
+      rgba(5,10,19,.97)
+    ) !important;
+
+  border-color:
+    rgba(0,220,255,.22) !important;
+
+  box-shadow:
+    0 28px 90px rgba(0,0,0,.44),
+    0 0 70px rgba(0,220,255,.035),
+    inset 0 1px rgba(255,255,255,.025) !important;
+}
+
+main > section > .grid > .main.panel::before {
+  content:
+    "AI DECISION ENGINE";
+
+  position:
+    absolute;
+
+  right:
+    20px;
+
+  top:
+    18px;
+
+  color:
+    rgba(141,92,255,.48);
+
+  font-size:
+    8px;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    .20em;
+
+  pointer-events:
+    none;
+}
+
+/* ------------------------------------------------------------
+   SCORE EMPHASIS
+   ------------------------------------------------------------ */
+
+main > section > .grid > .main.panel .ring {
+  transform:
+    scale(1.08);
+
+  filter:
+    drop-shadow(
+      0 0 18px rgba(0,220,255,.17)
+    )
+    drop-shadow(
+      0 0 36px rgba(141,92,255,.12)
+    );
+}
+
+main > section > .grid > .main.panel .ring > div {
+  text-shadow:
+    0 0 18px rgba(255,255,255,.04);
+}
+
+/* ------------------------------------------------------------
+   DECISION METRICS
+   ------------------------------------------------------------ */
+
+main > section > .grid > .main.panel .levels {
+  margin-top:
+    12px;
+
+  background:
+    rgba(2,6,13,.52);
+
+  border-color:
+    rgba(0,220,255,.10) !important;
+
+  box-shadow:
+    inset 0 0 25px rgba(0,220,255,.015);
+}
+
+main > section > .grid > .main.panel .levels div {
+  min-height:
+    64px;
+
+  display:
+    flex;
+
+  flex-direction:
+    column;
+
+  justify-content:
+    center;
+}
+
+/* ------------------------------------------------------------
+   ACTION BUTTON
+   ------------------------------------------------------------ */
+
+main > section > .grid > .main.panel .buy {
+  min-height:
+    48px !important;
+
+  margin-top:
+    18px !important;
+
+  border-radius:
+    13px !important;
+
+  border:
+    1px solid rgba(0,245,160,.30) !important;
+
+  background:
+    linear-gradient(
+      100deg,
+      rgba(0,245,160,.12),
+      rgba(0,220,255,.055)
+    ) !important;
+
+  color:
+    #7ff8c8 !important;
+
+  letter-spacing:
+    .09em;
+
+  box-shadow:
+    0 10px 30px rgba(0,0,0,.22),
+    inset 0 1px rgba(255,255,255,.04);
+}
+
+main > section > .grid > .main.panel .buy:hover {
+  border-color:
+    rgba(0,245,160,.55) !important;
+
+  background:
+    linear-gradient(
+      100deg,
+      rgba(0,245,160,.18),
+      rgba(0,220,255,.09)
+    ) !important;
+
+  box-shadow:
+    0 14px 35px rgba(0,0,0,.30),
+    0 0 28px rgba(0,245,160,.065);
+}
+
+/* ------------------------------------------------------------
+   SIDE INTELLIGENCE STACK
+   ------------------------------------------------------------ */
+
+main > section > .grid > .stack > .panel {
+  min-height:
+    0;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(12,18,31,.95),
+      rgba(6,10,18,.95)
+    ) !important;
+}
+
+main > section > .grid > .stack > .panel:first-child {
+  border-color:
+    rgba(0,245,160,.13) !important;
+}
+
+main > section > .grid > .stack > .panel:nth-child(2) {
+  border-color:
+    rgba(141,92,255,.15) !important;
+}
+
+/* ------------------------------------------------------------
+   PIONEX BALANCE
+   ------------------------------------------------------------ */
+
+main > section > .grid .wallet-total strong {
+  font-size:
+    42px !important;
+
+  letter-spacing:
+    -.045em;
+
+  color:
+    #f5f9ff !important;
+}
+
+main > section > .grid .wallet-total {
+  position:
+    relative;
+}
+
+main > section > .grid .wallet-total::after {
+  content:
+    "LIVE PIONEX";
+
+  position:
+    absolute;
+
+  right:
+    0;
+
+  top:
+    0;
+
+  padding:
+    5px 8px;
+
+  border:
+    1px solid rgba(0,245,160,.14);
+
+  border-radius:
+    999px;
+
+  color:
+    rgba(0,245,160,.67);
+
+  background:
+    rgba(0,245,160,.035);
+
+  font-size:
+    7px;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    .15em;
+}
+
+/* ------------------------------------------------------------
+   BALANCE SPLIT
+   ------------------------------------------------------------ */
+
+main > section > .grid .balance-split > div {
+  min-height:
+    72px;
+
+  position:
+    relative;
+
+  overflow:
+    hidden;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255,255,255,.035),
+      rgba(255,255,255,.012)
+    ) !important;
+}
+
+main > section > .grid .balance-split > div::after {
+  content:
+    "";
+
+  position:
+    absolute;
+
+  width:
+    45px;
+
+  height:
+    45px;
+
+  right:
+    -15px;
+
+  bottom:
+    -18px;
+
+  border-radius:
+    50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(0,220,255,.08),
+      transparent 70%
+    );
+}
+
+/* ------------------------------------------------------------
+   MARKET INTELLIGENCE ROWS
+   ------------------------------------------------------------ */
+
+main > section > .grid .position-row {
+  min-height:
+    60px;
+
+  border-color:
+    rgba(255,255,255,.05) !important;
+
+  transition:
+    background .18s ease,
+    padding-left .18s ease;
+}
+
+main > section > .grid .position-row:hover {
+  padding-left:
+    5px;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(0,220,255,.04),
+      transparent
+    );
+}
+
+/* ------------------------------------------------------------
+   ACTIVITY
+   ------------------------------------------------------------ */
+
+main > section > .grid .activity {
+  position:
+    relative;
+
+  padding:
+    14px 2px !important;
+}
+
+main > section > .grid .activity strong {
+  color:
+    #e7edf5 !important;
+}
+
+/* ------------------------------------------------------------
+   DASHBOARD SECTION LABELS
+   ------------------------------------------------------------ */
+
+main > section > .section {
+  width:
+    min(1500px,100%);
+
+  margin-left:
+    auto;
+
+  margin-right:
+    auto;
+}
+
+main > section > .section h2 {
+  font-size:
+    14px !important;
+
+  color:
+    #eef4fb !important;
+
+  letter-spacing:
+    .01em;
+}
+
+/* ------------------------------------------------------------
+   DASHBOARD CARD HEADERS
+   ------------------------------------------------------------ */
+
+main > section > .grid .card-head,
+main > section > .grid .head {
+  position:
+    relative;
+}
+
+main > section > .grid .card-head::after {
+  content:
+    "";
+
+  position:
+    absolute;
+
+  left:
+    0;
+
+  right:
+    0;
+
+  bottom:
+    -9px;
+
+  height:
+    1px;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255,255,255,.07),
+      transparent
+    );
+
+  pointer-events:
+    none;
+}
+
+/* ------------------------------------------------------------
+   TOP OPPORTUNITY FEEL
+   ------------------------------------------------------------ */
+
+main > section > .opps {
+  width:
+    min(1500px,100%);
+
+  margin-left:
+    auto;
+
+  margin-right:
+    auto;
+}
+
+main > section > .opps .opp {
+  position:
+    relative;
+
+  overflow:
+    hidden;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(12,19,32,.95),
+      rgba(6,10,18,.95)
+    ) !important;
+
+  border:
+    1px solid rgba(141,92,255,.15) !important;
+
+  border-radius:
+    16px !important;
+
+  box-shadow:
+    0 15px 45px rgba(0,0,0,.24);
+}
+
+main > section > .opps .opp::after {
+  content:
+    "";
+
+  position:
+    absolute;
+
+  width:
+    100px;
+
+  height:
+    100px;
+
+  right:
+    -60px;
+
+  top:
+    -60px;
+
+  border-radius:
+    50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(0,220,255,.08),
+      transparent 70%
+    );
+
+  pointer-events:
+    none;
+}
+
+/* ------------------------------------------------------------
+   DASHBOARD TABLES
+   ------------------------------------------------------------ */
+
+main > section > .panel:has(.tablewrap) {
+  width:
+    min(1500px, calc(100% - 0px));
+
+  margin-left:
+    auto;
+
+  margin-right:
+    auto;
+}
+
+main > section > .panel:has(.tablewrap) .tablewrap tbody tr {
+  background:
+    transparent;
+
+  transition:
+    background .15s ease,
+    transform .15s ease;
+}
+
+main > section > .panel:has(.tablewrap) .tablewrap tbody tr:hover {
+  transform:
+    translateX(2px);
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(0,220,255,.045),
+      rgba(141,92,255,.02),
+      transparent
+    ) !important;
+}
+
+/* ------------------------------------------------------------
+   TERMINAL FOOTER LINE
+   ------------------------------------------------------------ */
+
+main > section {
+  position:
+    relative;
+}
+
+main > section::after {
+  content:
+    "TRADEMINDMZ • AI MARKET INTELLIGENCE • PIONEX READ-ONLY";
+
+  display:
+    block;
+
+  width:
+    min(1500px, calc(100% - 48px));
+
+  margin:
+    35px auto 0;
+
+  padding-top:
+    14px;
+
+  border-top:
+    1px solid rgba(255,255,255,.035);
+
+  color:
+    rgba(110,124,146,.45);
+
+  font-size:
+    7px;
+
+  font-weight:
+    800;
+
+  letter-spacing:
+    .18em;
+
+  text-align:
+    right;
+}
+
+/* ------------------------------------------------------------
+   MOBILE COMMAND CENTER
+   ------------------------------------------------------------ */
+
+@media (max-width: 900px) {
+
+  main > section > .hero::after {
+    position:
+      static;
+
+    display:
+      inline-flex;
+
+    margin-top:
+      10px;
+  }
+
+  main > section > .grid > .main.panel::before {
+    display:
+      none;
+  }
+
+  main > section > .grid > .main.panel {
+    min-height:
+      auto;
+  }
+
+  main > section > .grid .wallet-total strong {
+    font-size:
+      34px !important;
+  }
+}
+
+@media (max-width: 600px) {
+
+  main > section > .hero h1 {
+    font-size:
+      29px !important;
+  }
+
+  main > section > .grid .wallet-total::after {
+    display:
+      none;
+  }
+
+  main > section::after {
+    width:
+      calc(100% - 24px);
+
+    text-align:
+      center;
+  }
+}

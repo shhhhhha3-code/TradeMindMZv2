@@ -12,6 +12,7 @@ import { fetchSignalHistory } from "./services/signalHistoryService.js";
 import { fetchDashboardData } from "./services/dashboardService.js";
 import "./ui/trademind-v3.css";
 import "./ui/trademind-v4.css";
+import "./ui/trademind-v41.css";
 function Logo(){
   return (
     <div className="brand">
@@ -30,7 +31,7 @@ function Logo(){
 function Ring({score}){return <div className="ring" style={{'--p':score*3.6+'deg'}}><div><b>{score}</b><small>AI SCORE</small></div></div>}
 
 function App(){
-const[tab,setTab]=useState('signals'),[bought,setBought]=useState(false),[manualPurchaseOpen,setManualPurchaseOpen]=useState(false),[trackedPositions,setTrackedPositions]=useState(()=>loadTrackedPositions()),[open,setOpen]=useState(false),[purchaseDefaults,setPurchaseDefaults]=useState({symbol:"BTCUSDT",side:"LONG",entryPrice:0,stopLoss:0,takeProfit:0}),[aiSettings,setAiSettings]=useState(()=>{try{return JSON.parse(localStorage.getItem('trademindmz-ai-settings'))||{ai:true,openai:true,groq:true,learning:true}}catch{return{ai:true,openai:true,groq:true,learning:true}}});const handleManualPurchase=(purchase)=>{
+const[tab,setTab]=useState('dashboard'),[bought,setBought]=useState(false),[manualPurchaseOpen,setManualPurchaseOpen]=useState(false),[trackedPositions,setTrackedPositions]=useState(()=>loadTrackedPositions()),[open,setOpen]=useState(false),[purchaseDefaults,setPurchaseDefaults]=useState({symbol:"BTCUSDT",side:"LONG",entryPrice:0,stopLoss:0,takeProfit:0}),[aiSettings,setAiSettings]=useState(()=>{try{return JSON.parse(localStorage.getItem('trademindmz-ai-settings'))||{ai:true,openai:true,groq:true,learning:true}}catch{return{ai:true,openai:true,groq:true,learning:true}}});const handleManualPurchase=(purchase)=>{
   const result=registerManualPurchase(purchase);
 
   if(!result?.success){
