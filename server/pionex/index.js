@@ -11,6 +11,10 @@ import {
 
 import { getWalletBalancesFull } from "./pionexClient.js";
 
+import {
+  runAIDecisionLayer,
+} from "../ai/aiDecisionEngine.js";
+
 const router =
   express.Router();
 
@@ -162,7 +166,129 @@ router.get(
             Number(req.query.maxMarkets || 25),
         });
 
-      res.json(result);
+      /*
+       * TradeMindMZ decision pipeline:
+       *
+       * Pionex
+       * → local scanner
+       * → Engine V1
+       * → Engine TOP 5
+       * → AI Decision Layer
+       * → final decision
+       *
+       * READ-ONLY.
+       * No order execution.
+       */
+
+      let aiDecision = null;
+
+      if (
+        Array.isArray(
+          result?.engineTop5
+        ) &&
+        result.engineTop5.length
+      ) {
+        try {
+          aiDecision =
+            await runAIDecisionLayer(
+              result.engineTop5,
+              {
+                preferredProvider:
+                  req.query.provider ||
+                  process.env.AI_DEFAULT_PROVIDER ||
+                  "groq",
+              }
+            );
+        } catch (aiError) {
+          console.error(
+            "TradeMindMZ AI decision layer failed:",
+            aiError
+          );
+
+          aiDecision = {
+            success: false,
+
+            decision:
+              "NO_TRADE",
+
+            symbol:
+              result.engineRecommendation?.symbol ??
+              result.engineTop5?.[0]?.symbol ??
+              null,
+
+            confidence: 0,
+
+            risk: "HIGH",
+
+            reason:
+              aiError instanceof Error
+                ? aiError.message
+                : "AI decision layer failed.",
+
+            provider: null,
+
+            blockedByEngine: false,
+
+            error: true,
+          };
+        }
+      } else {
+        aiDecision = {
+          success: false,
+
+          decision:
+            "NO_TRADE",
+
+          symbol: null,
+
+          confidence: 0,
+
+          risk: "HIGH",
+
+          reason:
+            "Engine TOP 5 unavailable.",
+
+          provider: null,
+
+          blockedByEngine: true,
+        };
+      }
+
+      /*
+       * Final decision rule:
+       *
+       * Engine must have valid candidate data.
+       * AI cannot override deterministic Engine blocks.
+       */
+
+      const finalDecision =
+        aiDecision?.success === true
+          ? aiDecision.decision
+          : "NO_TRADE";
+
+      res.json({
+        ...result,
+
+        aiDecision,
+
+        finalDecision,
+
+        decisionPipeline: {
+          marketSource: "PIONEX",
+
+          engine:
+            "TradeMindMZ Engine V1",
+
+          ai:
+            "TradeMindMZ AI Decision Layer V1",
+
+          automaticTrading:
+            false,
+
+          readOnly:
+            true,
+        },
+      });
     } catch (error) {
       console.error(
         "Pionex market scan failed:",
