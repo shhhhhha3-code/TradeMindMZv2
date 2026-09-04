@@ -1,0 +1,12 @@
+{
+  "minimumScore": 70,
+  "minimumConfidence": 70,
+  "minimumRiskReward": 2,
+  "minimumRsi": 35,
+  "maximumRsi": 70,
+  "minimumVolumeRatio": 0.8,
+  "highRisk": {
+    "minimumScore": 85,
+    "minimumConfidence": 90
+  }
+}

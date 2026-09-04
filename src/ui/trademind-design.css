@@ -1,0 +1,2768 @@
+:root{
+  --bg:#07090d;--bg2:#0b0e14;--panel:rgba(17,21,29,.88);--line:#202734;
+  --text:#edf2f7;--muted:#7f8998;--soft:#aeb7c4;--cyan:#52d7ff;--green:#43e59a;
+  --red:#ff6178;--violet:#9f86ff;--orange:#ffb45a;--blue:#72a7ff;
+}
+*{box-sizing:border-box}html,body{margin:0;background:radial-gradient(circle at 72% -10%,rgba(82,215,255,.08),transparent 32%),radial-gradient(circle at 10% 100%,rgba(159,134,255,.06),transparent 30%),var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+button,a{font:inherit}a{text-decoration:none;color:inherit}
+.app-shell{display:flex;min-height:100vh}.sidebar{width:270px;padding:28px 18px;border-right:1px solid var(--line);background:rgba(7,9,13,.9);display:flex;flex-direction:column;gap:20px;position:sticky;top:0;height:100vh}
+.brand{display:flex;gap:11px;align-items:center;padding:0 10px}.brand-mark{width:34px;height:34px;position:relative;border:1px solid #2c3544;border-radius:10px;box-shadow:0 0 28px rgba(82,215,255,.08) inset}
+.brand-mark span{position:absolute;width:8px;height:8px;border-radius:50%;background:var(--red);top:11px;box-shadow:0 0 10px rgba(255,97,120,.7)}.brand-mark span:nth-child(1){left:7px}.brand-mark span:nth-child(2){right:7px}.brand-mark span:nth-child(3){width:17px;height:4px;border-radius:4px;background:#d9dee6;left:8px;bottom:6px;box-shadow:none}
+.brand-name{font-size:18px;font-weight:900;letter-spacing:.06em}.brand-name span{color:var(--red)}.brand-sub{font-size:8px;letter-spacing:.2em;color:#6f7887;margin-top:2px}
+.engine-pill{display:flex;gap:11px;align-items:center;padding:13px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(180deg,rgba(25,30,40,.8),rgba(12,15,21,.8))}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 12px rgba(67,229,154,.9)}.engine-pill strong{display:block;font-size:10px;letter-spacing:.11em}.engine-pill small{display:block;color:var(--muted);font-size:10px;margin-top:3px}
+.nav{display:flex;flex-direction:column;gap:6px}.nav-item{display:flex;align-items:center;gap:11px;padding:11px 13px;border-radius:10px;color:#8b95a4;font-size:13px}.nav-item:hover,.nav-item.active{background:#121720;color:#eef4fb}.nav-item.active{box-shadow:inset 2px 0 0 var(--cyan)}.nav-item span{width:18px;text-align:center;color:#667285}.nav-item b{margin-left:auto;font-size:10px;background:#182333;color:#a8dfff;padding:2px 7px;border-radius:20px}.sidebar-bottom{margin-top:auto}.connected{margin-left:auto;width:7px;height:7px;background:var(--green);border-radius:50%;box-shadow:0 0 10px rgba(67,229,154,.75)}
+.main{flex:1;min-width:0}.topbar{height:84px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 34px;background:rgba(7,9,13,.65);backdrop-filter:blur(10px);position:sticky;top:0;z-index:3}.page-title small{font-size:9px;color:#677182;letter-spacing:.18em}.page-title h1{margin:3px 0 0;font-size:23px}.top-actions{display:flex;align-items:center;gap:12px}.live-badge{font-size:10px;color:#abbbc8;border:1px solid #27313f;border-radius:30px;padding:7px 10px;display:flex;align-items:center;gap:7px}.live-badge i{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px rgba(67,229,154,.9)}.icon-btn{width:36px;height:36px;border:1px solid var(--line);background:#0e131b;color:#8d97a5;border-radius:10px}.avatar{width:36px;height:36px;border:1px solid #303a4a;background:#151b25;color:#e9eff7;border-radius:10px;font-size:11px;font-weight:800}
+.content{padding:34px;max-width:1600px;margin:0 auto}.hero-row{display:flex;justify-content:space-between;align-items:end;gap:25px;margin-bottom:26px}.eyebrow{font-size:9px;letter-spacing:.17em;color:var(--cyan);font-weight:800}.hero-row h2{font-size:42px;line-height:1.02;margin:9px 0 11px;letter-spacing:-.04em}.hero-row h2 span{color:#7e8b9b}.hero-row p{max-width:700px;color:var(--muted);font-size:13px;line-height:1.6;margin:0}.refresh-btn{padding:11px 15px;border:1px solid #2b3545;background:#10161f;color:#dbe3ec;border-radius:10px;display:flex;gap:8px;align-items:center;cursor:pointer}.refresh-btn:hover{border-color:#3c536a}
+.grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:16px;margin-bottom:16px}.span-4{grid-column:span 4}.span-5{grid-column:span 5}.span-7{grid-column:span 7}.span-8{grid-column:span 8}
+.card{background:linear-gradient(180deg,rgba(18,23,31,.92),rgba(12,15,21,.92));border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:0 10px 40px rgba(0,0,0,.18)}.card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}.section-label{display:flex;align-items:center;gap:10px}.section-label small{display:block;color:#657080;font-size:8px;letter-spacing:.16em;font-weight:800}.section-label strong{display:block;font-size:13px;margin-top:3px}.label-icon{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;border:1px solid var(--line);font-size:13px}.label-icon.cyan{color:var(--cyan)}.label-icon.violet{color:var(--violet)}.label-icon.green{color:var(--green)}.label-icon.orange{color:var(--orange)}.label-icon.red{color:var(--red)}.label-icon.blue{color:var(--blue)}
+.state{font-size:9px;letter-spacing:.1em;padding:6px 8px;border-radius:30px;border:1px solid #26313f}.state.success{color:var(--green)}.state.success i{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--green);margin-right:5px}.state.neutral{color:#8b95a5}
+.ai-main{display:flex;gap:26px;align-items:center}.score-ring{width:154px;height:154px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--cyan) 0 82%,#202a37 82% 100%);padding:10px;box-shadow:0 0 35px rgba(82,215,255,.08)}.ring-inner{width:100%;height:100%;border-radius:50%;display:grid;place-items:center;align-content:center;background:#0b0f15;border:1px solid #202a36}.ring-inner b{font-size:44px;line-height:1}.ring-inner small{margin-top:5px;font-size:9px;color:#6d7786;letter-spacing:.12em}.ai-copy{flex:1}.mini-label{font-size:8px;color:#687384;letter-spacing:.13em}.signal-title{display:flex;gap:10px;align-items:center;margin-top:5px;font-size:22px}.buy,.hold,.watch,.blocked{display:inline-flex;align-items:center;justify-content:center;border-radius:7px;padding:4px 7px;font-size:9px;letter-spacing:.08em}.buy{background:rgba(67,229,154,.09);border:1px solid rgba(67,229,154,.28);color:var(--green)}.hold{background:rgba(255,180,90,.08);border:1px solid rgba(255,180,90,.22);color:var(--orange)}.watch{background:rgba(114,167,255,.08);border:1px solid rgba(114,167,255,.22);color:var(--blue)}.blocked{background:rgba(255,97,120,.07);border:1px solid rgba(255,97,120,.18);color:var(--red)}.ai-copy p{font-size:12px;line-height:1.6;color:var(--muted);max-width:560px}.progress{height:5px;border-radius:20px;background:#1c2430;overflow:hidden}.progress span{display:block;height:100%;background:linear-gradient(90deg,var(--cyan),#76f1d1)}.meta-line{display:flex;gap:18px;margin-top:11px;color:#737e8d;font-size:10px}.meta-line b{color:#c4ccd6}
+.wallet-total small,.balance-split small{font-size:8px;color:#657080;letter-spacing:.13em}.wallet-total strong{font-size:38px;display:block;margin-top:6px}.wallet-total em,.balance-split em{font-style:normal;font-size:12px;color:#8b95a4;font-weight:600}.wallet-total span{font-size:10px;color:#697483}.balance-split{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px}.balance-split>div{padding:12px;border-radius:11px;background:#0d1219;border:1px solid #1e2732}.balance-split strong{display:block;font-size:17px;margin-top:5px}.wallet-bar{height:7px;background:#1b232d;border-radius:20px;overflow:hidden;margin-top:15px;display:flex}.wallet-bar span:first-child{background:var(--violet)}.wallet-bar span:last-child{background:var(--cyan)}.legend{display:flex;gap:15px;font-size:9px;color:#717c8a;margin-top:9px}.legend i{display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:5px}.legend .spot{background:var(--cyan)}.legend .futures{background:var(--violet)}
+.table{border-top:1px solid var(--line)}.thead,.tr{display:grid;grid-template-columns:2.2fr 1fr 1fr 1fr 1.1fr;align-items:center;column-gap:12px}.thead{padding:10px 2px;color:#5f6a79;font-size:8px;letter-spacing:.14em}.tr{padding:13px 2px;border-top:1px solid #181f29;font-size:11px;color:#aeb7c4}.tr strong{color:#e1e7ee}.tr b{color:#dce6ef}.up{color:var(--green)}.down{color:var(--red)}.text-btn{background:none;border:0;color:#7b8da2;font-size:10px;cursor:pointer}
+.rule{display:flex;justify-content:space-between;align-items:center;padding:13px 0;border-bottom:1px solid #191f28;font-size:11px;color:#9aa5b3}.rule div:first-child{display:flex;gap:10px;justify-content:space-between;flex:1}.rule b{color:#e3e8ee}.rule .ok,.rule .warn{font-size:8px;letter-spacing:.1em}.rule .ok{color:var(--green)}.rule .warn{color:var(--orange)}.safety-note{margin-top:16px;padding:12px;background:rgba(255,180,90,.05);border:1px solid rgba(255,180,90,.14);border-radius:10px;font-size:10px;line-height:1.5;color:#a8a095}
+.position-row{display:grid;grid-template-columns:auto 2fr 1fr 1fr auto;align-items:center;gap:13px;padding:13px 0;border-top:1px solid #191f28}.coin-badge{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:#19222e;color:#aee6ff;font-weight:800;font-size:11px}.coin-badge.violet{color:#c6b9ff;background:#211b33}.pos-main strong{display:block;font-size:12px}.pos-main small,.position-row small{display:block;color:#687381;font-size:9px;margin-top:3px}.position-row>div:not(.pos-main) strong{font-size:12px}
+.activity{display:flex;gap:10px;align-items:flex-start;padding:13px 0;border-top:1px solid #191f28}.activity .dot{width:7px;height:7px;border-radius:50%;margin-top:4px}.dot.green{background:var(--green)}.dot.cyan{background:var(--cyan)}.dot.amber{background:var(--orange)}.activity strong{font-size:11px;display:block}.activity small{display:block;color:#687381;font-size:9px;margin-top:3px}
+@media (max-width:1080px){.sidebar{width:220px}.content{padding:25px}.hero-row h2{font-size:34px}.span-7,.span-8{grid-column:span 12}.span-5,.span-4{grid-column:span 12}}
+@media (max-width:760px){.sidebar{display:none}.topbar{padding:0 18px}.content{padding:18px}.hero-row{align-items:flex-start;flex-direction:column}.hero-row h2{font-size:32px}.top-actions .icon-btn{display:none}.ai-main{flex-direction:column;align-items:flex-start}.score-ring{width:130px;height:130px}.thead{display:none}.tr{grid-template-columns:1fr auto;row-gap:5px}.tr>*:nth-child(2),.tr>*:nth-child(3),.tr>*:nth-child(4){display:none}.position-row{grid-template-columns:auto 1fr auto}.position-row>div:nth-child(3),.position-row>div:nth-child(4){display:none}.span-5,.span-7,.span-8,.span-4{grid-column:span 12}}
+
+/* =========================================================
+   TradeMindMZ Dashboard — layout override
+   Keeps new dashboard cards full-width and prevents
+   legacy .grid/.span rules from collapsing the design.
+   ========================================================= */
+
+main > section {
+  width: 100%;
+  min-width: 0;
+}
+
+main > section > .hero-row,
+main > section > .grid {
+  width: 100%;
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+main > section > .grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 16px;
+  align-items: stretch;
+}
+
+main > section > .grid > .span-4 {
+  grid-column: span 4 !important;
+  width: auto !important;
+  min-width: 0;
+}
+
+main > section > .grid > .span-5 {
+  grid-column: span 5 !important;
+  width: auto !important;
+  min-width: 0;
+}
+
+main > section > .grid > .span-7 {
+  grid-column: span 7 !important;
+  width: auto !important;
+  min-width: 0;
+}
+
+main > section > .grid > .span-8 {
+  grid-column: span 8 !important;
+  width: auto !important;
+  min-width: 0;
+}
+
+main > section > .grid > .card {
+  align-self: stretch;
+}
+
+.wallet-card,
+.ai-card,
+.activity-card {
+  width: auto !important;
+  max-width: none !important;
+}
+
+@media (max-width: 1100px) {
+  main > section > .grid > .span-4,
+  main > section > .grid > .span-5,
+  main > section > .grid > .span-7,
+  main > section > .grid > .span-8 {
+    grid-column: span 12 !important;
+  }
+}
+
+@media (max-width: 760px) {
+  main > section > .grid {
+    grid-template-columns: 1fr;
+  }
+
+  main > section > .grid > .span-4,
+  main > section > .grid > .span-5,
+  main > section > .grid > .span-7,
+  main > section > .grid > .span-8 {
+    grid-column: 1 !important;
+  }
+}
+
+
+/* =========================================================
+   AI SIGNALS
+   The legacy Signals page uses:
+   .grid > .panel.main + .stack
+   The new grid is 12 columns, so explicitly assign
+   the intended 7 / 5 split.
+   ========================================================= */
+
+main > section > .grid > .main {
+  grid-column: span 7 !important;
+  width: auto !important;
+  min-width: 0;
+}
+
+main > section > .grid > .stack {
+  grid-column: span 5 !important;
+  width: auto !important;
+  min-width: 0;
+}
+
+main > section > .grid > .stack > .panel {
+  width: 100%;
+  min-width: 0;
+}
+
+main > section > .grid > .main,
+main > section > .grid > .stack {
+  align-self: stretch;
+}
+
+@media (max-width: 1100px) {
+  main > section > .grid > .main,
+  main > section > .grid > .stack {
+    grid-column: span 12 !important;
+  }
+}
+
+@media (max-width: 760px) {
+  main > section > .grid > .main,
+  main > section > .grid > .stack {
+    grid-column: 1 !important;
+  }
+
+  main > section > .grid > .stack {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+
+/* =========================================================
+   LIVE POSITIONS
+   Modern full-width position layout.
+   Existing Pionex + AI logic remains untouched.
+   ========================================================= */
+
+main > section > .positions {
+  width: 100%;
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+
+  display: grid !important;
+  grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  gap: 16px !important;
+
+  align-items: stretch;
+}
+
+main > section > .positions > .panel,
+main > section > .positions > .pos {
+  grid-column: span 6 !important;
+  width: auto !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+/* Modern position card */
+
+main > section > .positions > .pos {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(18,23,31,.96),
+      rgba(10,15,21,.96)
+    );
+
+  border: 1px solid #202a36;
+  border-radius: 16px;
+
+  padding: 20px;
+
+  box-shadow:
+    0 10px 35px rgba(0,0,0,.16);
+
+  transition:
+    border-color .18s ease,
+    transform .18s ease,
+    box-shadow .18s ease;
+}
+
+main > section > .positions > .pos:hover {
+  border-color: #2f3e50;
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 16px 45px rgba(0,0,0,.22);
+}
+
+/* Empty / loading / error state */
+
+main > section > .panel .live-position-empty {
+  min-height: 240px;
+
+  display: grid;
+  place-content: center;
+  justify-items: center;
+
+  text-align: center;
+
+  padding: 30px;
+}
+
+main > section > .panel .live-position-empty svg {
+  color: #697789;
+  margin-bottom: 8px;
+}
+
+main > section > .panel .live-position-empty h3 {
+  margin: 5px 0;
+  font-size: 14px;
+}
+
+main > section > .panel .live-position-empty p {
+  max-width: 440px;
+  color: #738091;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* Position header */
+
+main > section > .positions .head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+main > section > .positions .pair {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+main > section > .positions .coin {
+  width: 38px;
+  height: 38px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 10px;
+
+  background: #151c26;
+  border: 1px solid #273242;
+
+  color: #b7ddff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+main > section > .positions .pair b {
+  display: block;
+  font-size: 14px;
+}
+
+main > section > .positions .pair small {
+  display: block;
+  margin-top: 4px;
+
+  color: #697687;
+  font-size: 9px;
+}
+
+/* Position values */
+
+main > section > .positions .price {
+  display: grid;
+
+  grid-template-columns:
+    1.4fr
+    1fr
+    1fr;
+
+  gap: 12px;
+
+  margin-top: 20px;
+
+  padding:
+    14px
+    0;
+
+  border-top: 1px solid #1d2632;
+  border-bottom: 1px solid #1d2632;
+}
+
+main > section > .positions .price small {
+  display: block;
+
+  color: #647082;
+  font-size: 8px;
+  letter-spacing: .1em;
+}
+
+main > section > .positions .price strong {
+  display: block;
+
+  margin-top: 5px;
+
+  font-size: 14px;
+}
+
+/* Details */
+
+main > section > .positions .details {
+  display: grid;
+
+  grid-template-columns:
+    repeat(3,1fr);
+
+  gap: 10px;
+
+  padding: 15px 0;
+}
+
+main > section > .positions .details span {
+  color: #667384;
+  font-size: 8px;
+}
+
+main > section > .positions .details b {
+  display: block;
+
+  margin-top: 4px;
+
+  color: #dce3ea;
+  font-size: 10px;
+}
+
+/* AI verdict */
+
+main > section > .positions .verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+
+  padding: 13px;
+
+  background: #0e151e;
+
+  border: 1px solid #202c39;
+  border-radius: 10px;
+}
+
+main > section > .positions .verdict svg {
+  color: #52d7ff;
+  flex: none;
+}
+
+main > section > .positions .verdict b {
+  display: block;
+  font-size: 10px;
+}
+
+main > section > .positions .verdict small {
+  display: block;
+
+  margin-top: 4px;
+
+  color: #748193;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+/* Pionex safety label */
+
+main > section > .positions .decision {
+  white-space: nowrap;
+}
+
+/* Buttons */
+
+main > section > .positions .posbuttons {
+  display: flex;
+  gap: 9px;
+
+  margin-top: 14px;
+}
+
+main > section > .positions .posbuttons button {
+  min-height: 38px;
+
+  flex: 1;
+
+  border-radius: 9px;
+
+  background: #111821;
+  border: 1px solid #26313e;
+
+  color: #9ba7b5;
+
+  font-size: 9px;
+
+  transition:
+    border-color .18s ease,
+    background .18s ease,
+    color .18s ease;
+}
+
+main > section > .positions .posbuttons button:hover {
+  background: #151d27;
+  border-color: #344353;
+  color: #e5ebf2;
+}
+
+/* Keep safety language visible */
+
+main > section > .positions .live,
+main > section > .positions .read-only {
+  color: #56dfa5;
+}
+
+/* Tablet */
+
+@media (max-width: 1050px) {
+
+  main > section > .positions > .panel,
+  main > section > .positions > .pos {
+    grid-column: span 12 !important;
+  }
+
+}
+
+/* Mobile */
+
+@media (max-width: 760px) {
+
+  main > section > .positions {
+    grid-template-columns: 1fr !important;
+  }
+
+  main > section > .positions > .panel,
+  main > section > .positions > .pos {
+    grid-column: 1 !important;
+  }
+
+  main > section > .positions .price {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  main > section > .positions .details {
+    grid-template-columns: 1fr 1fr;
+  }
+
+}
+
+
+/* =========================================================
+   LIVE POSITIONS
+   Modern full-width position layout.
+   Existing Pionex + AI logic remains untouched.
+   ========================================================= */
+
+main > section > .positions {
+  width: 100%;
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+
+  display: grid !important;
+  grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+  gap: 16px !important;
+
+  align-items: stretch;
+}
+
+main > section > .positions > .panel,
+main > section > .positions > .pos {
+  grid-column: span 6 !important;
+  width: auto !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+}
+
+/* Modern position card */
+
+main > section > .positions > .pos {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(18,23,31,.96),
+      rgba(10,15,21,.96)
+    );
+
+  border: 1px solid #202a36;
+  border-radius: 16px;
+
+  padding: 20px;
+
+  box-shadow:
+    0 10px 35px rgba(0,0,0,.16);
+
+  transition:
+    border-color .18s ease,
+    transform .18s ease,
+    box-shadow .18s ease;
+}
+
+main > section > .positions > .pos:hover {
+  border-color: #2f3e50;
+  transform: translateY(-1px);
+
+  box-shadow:
+    0 16px 45px rgba(0,0,0,.22);
+}
+
+/* Empty / loading / error state */
+
+main > section > .panel .live-position-empty {
+  min-height: 240px;
+
+  display: grid;
+  place-content: center;
+  justify-items: center;
+
+  text-align: center;
+
+  padding: 30px;
+}
+
+main > section > .panel .live-position-empty svg {
+  color: #697789;
+  margin-bottom: 8px;
+}
+
+main > section > .panel .live-position-empty h3 {
+  margin: 5px 0;
+  font-size: 14px;
+}
+
+main > section > .panel .live-position-empty p {
+  max-width: 440px;
+  color: #738091;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+/* Position header */
+
+main > section > .positions .head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+main > section > .positions .pair {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+main > section > .positions .coin {
+  width: 38px;
+  height: 38px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 10px;
+
+  background: #151c26;
+  border: 1px solid #273242;
+
+  color: #b7ddff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+main > section > .positions .pair b {
+  display: block;
+  font-size: 14px;
+}
+
+main > section > .positions .pair small {
+  display: block;
+  margin-top: 4px;
+
+  color: #697687;
+  font-size: 9px;
+}
+
+/* Position values */
+
+main > section > .positions .price {
+  display: grid;
+
+  grid-template-columns:
+    1.4fr
+    1fr
+    1fr;
+
+  gap: 12px;
+
+  margin-top: 20px;
+
+  padding:
+    14px
+    0;
+
+  border-top: 1px solid #1d2632;
+  border-bottom: 1px solid #1d2632;
+}
+
+main > section > .positions .price small {
+  display: block;
+
+  color: #647082;
+  font-size: 8px;
+  letter-spacing: .1em;
+}
+
+main > section > .positions .price strong {
+  display: block;
+
+  margin-top: 5px;
+
+  font-size: 14px;
+}
+
+/* Details */
+
+main > section > .positions .details {
+  display: grid;
+
+  grid-template-columns:
+    repeat(3,1fr);
+
+  gap: 10px;
+
+  padding: 15px 0;
+}
+
+main > section > .positions .details span {
+  color: #667384;
+  font-size: 8px;
+}
+
+main > section > .positions .details b {
+  display: block;
+
+  margin-top: 4px;
+
+  color: #dce3ea;
+  font-size: 10px;
+}
+
+/* AI verdict */
+
+main > section > .positions .verdict {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+
+  padding: 13px;
+
+  background: #0e151e;
+
+  border: 1px solid #202c39;
+  border-radius: 10px;
+}
+
+main > section > .positions .verdict svg {
+  color: #52d7ff;
+  flex: none;
+}
+
+main > section > .positions .verdict b {
+  display: block;
+  font-size: 10px;
+}
+
+main > section > .positions .verdict small {
+  display: block;
+
+  margin-top: 4px;
+
+  color: #748193;
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+/* Pionex safety label */
+
+main > section > .positions .decision {
+  white-space: nowrap;
+}
+
+/* Buttons */
+
+main > section > .positions .posbuttons {
+  display: flex;
+  gap: 9px;
+
+  margin-top: 14px;
+}
+
+main > section > .positions .posbuttons button {
+  min-height: 38px;
+
+  flex: 1;
+
+  border-radius: 9px;
+
+  background: #111821;
+  border: 1px solid #26313e;
+
+  color: #9ba7b5;
+
+  font-size: 9px;
+
+  transition:
+    border-color .18s ease,
+    background .18s ease,
+    color .18s ease;
+}
+
+main > section > .positions .posbuttons button:hover {
+  background: #151d27;
+  border-color: #344353;
+  color: #e5ebf2;
+}
+
+/* Keep safety language visible */
+
+main > section > .positions .live,
+main > section > .positions .read-only {
+  color: #56dfa5;
+}
+
+/* Tablet */
+
+@media (max-width: 1050px) {
+
+  main > section > .positions > .panel,
+  main > section > .positions > .pos {
+    grid-column: span 12 !important;
+  }
+
+}
+
+/* Mobile */
+
+@media (max-width: 760px) {
+
+  main > section > .positions {
+    grid-template-columns: 1fr !important;
+  }
+
+  main > section > .positions > .panel,
+  main > section > .positions > .pos {
+    grid-column: 1 !important;
+  }
+
+  main > section > .positions .price {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  main > section > .positions .details {
+    grid-template-columns: 1fr 1fr;
+  }
+
+}
+
+
+/* =========================================================
+   MARKET OVERVIEW
+   Full-width live Pionex market intelligence table.
+   Existing API/data logic remains untouched.
+   ========================================================= */
+
+main > section > .market-overview,
+main > section > .market-page {
+  width: 100%;
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Existing market panel */
+
+main > section > .panel:has(.tablewrap) {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+main > section > .panel .tablewrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+main > section > .panel .tablewrap table {
+  width: 100%;
+  min-width: 760px;
+
+  border-collapse: collapse;
+  border-spacing: 0;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(18,23,31,.94),
+      rgba(10,15,21,.94)
+    );
+}
+
+main > section > .panel .tablewrap thead {
+  background: #0b1017;
+}
+
+main > section > .panel .tablewrap th {
+  padding: 13px 16px;
+
+  border-bottom: 1px solid #202a36;
+
+  color: #657182;
+
+  font-size: 8px;
+  font-weight: 800;
+
+  letter-spacing: .13em;
+
+  text-align: left;
+
+  white-space: nowrap;
+}
+
+main > section > .panel .tablewrap td {
+  padding: 15px 16px;
+
+  border-bottom: 1px solid #19212c;
+
+  color: #aeb8c5;
+
+  font-size: 11px;
+
+  white-space: nowrap;
+}
+
+main > section > .panel .tablewrap tbody tr {
+  transition:
+    background .16s ease,
+    border-color .16s ease;
+}
+
+main > section > .panel .tablewrap tbody tr:hover {
+  background: rgba(82,215,255,.035);
+}
+
+main > section > .panel .tablewrap tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Symbol */
+
+main > section > .panel .tablewrap td:first-child {
+  color: #eef3f8;
+  font-weight: 800;
+}
+
+/* Price */
+
+main > section > .panel .tablewrap td:nth-child(2) {
+  color: #dce3ea;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Positive / negative market move */
+
+main > section > .panel .tablewrap .positive,
+main > section > .panel .tablewrap .up {
+  color: #43e59a;
+}
+
+main > section > .panel .tablewrap .negative,
+main > section > .panel .tablewrap .down {
+  color: #ff6178;
+}
+
+/* Score */
+
+main > section > .panel .tablewrap td:nth-child(4) {
+  color: #dce8f2;
+  font-weight: 800;
+}
+
+/* RSI */
+
+main > section > .panel .tablewrap td:nth-child(5) {
+  color: #b5c1cf;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Volume */
+
+main > section > .panel .tablewrap td:nth-child(6) {
+  color: #9eabba;
+}
+
+/* Trend / status chips */
+
+main > section > .panel .tablewrap .bullish,
+main > section > .panel .tablewrap .BULLISH {
+  color: #43e59a;
+}
+
+main > section > .panel .tablewrap .bearish,
+main > section > .panel .tablewrap .BEARISH {
+  color: #ff6178;
+}
+
+main > section > .panel .tablewrap .neutral,
+main > section > .panel .tablewrap .NEUTRAL {
+  color: #a2adbb;
+}
+
+/* Market overview footer */
+
+main > section > .panel .market-count,
+main > section > .panel .market-footer {
+  padding: 12px 16px;
+
+  border-top: 1px solid #1c2530;
+
+  color: #657283;
+
+  font-size: 9px;
+}
+
+/* Better wide-screen spacing */
+
+@media (min-width: 1200px) {
+
+  main > section > .panel .tablewrap th,
+  main > section > .panel .tablewrap td {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+}
+
+/* Tablet */
+
+@media (max-width: 900px) {
+
+  main > section > .panel .tablewrap table {
+    min-width: 700px;
+  }
+
+}
+
+/* Mobile keeps table scrollable instead of collapsing it */
+
+@media (max-width: 760px) {
+
+  main > section > .panel .tablewrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  main > section > .panel .tablewrap table {
+    min-width: 720px;
+  }
+
+}
+
+
+/* =========================================================
+   MARKET OVERVIEW
+   Full-width live Pionex market intelligence table.
+   Existing API/data logic remains untouched.
+   ========================================================= */
+
+main > section > .market-overview,
+main > section > .market-page {
+  width: 100%;
+  max-width: 1600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Existing market panel */
+
+main > section > .panel:has(.tablewrap) {
+  width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+main > section > .panel .tablewrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+main > section > .panel .tablewrap table {
+  width: 100%;
+  min-width: 760px;
+
+  border-collapse: collapse;
+  border-spacing: 0;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(18,23,31,.94),
+      rgba(10,15,21,.94)
+    );
+}
+
+main > section > .panel .tablewrap thead {
+  background: #0b1017;
+}
+
+main > section > .panel .tablewrap th {
+  padding: 13px 16px;
+
+  border-bottom: 1px solid #202a36;
+
+  color: #657182;
+
+  font-size: 8px;
+  font-weight: 800;
+
+  letter-spacing: .13em;
+
+  text-align: left;
+
+  white-space: nowrap;
+}
+
+main > section > .panel .tablewrap td {
+  padding: 15px 16px;
+
+  border-bottom: 1px solid #19212c;
+
+  color: #aeb8c5;
+
+  font-size: 11px;
+
+  white-space: nowrap;
+}
+
+main > section > .panel .tablewrap tbody tr {
+  transition:
+    background .16s ease,
+    border-color .16s ease;
+}
+
+main > section > .panel .tablewrap tbody tr:hover {
+  background: rgba(82,215,255,.035);
+}
+
+main > section > .panel .tablewrap tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+/* Symbol */
+
+main > section > .panel .tablewrap td:first-child {
+  color: #eef3f8;
+  font-weight: 800;
+}
+
+/* Price */
+
+main > section > .panel .tablewrap td:nth-child(2) {
+  color: #dce3ea;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Positive / negative market move */
+
+main > section > .panel .tablewrap .positive,
+main > section > .panel .tablewrap .up {
+  color: #43e59a;
+}
+
+main > section > .panel .tablewrap .negative,
+main > section > .panel .tablewrap .down {
+  color: #ff6178;
+}
+
+/* Score */
+
+main > section > .panel .tablewrap td:nth-child(4) {
+  color: #dce8f2;
+  font-weight: 800;
+}
+
+/* RSI */
+
+main > section > .panel .tablewrap td:nth-child(5) {
+  color: #b5c1cf;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Volume */
+
+main > section > .panel .tablewrap td:nth-child(6) {
+  color: #9eabba;
+}
+
+/* Trend / status chips */
+
+main > section > .panel .tablewrap .bullish,
+main > section > .panel .tablewrap .BULLISH {
+  color: #43e59a;
+}
+
+main > section > .panel .tablewrap .bearish,
+main > section > .panel .tablewrap .BEARISH {
+  color: #ff6178;
+}
+
+main > section > .panel .tablewrap .neutral,
+main > section > .panel .tablewrap .NEUTRAL {
+  color: #a2adbb;
+}
+
+/* Market overview footer */
+
+main > section > .panel .market-count,
+main > section > .panel .market-footer {
+  padding: 12px 16px;
+
+  border-top: 1px solid #1c2530;
+
+  color: #657283;
+
+  font-size: 9px;
+}
+
+/* Better wide-screen spacing */
+
+@media (min-width: 1200px) {
+
+  main > section > .panel .tablewrap th,
+  main > section > .panel .tablewrap td {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+
+}
+
+/* Tablet */
+
+@media (max-width: 900px) {
+
+  main > section > .panel .tablewrap table {
+    min-width: 700px;
+  }
+
+}
+
+/* Mobile keeps table scrollable instead of collapsing it */
+
+@media (max-width: 760px) {
+
+  main > section > .panel .tablewrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  main > section > .panel .tablewrap table {
+    min-width: 720px;
+  }
+
+}
+
+
+/* =========================================================
+   TRADEMINDMZ COMPLETE UI SYSTEM
+   Final shared layout for all application pages.
+   DATA / API / AI / PIONEX LOGIC UNCHANGED.
+   ========================================================= */
+
+
+/* ---------------------------------------------------------
+   GLOBAL PAGE CONTAINER
+   --------------------------------------------------------- */
+
+main > section {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+}
+
+main > section > .hero,
+main > section > .hero-row,
+main > section > .grid,
+main > section > .positions,
+main > section > .settingspage {
+  width: min(
+    calc(100% - 48px),
+    1500px
+  );
+
+  max-width: 1500px;
+
+  margin-left: auto;
+  margin-right: auto;
+}
+
+
+/* ---------------------------------------------------------
+   GLOBAL HERO
+   --------------------------------------------------------- */
+
+main > section > .hero,
+main > section > .hero-row {
+  padding-top: 34px;
+  margin-bottom: 26px;
+}
+
+main > section > .hero h1,
+main > section > .hero-row h2 {
+  max-width: 850px;
+}
+
+main > section > .hero p,
+main > section > .hero-row p {
+  max-width: 820px;
+}
+
+
+/* ---------------------------------------------------------
+   GLOBAL GRID
+   --------------------------------------------------------- */
+
+main > section > .grid {
+  display: grid !important;
+
+  grid-template-columns:
+    repeat(
+      12,
+      minmax(0,1fr)
+    ) !important;
+
+  gap: 16px !important;
+
+  align-items: stretch;
+
+  margin-bottom: 18px;
+}
+
+main > section > .grid > * {
+  min-width: 0;
+}
+
+
+/* ---------------------------------------------------------
+   EXPLICIT SPANS
+   --------------------------------------------------------- */
+
+main > section > .grid > .span-4 {
+  grid-column: span 4 !important;
+}
+
+main > section > .grid > .span-5 {
+  grid-column: span 5 !important;
+}
+
+main > section > .grid > .span-7 {
+  grid-column: span 7 !important;
+}
+
+main > section > .grid > .span-8 {
+  grid-column: span 8 !important;
+}
+
+main > section > .grid > .span-12 {
+  grid-column: span 12 !important;
+}
+
+
+/* ---------------------------------------------------------
+   DASHBOARD FINISHING
+   --------------------------------------------------------- */
+
+main > section > .grid .card {
+  min-height: 0;
+}
+
+main > section > .grid > .activity-card {
+  min-height: 100%;
+}
+
+main > section > .grid .wallet-total strong {
+  white-space: nowrap;
+}
+
+main > section > .grid .levels {
+  width: 100%;
+}
+
+main > section > .grid .position-row {
+  min-width: 0;
+}
+
+
+/* ---------------------------------------------------------
+   AI SIGNALS
+   --------------------------------------------------------- */
+
+main > section > .grid > .main {
+  grid-column: span 7 !important;
+  min-width: 0;
+}
+
+main > section > .grid > .stack {
+  grid-column: span 5 !important;
+
+  display: grid;
+
+  grid-template-columns: 1fr;
+
+  gap: 16px;
+
+  min-width: 0;
+}
+
+main > section > .grid > .stack > .panel {
+  width: 100%;
+  min-width: 0;
+}
+
+main > section > .grid > .main.panel {
+  min-height: 0;
+}
+
+main > section > .grid > .main.panel .buy {
+  min-height: 44px;
+}
+
+main > section > .grid > .main.panel .core {
+  min-height: 180px;
+}
+
+
+/* Reduce useless empty space in the main AI panel */
+
+main > section > .grid > .main.panel {
+  padding-bottom: 24px;
+}
+
+
+/* ---------------------------------------------------------
+   LIVE POSITIONS
+   --------------------------------------------------------- */
+
+main > section > .positions {
+  display: grid !important;
+
+  grid-template-columns:
+    repeat(
+      12,
+      minmax(0,1fr)
+    ) !important;
+
+  gap: 16px !important;
+
+  align-items: stretch;
+}
+
+main > section > .positions > .panel,
+main > section > .positions > .pos {
+  grid-column: span 6 !important;
+
+  width: auto !important;
+  min-width: 0 !important;
+
+  margin: 0 !important;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(18,23,31,.97),
+      rgba(10,15,21,.97)
+    );
+
+  border: 1px solid #202a36;
+
+  border-radius: 16px;
+
+  box-shadow:
+    0 12px 35px rgba(0,0,0,.18);
+}
+
+
+/* Position card header */
+
+main > section > .positions .head {
+  display: flex;
+
+  justify-content: space-between;
+  align-items: center;
+
+  gap: 14px;
+}
+
+main > section > .positions .pair {
+  min-width: 0;
+}
+
+main > section > .positions .pair b {
+  overflow: hidden;
+
+  text-overflow: ellipsis;
+
+  white-space: nowrap;
+}
+
+
+/* Position price block */
+
+main > section > .positions .price {
+  width: 100%;
+
+  grid-template-columns:
+    1.25fr
+    1fr
+    1fr;
+
+  gap: 14px;
+
+  padding: 16px 0;
+
+  border-top: 1px solid #1c2631;
+  border-bottom: 1px solid #1c2631;
+}
+
+
+/* Position details */
+
+main > section > .positions .details {
+  width: 100%;
+
+  grid-template-columns:
+    repeat(3,1fr);
+
+  gap: 12px;
+
+  padding: 15px 0;
+}
+
+
+/* Position AI verdict */
+
+main > section > .positions .verdict {
+  width: 100%;
+
+  min-width: 0;
+}
+
+
+/* Position buttons */
+
+main > section > .positions .posbuttons {
+  width: 100%;
+
+  display: flex;
+
+  gap: 10px;
+}
+
+main > section > .positions .posbuttons button {
+  min-width: 0;
+}
+
+
+/* Empty state */
+
+main > section > .panel .live-position-empty {
+  min-height: 270px;
+
+  display: grid;
+
+  place-content: center;
+
+  justify-items: center;
+
+  text-align: center;
+}
+
+
+/* ---------------------------------------------------------
+   MARKET OVERVIEW
+   --------------------------------------------------------- */
+
+main > section > .panel:has(.tablewrap) {
+  width: min(
+    calc(100% - 48px),
+    1500px
+  );
+
+  max-width: 1500px;
+
+  margin-left: auto;
+  margin-right: auto;
+
+  overflow: hidden;
+}
+
+main > section > .panel .tablewrap {
+  width: 100%;
+
+  overflow-x: auto;
+
+  -webkit-overflow-scrolling: touch;
+}
+
+main > section > .panel .tablewrap table {
+  width: 100%;
+
+  min-width: 880px;
+
+  border-collapse: collapse;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(18,23,31,.94),
+      rgba(10,15,21,.94)
+    );
+}
+
+main > section > .panel .tablewrap th {
+  padding: 14px 18px;
+
+  background: #0a0f15;
+
+  border-bottom: 1px solid #202a36;
+
+  color: #667383;
+
+  font-size: 8px;
+
+  letter-spacing: .14em;
+
+  text-align: left;
+
+  white-space: nowrap;
+}
+
+main > section > .panel .tablewrap td {
+  padding: 15px 18px;
+
+  border-bottom: 1px solid #18212c;
+
+  color: #aeb8c4;
+
+  font-size: 11px;
+
+  white-space: nowrap;
+}
+
+main > section > .panel .tablewrap tbody tr {
+  transition:
+    background .15s ease;
+}
+
+main > section > .panel .tablewrap tbody tr:hover {
+  background: rgba(82,215,255,.035);
+}
+
+main > section > .panel .tablewrap tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+main > section > .panel .tablewrap td:first-child strong {
+  color: #edf3f8;
+
+  font-weight: 800;
+}
+
+main > section > .panel .tablewrap td:nth-child(4) {
+  color: #dce6ef;
+
+  font-weight: 800;
+}
+
+main > section > .panel .tablewrap td:nth-child(5) {
+  font-variant-numeric: tabular-nums;
+}
+
+main > section > .panel .tablewrap td:nth-child(6) {
+  font-variant-numeric: tabular-nums;
+}
+
+
+/* ---------------------------------------------------------
+   SIGNAL HISTORY
+   --------------------------------------------------------- */
+
+main > section > .positions {
+  row-gap: 16px;
+}
+
+main > section > .positions .pos {
+  overflow: hidden;
+}
+
+main > section > .positions .pos .head {
+  margin-bottom: 10px;
+}
+
+main > section > .positions .pos .details {
+  margin-top: 5px;
+}
+
+main > section > .positions .pos .verdict {
+  margin-top: 8px;
+}
+
+
+/* ---------------------------------------------------------
+   SETTINGS
+   --------------------------------------------------------- */
+
+main > section > .settingspage {
+  display: grid;
+
+  grid-template-columns:
+    1fr;
+
+  gap: 16px;
+
+  padding-top: 34px;
+  padding-bottom: 40px;
+}
+
+main > section > .settingspage .settingshero {
+  width: 100%;
+
+  padding: 6px 0 10px;
+}
+
+main > section > .settingspage .settingshero h1 {
+  margin-bottom: 8px;
+}
+
+main > section > .settingspage .settingshero p {
+  max-width: 760px;
+
+  color: #748091;
+
+  line-height: 1.65;
+}
+
+main > section > .settingspage .panel {
+  width: 100%;
+
+  min-width: 0;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(18,23,31,.96),
+      rgba(10,15,21,.96)
+    );
+
+  border: 1px solid #202a36;
+
+  border-radius: 16px;
+}
+
+
+/* Settings rows */
+
+main > section > .settingspage .settingrow {
+  display: flex;
+
+  align-items: center;
+
+  justify-content: space-between;
+
+  gap: 20px;
+
+  padding: 16px 0;
+
+  border-bottom: 1px solid #19212b;
+}
+
+main > section > .settingspage .settingrow:last-child {
+  border-bottom: 0;
+}
+
+main > section > .settingspage .settingrow > div {
+  min-width: 0;
+}
+
+main > section > .settingspage .settingrow b {
+  display: block;
+
+  color: #e9eef4;
+
+  font-size: 12px;
+}
+
+main > section > .settingspage .settingrow small {
+  display: block;
+
+  margin-top: 5px;
+
+  color: #707d8d;
+
+  font-size: 10px;
+
+  line-height: 1.5;
+}
+
+
+/* Settings toggle */
+
+main > section > .settingspage .toggle {
+  flex: none;
+
+  min-width: 60px;
+
+  padding: 7px 10px;
+
+  border-radius: 30px;
+
+  border: 1px solid #293442;
+
+  background: #10161e;
+
+  color: #7c8898;
+
+  font-size: 9px;
+
+  font-weight: 800;
+}
+
+main > section > .settingspage .toggle.on {
+  color: #52dfa4;
+
+  border-color: #1f5945;
+
+  background: #0d211a;
+}
+
+
+/* Cost grid */
+
+main > section > .settingspage .costgrid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(4,minmax(0,1fr));
+
+  gap: 10px;
+
+  margin-top: 16px;
+}
+
+main > section > .settingspage .costgrid > span {
+  padding: 15px;
+
+  background: #0c1219;
+
+  border: 1px solid #1d2632;
+
+  border-radius: 11px;
+}
+
+main > section > .settingspage .costgrid b {
+  display: block;
+
+  color: #53dfa4;
+
+  font-size: 12px;
+}
+
+main > section > .settingspage .costgrid small {
+  display: block;
+
+  margin-top: 5px;
+
+  color: #687586;
+
+  font-size: 8px;
+}
+
+
+/* Safety note */
+
+main > section > .settingspage .settingsnote {
+  display: flex;
+
+  align-items: flex-start;
+
+  gap: 12px;
+
+  padding: 17px;
+}
+
+main > section > .settingspage .settingsnote > svg {
+  flex: none;
+
+  color: #52d7ff;
+}
+
+
+/* ---------------------------------------------------------
+   UNIVERSAL CARD POLISH
+   --------------------------------------------------------- */
+
+main > section .card,
+main > section .panel {
+  box-sizing: border-box;
+}
+
+main > section .text-btn {
+  white-space: nowrap;
+}
+
+main > section .state {
+  white-space: nowrap;
+}
+
+main > section .buy,
+main > section .hold,
+main > section .watch,
+main > section .blocked {
+  white-space: nowrap;
+}
+
+
+/* ---------------------------------------------------------
+   TABLET
+   --------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+
+  main > section > .grid > .span-4,
+  main > section > .grid > .span-5,
+  main > section > .grid > .span-7,
+  main > section > .grid > .span-8,
+  main > section > .grid > .main,
+  main > section > .grid > .stack {
+    grid-column: span 12 !important;
+  }
+
+  main > section > .positions > .panel,
+  main > section > .positions > .pos {
+    grid-column: span 12 !important;
+  }
+
+  main > section > .settingspage .costgrid {
+    grid-template-columns:
+      repeat(2,minmax(0,1fr));
+  }
+
+}
+
+
+/* ---------------------------------------------------------
+   MOBILE
+   --------------------------------------------------------- */
+
+@media (max-width: 760px) {
+
+  main > section > .hero,
+  main > section > .hero-row,
+  main > section > .grid,
+  main > section > .positions,
+  main > section > .settingspage,
+  main > section > .panel:has(.tablewrap) {
+    width: calc(100% - 24px);
+  }
+
+  main > section > .hero,
+  main > section > .hero-row {
+    padding-top: 22px;
+  }
+
+  main > section > .hero h1,
+  main > section > .hero-row h2 {
+    font-size: 30px;
+  }
+
+  main > section > .grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  main > section > .grid > *,
+  main > section > .grid > .span-4,
+  main > section > .grid > .span-5,
+  main > section > .grid > .span-7,
+  main > section > .grid > .span-8,
+  main > section > .grid > .main,
+  main > section > .grid > .stack {
+    grid-column: 1 !important;
+  }
+
+  main > section > .positions {
+    grid-template-columns: 1fr !important;
+  }
+
+  main > section > .positions > .panel,
+  main > section > .positions > .pos {
+    grid-column: 1 !important;
+  }
+
+  main > section > .positions .price {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+  main > section > .positions .details {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+  main > section > .positions .posbuttons {
+    flex-direction: column;
+  }
+
+  main > section > .settingspage .costgrid {
+    grid-template-columns:
+      1fr;
+  }
+
+  main > section > .settingspage .settingrow {
+    align-items: flex-start;
+  }
+
+  main > section > .settingspage .toggle {
+    margin-top: 2px;
+  }
+
+}
+
+
+/* ---------------------------------------------------------
+   SMALL MOBILE
+   --------------------------------------------------------- */
+
+@media (max-width: 500px) {
+
+  main > section > .hero,
+  main > section > .hero-row,
+  main > section > .grid,
+  main > section > .positions,
+  main > section > .settingspage,
+  main > section > .panel:has(.tablewrap) {
+    width: calc(100% - 18px);
+  }
+
+  main > section > .hero h1,
+  main > section > .hero-row h2 {
+    font-size: 27px;
+  }
+
+  main > section > .grid {
+    gap: 12px !important;
+  }
+
+  main > section > .positions {
+    gap: 12px !important;
+  }
+
+  main > section > .positions .details {
+    grid-template-columns: 1fr;
+  }
+
+  main > section > .settingspage {
+    padding-top: 20px;
+  }
+
+}
+
+
+/* =========================================================
+   TRADEMINDMZ FINAL UI POLISH
+   Applies to all remaining pages.
+   No API / AI / Pionex logic changes.
+   ========================================================= */
+
+
+/* =========================================================
+   PAGE WIDTH + SPACING
+   ========================================================= */
+
+main > section {
+  width: 100%;
+  min-width: 0;
+}
+
+main > section > .hero,
+main > section > .hero-row,
+main > section > .grid,
+main > section > .positions,
+main > section > .settingspage {
+  box-sizing: border-box;
+}
+
+
+/* =========================================================
+   DASHBOARD
+   ========================================================= */
+
+main > section > .grid {
+  margin-bottom: 18px;
+}
+
+main > section > .grid > .card,
+main > section > .grid > .panel {
+  height: 100%;
+}
+
+main > section > .grid > .card .card-head,
+main > section > .grid > .panel .card-head {
+  min-height: 34px;
+}
+
+
+/* Prevent excessive empty AI-card height */
+
+main > section > .grid > .main.panel {
+  min-height: 0;
+}
+
+
+/* =========================================================
+   AI SIGNALS
+   ========================================================= */
+
+main > section > .grid > .main.panel {
+  align-self: start;
+}
+
+main > section > .grid > .stack {
+  align-self: start;
+}
+
+main > section > .grid > .stack > .panel {
+  height: auto;
+}
+
+main > section > .grid > .main.panel .core {
+  padding-top: 24px;
+  padding-bottom: 18px;
+}
+
+main > section > .grid > .main.panel .levels {
+  margin-top: 8px;
+}
+
+main > section > .grid > .main.panel .buy {
+  margin-top: 12px;
+}
+
+
+/* =========================================================
+   LIVE POSITIONS
+   ========================================================= */
+
+main > section > .positions {
+  display: grid !important;
+
+  grid-template-columns:
+    repeat(12,minmax(0,1fr)) !important;
+
+  gap: 16px !important;
+
+  width: min(
+    calc(100% - 48px),
+    1500px
+  );
+
+  max-width: 1500px;
+
+  margin-left: auto;
+  margin-right: auto;
+
+  align-items: stretch;
+}
+
+main > section > .positions > .panel,
+main > section > .positions > .pos {
+  grid-column: span 6 !important;
+
+  width: auto !important;
+  min-width: 0 !important;
+  margin: 0 !important;
+
+  padding: 20px;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(18,23,31,.97),
+      rgba(10,15,21,.97)
+    );
+
+  border: 1px solid #202a36;
+
+  border-radius: 16px;
+
+  box-shadow:
+    0 12px 35px rgba(0,0,0,.16);
+}
+
+
+/* Position header */
+
+main > section > .positions .head {
+  min-height: 38px;
+}
+
+
+/* Position data */
+
+main > section > .positions .price {
+  display: grid;
+
+  grid-template-columns:
+    1.3fr
+    1fr
+    1fr;
+
+  gap: 14px;
+
+  padding:
+    16px 0;
+
+  margin-top: 12px;
+
+  border-top: 1px solid #1c2631;
+  border-bottom: 1px solid #1c2631;
+}
+
+main > section > .positions .price > * {
+  min-width: 0;
+}
+
+
+/* Detail metrics */
+
+main > section > .positions .details {
+  display: grid;
+
+  grid-template-columns:
+    repeat(3,minmax(0,1fr));
+
+  gap: 10px;
+
+  padding: 15px 0;
+}
+
+main > section > .positions .details > * {
+  min-width: 0;
+}
+
+
+/* AI verdict */
+
+main > section > .positions .verdict {
+  margin-top: 5px;
+
+  width: 100%;
+
+  box-sizing: border-box;
+}
+
+
+/* AI decision */
+
+main > section > .positions .decision {
+  font-size: 9px;
+
+  font-weight: 800;
+
+  border-radius: 7px;
+
+  padding: 6px 9px;
+
+  white-space: nowrap;
+}
+
+
+/* Position buttons */
+
+main > section > .positions .posbuttons {
+  display: flex;
+
+  gap: 9px;
+
+  width: 100%;
+
+  margin-top: 14px;
+}
+
+main > section > .positions .posbuttons > button {
+  flex: 1;
+
+  min-width: 0;
+
+  min-height: 38px;
+}
+
+
+/* Empty / loading states */
+
+main > section > .positions > .panel:has(.live-position-empty) {
+  grid-column: 1 / -1 !important;
+}
+
+main > section > .positions .live-position-empty {
+  min-height: 280px;
+
+  display: grid;
+
+  place-content: center;
+
+  justify-items: center;
+
+  text-align: center;
+}
+
+
+/* =========================================================
+   SIGNAL HISTORY
+   ========================================================= */
+
+main > section > .positions .panel.pos {
+  min-height: 0;
+
+  overflow: hidden;
+}
+
+main > section > .positions .panel.pos .head {
+  margin-bottom: 8px;
+}
+
+main > section > .positions .panel.pos .price {
+  margin-top: 8px;
+}
+
+main > section > .positions .panel.pos .details {
+  margin-top: 4px;
+}
+
+
+/* =========================================================
+   MARKET OVERVIEW
+   ========================================================= */
+
+main > section > .panel:has(.tablewrap) {
+  width: min(
+    calc(100% - 48px),
+    1500px
+  );
+
+  max-width: 1500px;
+
+  margin-left: auto;
+  margin-right: auto;
+
+  overflow: hidden;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(18,23,31,.97),
+      rgba(10,15,21,.97)
+    );
+
+  border: 1px solid #202a36;
+
+  border-radius: 16px;
+}
+
+
+/* Table */
+
+main > section > .panel:has(.tablewrap) .tablewrap {
+  width: 100%;
+
+  overflow-x: auto;
+
+  -webkit-overflow-scrolling:
+    touch;
+}
+
+main > section > .panel:has(.tablewrap) table {
+  width: 100%;
+
+  min-width: 850px;
+
+  border-collapse: collapse;
+}
+
+main > section > .panel:has(.tablewrap) th {
+  padding:
+    14px 18px;
+
+  background: #0b1017;
+
+  border-bottom: 1px solid #202a36;
+
+  color: #647081;
+
+  font-size: 8px;
+
+  font-weight: 800;
+
+  letter-spacing: .14em;
+
+  text-align: left;
+
+  white-space: nowrap;
+}
+
+main > section > .panel:has(.tablewrap) td {
+  padding:
+    15px 18px;
+
+  border-bottom:
+    1px solid #18212c;
+
+  color: #aeb8c4;
+
+  font-size: 11px;
+
+  white-space: nowrap;
+}
+
+main > section > .panel:has(.tablewrap) tbody tr {
+  transition:
+    background .16s ease;
+}
+
+main > section > .panel:has(.tablewrap) tbody tr:hover {
+  background:
+    rgba(82,215,255,.035);
+}
+
+main > section > .panel:has(.tablewrap)
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+main > section > .panel:has(.tablewrap)
+td:first-child strong {
+  color: #eef3f8;
+
+  font-weight: 800;
+}
+
+
+/* Market footer text */
+
+main > section > .panel:has(.tablewrap)
+> div:last-child {
+  border-top:
+    1px solid #1c2530;
+
+  color: #657283 !important;
+
+  font-size: 9px !important;
+}
+
+
+/* =========================================================
+   SETTINGS
+   ========================================================= */
+
+main > section > .settingspage {
+  width: min(
+    calc(100% - 48px),
+    1500px
+  );
+
+  max-width: 1500px;
+
+  margin-left: auto;
+  margin-right: auto;
+
+  padding-top: 34px;
+  padding-bottom: 40px;
+
+  display: grid;
+
+  gap: 16px;
+}
+
+main > section > .settingspage
+.settingshero {
+  padding-bottom: 4px;
+}
+
+main > section > .settingspage
+.settingshero label {
+  color: #52d7ff;
+
+  font-size: 9px;
+
+  font-weight: 800;
+
+  letter-spacing: .14em;
+}
+
+main > section > .settingspage
+.settingshero h1 {
+  color: #eef3f8;
+
+  font-size: 30px;
+
+  letter-spacing: -.035em;
+
+  margin:
+    9px 0 8px;
+}
+
+main > section > .settingspage
+.settingshero p {
+  color: #748091;
+
+  font-size: 11px;
+
+  line-height: 1.65;
+}
+
+
+/* Settings panels */
+
+main > section > .settingspage .panel {
+  width: 100%;
+
+  box-sizing: border-box;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(18,23,31,.97),
+      rgba(10,15,21,.97)
+    );
+
+  border: 1px solid #202a36;
+
+  border-radius: 16px;
+}
+
+
+/* Settings header */
+
+main > section > .settingspage
+.settinghead {
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  gap: 15px;
+
+  padding-bottom: 14px;
+
+  margin-bottom: 4px;
+
+  border-bottom:
+    1px solid #19212c;
+}
+
+main > section > .settingspage
+.settinghead h2 {
+  color: #eef3f8;
+
+  font-size: 13px;
+}
+
+main > section > .settingspage
+.settinghead p {
+  color: #6f7c8c;
+
+  font-size: 9px;
+}
+
+
+/* Settings rows */
+
+main > section > .settingspage
+.settingrow {
+  min-height: 54px;
+}
+
+main > section > .settingspage
+.settingrow b {
+  font-size: 12px;
+}
+
+main > section > .settingspage
+.settingrow small {
+  max-width: 700px;
+}
+
+
+/* Cost control */
+
+main > section > .settingspage
+.costpanel {
+  padding: 20px;
+}
+
+main > section > .settingspage
+.costpanel h3 {
+  color: #eef3f8;
+
+  font-size: 11px;
+
+  letter-spacing: .08em;
+}
+
+main > section > .settingspage
+.costpanel p {
+  color: #6f7c8c;
+
+  font-size: 10px;
+
+  line-height: 1.6;
+}
+
+
+/* Safety */
+
+main > section > .settingspage
+.settingsnote {
+  border-color:
+    rgba(82,215,255,.16);
+
+  background:
+    rgba(82,215,255,.025);
+}
+
+
+/* =========================================================
+   GLOBAL STATUS / BUTTONS
+   ========================================================= */
+
+main > section button {
+  box-sizing: border-box;
+}
+
+main > section .refresh,
+main > section .refresh-btn {
+  transition:
+    border-color .16s ease,
+    background .16s ease,
+    transform .16s ease;
+}
+
+main > section .refresh:hover,
+main > section .refresh-btn:hover {
+  border-color: #34485c;
+
+  background: #131a23;
+}
+
+main > section .refresh:active,
+main > section .refresh-btn:active {
+  transform: translateY(1px);
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
+
+@media (max-width: 1200px) {
+
+  main > section > .grid > .span-7,
+  main > section > .grid > .span-5 {
+    grid-column: span 12 !important;
+  }
+
+  main > section > .grid > .main,
+  main > section > .grid > .stack {
+    grid-column: span 12 !important;
+  }
+
+}
+
+
+@media (max-width: 900px) {
+
+  main > section > .hero,
+  main > section > .hero-row,
+  main > section > .grid,
+  main > section > .positions,
+  main > section > .settingspage,
+  main > section > .panel:has(.tablewrap) {
+    width: calc(100% - 32px);
+  }
+
+  main > section > .positions > .panel,
+  main > section > .positions > .pos {
+    grid-column: span 12 !important;
+  }
+
+  main > section > .settingspage
+  .costgrid {
+    grid-template-columns:
+      repeat(2,minmax(0,1fr));
+  }
+
+}
+
+
+@media (max-width: 760px) {
+
+  main > section > .hero,
+  main > section > .hero-row,
+  main > section > .grid,
+  main > section > .positions,
+  main > section > .settingspage,
+  main > section > .panel:has(.tablewrap) {
+    width: calc(100% - 24px);
+  }
+
+  main > section > .hero h1,
+  main > section > .hero-row h2 {
+    font-size: 29px;
+  }
+
+  main > section > .grid {
+    grid-template-columns:
+      1fr !important;
+
+    gap: 12px !important;
+  }
+
+  main > section > .grid > *,
+  main > section > .grid > .span-4,
+  main > section > .grid > .span-5,
+  main > section > .grid > .span-7,
+  main > section > .grid > .span-8,
+  main > section > .grid > .main,
+  main > section > .grid > .stack {
+    grid-column: 1 !important;
+  }
+
+  main > section > .positions {
+    grid-template-columns:
+      1fr !important;
+
+    gap: 12px !important;
+  }
+
+  main > section > .positions
+  > .panel,
+  main > section > .positions
+  > .pos {
+    grid-column: 1 !important;
+  }
+
+  main > section > .positions
+  .price {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+  main > section > .positions
+  .details {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+  main > section > .positions
+  .posbuttons {
+    flex-direction: column;
+  }
+
+  main > section > .settingspage {
+    width: calc(100% - 24px);
+
+    padding-top: 22px;
+  }
+
+  main > section > .settingspage
+  .costgrid {
+    grid-template-columns: 1fr;
+  }
+
+  main > section > .settingspage
+  .settingrow {
+    align-items: flex-start;
+  }
+
+}
+
+
+@media (max-width: 500px) {
+
+  main > section > .hero,
+  main > section > .hero-row,
+  main > section > .grid,
+  main > section > .positions,
+  main > section > .settingspage,
+  main > section > .panel:has(.tablewrap) {
+    width: calc(100% - 18px);
+  }
+
+  main > section > .hero h1,
+  main > section > .hero-row h2 {
+    font-size: 26px;
+  }
+
+  main > section > .positions
+  .details {
+    grid-template-columns: 1fr;
+  }
+
+  main > section > .settingspage
+  .settingshero h1 {
+    font-size: 24px;
+  }
+
+}
+
+
+/* =========================================================
+   FINAL SAFETY INDICATOR
+   ========================================================= */
+
+main > section::after {
+  content: "";
+  display: block;
+  clear: both;
+}
+
