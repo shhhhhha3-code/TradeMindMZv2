@@ -1,0 +1,1171 @@
+/* ============================================================
+   TRADEMINDMZ V4
+   PREMIUM AI TRADING TERMINAL
+   Visual layer only. Business logic untouched.
+   ============================================================ */
+
+:root {
+  --tm4-bg: #03050b;
+  --tm4-bg-2: #070b14;
+
+  --tm4-panel: rgba(9, 14, 25, .86);
+  --tm4-panel-2: rgba(12, 18, 32, .92);
+  --tm4-panel-3: rgba(15, 22, 39, .94);
+
+  --tm4-border: rgba(130, 105, 255, .18);
+  --tm4-border-strong: rgba(0, 220, 255, .25);
+
+  --tm4-green: #00f5a0;
+  --tm4-purple: #8d5cff;
+  --tm4-cyan: #00dcff;
+  --tm4-red: #ff4d6a;
+  --tm4-yellow: #ffd15c;
+
+  --tm4-text: #f5f7ff;
+  --tm4-soft: #c7cfde;
+  --tm4-muted: #77839a;
+
+  --tm4-radius: 20px;
+  --tm4-shadow:
+    0 22px 70px rgba(0, 0, 0, .40),
+    0 0 55px rgba(104, 73, 255, .055);
+}
+
+/* ============================================================
+   GLOBAL ATMOSPHERE
+   ============================================================ */
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  position: relative;
+  background:
+    radial-gradient(
+      circle at 78% -15%,
+      rgba(0, 220, 255, .12),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 8% 88%,
+      rgba(141, 92, 255, .13),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at 50% 40%,
+      rgba(0, 245, 160, .035),
+      transparent 35%
+    ),
+    linear-gradient(
+      180deg,
+      #03050b 0%,
+      #060914 55%,
+      #03050b 100%
+    ) !important;
+
+  color: var(--tm4-text) !important;
+
+  overflow-x: hidden;
+}
+
+/* subtle technical grid */
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+
+  pointer-events: none;
+  z-index: 0;
+
+  opacity: .16;
+
+  background-image:
+    linear-gradient(
+      rgba(255,255,255,.022) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      90deg,
+      rgba(255,255,255,.018) 1px,
+      transparent 1px
+    );
+
+  background-size:
+    36px 36px,
+    36px 36px;
+
+  mask-image:
+    linear-gradient(
+      to bottom,
+      black,
+      transparent 85%
+    );
+}
+
+/* ambient glow */
+
+body::after {
+  content: "";
+
+  position: fixed;
+
+  width: 440px;
+  height: 440px;
+
+  right: -160px;
+  top: 100px;
+
+  pointer-events: none;
+  z-index: 0;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(0, 220, 255, .065),
+      transparent 68%
+    );
+
+  filter: blur(30px);
+}
+
+/* ============================================================
+   APP
+   ============================================================ */
+
+.app {
+  position: relative;
+  z-index: 1;
+
+  min-height: 100vh !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(3, 5, 11, .86),
+      rgba(4, 7, 14, .97)
+    ) !important;
+}
+
+/* ============================================================
+   SIDEBAR
+   ============================================================ */
+
+.side {
+  width: 292px !important;
+
+  padding:
+    24px 15px 18px !important;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(5, 8, 17, .985),
+      rgba(4, 7, 15, .97)
+    ) !important;
+
+  border-right:
+    1px solid rgba(0, 220, 255, .11) !important;
+
+  box-shadow:
+    20px 0 80px rgba(0, 0, 0, .25),
+    inset -1px 0 rgba(141, 92, 255, .035) !important;
+
+  backdrop-filter: blur(20px) !important;
+}
+
+/* small cyan rail */
+
+.side::after {
+  content: "";
+
+  position: absolute;
+
+  top: 0;
+  right: -1px;
+
+  width: 1px;
+  height: 100%;
+
+  background:
+    linear-gradient(
+      to bottom,
+      transparent,
+      rgba(0, 220, 255, .28),
+      transparent
+    );
+
+  opacity: .45;
+}
+
+/* ============================================================
+   BRAND
+   ============================================================ */
+
+.side .brand {
+  padding: 4px 7px 8px !important;
+
+  gap: 12px !important;
+}
+
+.tmz-brand-logo {
+  width: 58px !important;
+  height: 58px !important;
+
+  object-fit: contain;
+
+  filter:
+    drop-shadow(0 0 12px rgba(0, 245, 160, .44))
+    drop-shadow(0 0 25px rgba(141, 92, 255, .26));
+}
+
+.tmz-brand-copy strong {
+  font-size: 18px !important;
+  letter-spacing: .11em !important;
+
+  background:
+    linear-gradient(
+      100deg,
+      #ffffff 5%,
+      var(--tm4-green) 46%,
+      var(--tm4-cyan) 74%,
+      var(--tm4-purple)
+    );
+
+  -webkit-background-clip: text;
+  background-clip: text;
+
+  color: transparent !important;
+}
+
+.tmz-brand-copy small {
+  margin-top: 5px !important;
+
+  font-size: 8px !important;
+  letter-spacing: .22em !important;
+
+  color: #66748d !important;
+}
+
+/* ============================================================
+   ENGINE STATUS
+   ============================================================ */
+
+.online {
+  position: relative;
+
+  margin:
+    12px 2px 19px !important;
+
+  padding: 14px 13px !important;
+
+  border:
+    1px solid rgba(0, 245, 160, .18) !important;
+
+  border-radius: 15px !important;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(0, 245, 160, .08),
+      rgba(0, 220, 255, .035),
+      rgba(141, 92, 255, .045)
+    ) !important;
+
+  box-shadow:
+    inset 0 0 30px rgba(0, 245, 160, .018),
+    0 10px 30px rgba(0, 0, 0, .23) !important;
+}
+
+.online::before {
+  content: "";
+
+  position: absolute;
+
+  left: 0;
+  top: 10px;
+  bottom: 10px;
+
+  width: 2px;
+
+  border-radius: 3px;
+
+  background:
+    linear-gradient(
+      to bottom,
+      var(--tm4-green),
+      var(--tm4-cyan)
+    );
+
+  box-shadow:
+    0 0 12px rgba(0, 245, 160, .35);
+}
+
+.online > i {
+  background: var(--tm4-green) !important;
+
+  box-shadow:
+    0 0 10px rgba(0, 245, 160, .85),
+    0 0 24px rgba(0, 245, 160, .28) !important;
+}
+
+.online b {
+  color: #eefff8 !important;
+  letter-spacing: .13em !important;
+}
+
+.online small {
+  color: #6f7b91 !important;
+}
+
+/* ============================================================
+   NAVIGATION
+   ============================================================ */
+
+.side nav {
+  gap: 4px !important;
+}
+
+.side nav button,
+.bottom button {
+  min-height: 46px;
+
+  margin: 2px 0 !important;
+  padding: 12px 13px !important;
+
+  border:
+    1px solid transparent !important;
+
+  border-radius: 13px !important;
+
+  color: #7e8ba4 !important;
+
+  background: transparent !important;
+
+  transition:
+    transform .18s ease,
+    color .18s ease,
+    background .18s ease,
+    border-color .18s ease,
+    box-shadow .18s ease !important;
+}
+
+.side nav button:hover,
+.bottom button:hover {
+  color: #eef3ff !important;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(141, 92, 255, .085),
+      rgba(0, 220, 255, .035)
+    ) !important;
+
+  border-color:
+    rgba(141, 92, 255, .15) !important;
+
+  transform: translateX(3px);
+}
+
+.side nav button.active {
+  color: #ffffff !important;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(141, 92, 255, .18),
+      rgba(0, 220, 255, .07)
+    ) !important;
+
+  border-color:
+    rgba(0, 220, 255, .18) !important;
+
+  box-shadow:
+    inset 3px 0 var(--tm4-green),
+    0 8px 25px rgba(0, 0, 0, .18),
+    0 0 30px rgba(141, 92, 255, .055) !important;
+}
+
+.side nav button.active svg {
+  color: var(--tm4-green) !important;
+
+  filter:
+    drop-shadow(
+      0 0 6px rgba(0, 245, 160, .25)
+    );
+}
+
+.side nav em {
+  min-width: 28px;
+
+  text-align: center;
+
+  background:
+    rgba(0, 245, 160, .10) !important;
+
+  border:
+    1px solid rgba(0, 245, 160, .18) !important;
+
+  color:
+    var(--tm4-green) !important;
+}
+
+/* ============================================================
+   MAIN
+   ============================================================ */
+
+main {
+  margin-left: 292px !important;
+
+  width:
+    calc(100% - 292px) !important;
+
+  min-width: 0;
+}
+
+/* ============================================================
+   TOPBAR
+   ============================================================ */
+
+header {
+  height: 84px !important;
+
+  padding:
+    0 32px !important;
+
+  background:
+    rgba(4, 7, 16, .82) !important;
+
+  border-bottom:
+    1px solid rgba(0, 220, 255, .09) !important;
+
+  backdrop-filter:
+    blur(22px) saturate(130%) !important;
+
+  box-shadow:
+    0 8px 40px rgba(0, 0, 0, .14) !important;
+}
+
+.title small {
+  color: #66758d !important;
+
+  letter-spacing: .22em !important;
+}
+
+.title b {
+  font-size: 19px !important;
+
+  background:
+    linear-gradient(
+      90deg,
+      #ffffff,
+      #bfc9db,
+      #8f9ab0
+    );
+
+  -webkit-background-clip: text;
+  background-clip: text;
+
+  color: transparent !important;
+}
+
+.actions .live {
+  min-height: 34px;
+
+  padding:
+    8px 12px !important;
+
+  border-radius:
+    999px !important;
+
+  border:
+    1px solid rgba(0, 245, 160, .19) !important;
+
+  background:
+    rgba(0, 245, 160, .055) !important;
+
+  color:
+    var(--tm4-green) !important;
+
+  box-shadow:
+    inset 0 0 14px rgba(0, 245, 160, .025) !important;
+}
+
+.bell,
+.avatar {
+  width: 40px !important;
+  height: 40px !important;
+
+  border-radius: 12px !important;
+
+  border:
+    1px solid rgba(139, 92, 246, .16) !important;
+
+  background:
+    rgba(10, 15, 27, .84) !important;
+
+  color: #9ba8bc !important;
+}
+
+.avatar {
+  color: #d8cfff !important;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(141, 92, 255, .13),
+      rgba(0, 220, 255, .06)
+    ) !important;
+}
+
+/* ============================================================
+   CONTENT
+   ============================================================ */
+
+main > section {
+  position: relative;
+
+  width: 100%;
+
+  padding: 32px 34px 46px !important;
+
+  max-width: none !important;
+}
+
+/* ============================================================
+   HERO / COMMAND CENTER
+   ============================================================ */
+
+main > section > .hero,
+main > section > .hero-row {
+  position: relative;
+
+  padding: 22px 0 0 !important;
+
+  width: min(1500px, 100%) !important;
+
+  max-width: 1500px !important;
+
+  margin:
+    0 auto 30px !important;
+}
+
+main > section > .hero::before,
+main > section > .hero-row::before {
+  content: "";
+
+  position: absolute;
+
+  top: 0;
+  left: 0;
+
+  width: 130px;
+  height: 2px;
+
+  border-radius: 20px;
+
+  background:
+    linear-gradient(
+      90deg,
+      var(--tm4-green),
+      var(--tm4-cyan),
+      transparent
+    );
+
+  box-shadow:
+    0 0 20px rgba(0, 245, 160, .18);
+}
+
+.hero label,
+.eyebrow {
+  display: inline-flex !important;
+
+  color:
+    var(--tm4-cyan) !important;
+
+  letter-spacing:
+    .19em !important;
+
+  font-size:
+    9px !important;
+}
+
+.hero h1,
+.hero-row h2 {
+  font-size:
+    clamp(32px, 4vw, 48px) !important;
+
+  line-height:
+    1.02 !important;
+
+  letter-spacing:
+    -.052em !important;
+
+  color:
+    #f7f9ff !important;
+
+  text-shadow:
+    0 0 32px rgba(0, 220, 255, .055);
+}
+
+.hero p,
+.hero-row p {
+  max-width: 820px !important;
+
+  color:
+    #7a879e !important;
+
+  font-size:
+    12px !important;
+
+  line-height:
+    1.75 !important;
+}
+
+/* ============================================================
+   UNIVERSAL PANELS
+   ============================================================ */
+
+main > section .panel,
+main > section .card {
+  position: relative;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(13, 19, 34, .94),
+      rgba(6, 10, 20, .93)
+    ) !important;
+
+  border:
+    1px solid var(--tm4-border) !important;
+
+  border-radius:
+    var(--tm4-radius) !important;
+
+  box-shadow:
+    var(--tm4-shadow) !important;
+
+  overflow: hidden;
+
+  backdrop-filter:
+    blur(16px) saturate(120%) !important;
+
+  isolation: isolate;
+}
+
+main > section .panel::after,
+main > section .card::after {
+  content: "";
+
+  position: absolute;
+
+  inset: 0;
+
+  pointer-events: none;
+
+  background:
+    linear-gradient(
+      125deg,
+      rgba(255,255,255,.028),
+      transparent 24%,
+      transparent 72%,
+      rgba(0,220,255,.018)
+    );
+
+  z-index: -1;
+}
+
+main > section .panel:hover,
+main > section .card:hover {
+  border-color:
+    rgba(141, 92, 255, .30) !important;
+}
+
+/* ============================================================
+   AI / PRIMARY SIGNAL CARD
+   ============================================================ */
+
+main > section .ai-signal-panel {
+  border-color:
+    rgba(0, 220, 255, .20) !important;
+
+  box-shadow:
+    0 24px 75px rgba(0, 0, 0, .38),
+    0 0 65px rgba(0, 220, 255, .035) !important;
+}
+
+.ai-panel-header {
+  padding-bottom: 16px;
+
+  border-bottom:
+    1px solid rgba(255,255,255,.05);
+}
+
+.ai-panel-title {
+  font-size:
+    13px !important;
+
+  color:
+    #f0f5ff !important;
+}
+
+.ai-panel-subtitle {
+  color:
+    #77839a !important;
+}
+
+.best-recommended {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(0, 245, 160, .07),
+      rgba(0, 220, 255, .035),
+      rgba(141, 92, 255, .045)
+    ) !important;
+
+  border-color:
+    rgba(0, 245, 160, .13) !important;
+}
+
+.best-recommended strong {
+  color:
+    #f5fff9 !important;
+
+  text-shadow:
+    0 0 20px rgba(0, 245, 160, .07);
+}
+
+/* ============================================================
+   SCORE / RINGS
+   ============================================================ */
+
+.ring,
+.score-ring {
+  filter:
+    drop-shadow(0 0 25px rgba(0,220,255,.10))
+    drop-shadow(0 0 30px rgba(141,92,255,.08));
+}
+
+/* ============================================================
+   METRIC BLOCKS
+   ============================================================ */
+
+.ai-signal-grid > div,
+.ai-price-grid > div,
+.balance-split > div,
+.levels > div {
+  background:
+    rgba(5, 9, 18, .58) !important;
+
+  border:
+    1px solid rgba(255,255,255,.055) !important;
+
+  border-radius:
+    13px !important;
+}
+
+.ai-signal-grid strong,
+.ai-price-grid strong {
+  color:
+    #edf4ff !important;
+}
+
+/* ============================================================
+   SIGNAL BUTTONS
+   ============================================================ */
+
+.refresh,
+.refresh-btn,
+.ai-analyze-button,
+.live-refresh-button {
+  min-height: 40px;
+
+  border:
+    1px solid rgba(141, 92, 255, .20) !important;
+
+  border-radius:
+    11px !important;
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(141, 92, 255, .10),
+      rgba(0, 220, 255, .04)
+    ) !important;
+
+  color:
+    #edf2ff !important;
+}
+
+.refresh:hover,
+.refresh-btn:hover,
+.ai-analyze-button:hover,
+.live-refresh-button:hover {
+  border-color:
+    rgba(0, 220, 255, .36) !important;
+
+  box-shadow:
+    0 0 28px rgba(0,220,255,.07) !important;
+}
+
+/* ============================================================
+   TRADE STATES
+   ============================================================ */
+
+.buy {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(0, 245, 160, .11),
+      rgba(0, 220, 255, .055)
+    ) !important;
+
+  border-color:
+    rgba(0, 245, 160, .23) !important;
+
+  color:
+    var(--tm4-green) !important;
+}
+
+.hold,
+.watch {
+  color:
+    var(--tm4-yellow) !important;
+}
+
+.blocked {
+  color:
+    var(--tm4-red) !important;
+}
+
+/* ============================================================
+   MARKET TABLE
+   ============================================================ */
+
+.tablewrap {
+  border:
+    1px solid rgba(141, 92, 255, .13) !important;
+
+  border-radius:
+    18px !important;
+
+  background:
+    rgba(6, 10, 20, .54);
+}
+
+.tablewrap table {
+  background:
+    transparent !important;
+}
+
+.tablewrap thead {
+  background:
+    rgba(3, 7, 14, .82) !important;
+}
+
+.tablewrap th {
+  padding:
+    15px 18px !important;
+
+  color:
+    #617089 !important;
+
+  letter-spacing:
+    .17em !important;
+
+  border-bottom:
+    1px solid rgba(255,255,255,.055) !important;
+}
+
+.tablewrap td {
+  padding:
+    16px 18px !important;
+
+  border-bottom:
+    1px solid rgba(255,255,255,.045) !important;
+
+  color:
+    #adb9cc !important;
+}
+
+.tablewrap tbody tr {
+  transition:
+    background .18s ease,
+    transform .18s ease;
+}
+
+.tablewrap tbody tr:hover {
+  background:
+    linear-gradient(
+      90deg,
+      rgba(141,92,255,.055),
+      rgba(0,220,255,.025)
+    ) !important;
+}
+
+/* ============================================================
+   LIVE POSITIONS
+   ============================================================ */
+
+.positions .pos,
+.positions > .panel {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(13, 20, 35, .95),
+      rgba(7, 11, 22, .93)
+    ) !important;
+
+  border-color:
+    rgba(0, 220, 255, .14) !important;
+}
+
+.positions .coin,
+.coin-badge {
+  background:
+    radial-gradient(
+      circle at 30% 20%,
+      rgba(0, 220, 255, .12),
+      rgba(141, 92, 255, .08)
+    ) !important;
+
+  border-color:
+    rgba(0, 220, 255, .18) !important;
+
+  box-shadow:
+    inset 0 0 20px rgba(0,220,255,.025);
+}
+
+.position-row {
+  border-color:
+    rgba(255,255,255,.045) !important;
+}
+
+/* ============================================================
+   SETTINGS
+   ============================================================ */
+
+.settingspage .panel,
+.settingspanel,
+.costpanel {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(12, 18, 32, .96),
+      rgba(7, 11, 22, .94)
+    ) !important;
+
+  border-color:
+    rgba(141, 92, 255, .19) !important;
+}
+
+.settingrow {
+  border-color:
+    rgba(255,255,255,.055) !important;
+}
+
+.toggle,
+.status {
+  background:
+    rgba(5, 9, 18, .72) !important;
+}
+
+.toggle.on,
+.status.on {
+  color:
+    var(--tm4-green) !important;
+
+  border-color:
+    rgba(0,245,160,.28) !important;
+
+  background:
+    rgba(0,245,160,.055) !important;
+}
+
+/* ============================================================
+   INPUTS
+   ============================================================ */
+
+input,
+textarea,
+select {
+  background:
+    rgba(4, 8, 16, .84) !important;
+
+  border-color:
+    rgba(139, 92, 246, .17) !important;
+
+  border-radius:
+    12px !important;
+
+  color:
+    #edf2ff !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color:
+    rgba(0,220,255,.48) !important;
+
+  box-shadow:
+    0 0 0 3px rgba(0,220,255,.07),
+    0 0 25px rgba(0,220,255,.045) !important;
+}
+
+/* ============================================================
+   SCROLLBARS
+   ============================================================ */
+
+* {
+  scrollbar-width: thin;
+
+  scrollbar-color:
+    rgba(141, 92, 255, .55)
+    rgba(5, 8, 15, .75);
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background:
+    rgba(3, 5, 10, .70);
+}
+
+*::-webkit-scrollbar-thumb {
+  background:
+    linear-gradient(
+      180deg,
+      rgba(141, 92, 255, .55),
+      rgba(0, 220, 255, .45)
+    );
+
+  border-radius:
+    999px;
+}
+
+/* ============================================================
+   MOBILE
+   ============================================================ */
+
+@media (max-width: 1100px) {
+
+  .side {
+    width: min(292px, 86vw) !important;
+  }
+
+  main {
+    margin-left: 0 !important;
+    width: 100% !important;
+  }
+
+  main > section {
+    padding:
+      24px 22px 38px !important;
+  }
+
+  .hero h1,
+  .hero-row h2 {
+    font-size: 38px !important;
+  }
+}
+
+@media (max-width: 760px) {
+
+  header {
+    height: 70px !important;
+    padding:
+      0 14px !important;
+  }
+
+  main > section {
+    padding:
+      18px 12px 28px !important;
+  }
+
+  main > section > .hero,
+  main > section > .hero-row {
+    padding-top:
+      15px !important;
+  }
+
+  .hero h1,
+  .hero-row h2 {
+    font-size: 29px !important;
+  }
+
+  .tmz-brand-logo {
+    width: 46px !important;
+    height: 46px !important;
+  }
+
+  .tmz-brand-copy strong {
+    font-size: 14px !important;
+  }
+
+  .tmz-brand-copy small {
+    font-size: 7px !important;
+  }
+
+  main > section .panel,
+  main > section .card {
+    border-radius:
+      15px !important;
+  }
+
+  .ai-signal-panel {
+    margin:
+      0 !important;
+    padding:
+      15px !important;
+  }
+}
+
+@media (max-width: 480px) {
+
+  main > section {
+    padding:
+      15px 9px 25px !important;
+  }
+
+  .hero h1,
+  .hero-row h2 {
+    font-size:
+      25px !important;
+  }
+
+  .actions .live {
+    display:
+      none !important;
+  }
+}
+
+/* ============================================================
+   MICRO-ANIMATION
+   ============================================================ */
+
+@keyframes tm4-pulse {
+  0%,
+  100% {
+    opacity: .72;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.online > i,
+.actions .live > i {
+  animation:
+    tm4-pulse 2.6s ease-in-out infinite;
+}

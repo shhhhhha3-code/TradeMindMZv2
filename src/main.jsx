@@ -11,6 +11,7 @@ import { fetchLearningStats } from "./services/learningStatsService.js";
 import { fetchSignalHistory } from "./services/signalHistoryService.js";
 import { fetchDashboardData } from "./services/dashboardService.js";
 import "./ui/trademind-v3.css";
+import "./ui/trademind-v4.css";
 function Logo(){
   return (
     <div className="brand">
