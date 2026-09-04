@@ -71,51 +71,80 @@ async function request(path, query = {}) {
     );
   }
 
-  const timestamp = Date.now().toString();
+  const maxAttempts = 3;
 
-  const params = new URLSearchParams({
-    ...query,
-    timestamp,
-  });
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
 
-  const queryString =
-    [...params.entries()]
-      .sort(([a], [b]) =>
-        a.localeCompare(b)
-      )
-      .map(
-        ([key, value]) =>
-          `${key}=${value}`
-      )
-      .join("&");
+    const timestamp = Date.now().toString();
 
-  const signature = buildSignature({
-    method: "GET",
-    path,
-    queryString,
-  });
+    const params = new URLSearchParams({
+      ...query,
+      timestamp,
+    });
 
-  const url =
-    `${config.baseUrl}${path}?${queryString}`;
+    const queryString =
+      [...params.entries()]
+        .sort(([a], [b]) =>
+          a.localeCompare(b)
+        )
+        .map(
+          ([key, value]) =>
+            `${key}=${value}`
+        )
+        .join("&");
 
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "PIONEX-KEY": config.apiKey,
-      "PIONEX-SIGNATURE": signature,
-    },
-  });
+    const signature = buildSignature({
+      method: "GET",
+      path,
+      queryString,
+    });
 
-  if (!response.ok) {
-    const text = await response.text();
+    const url =
+      `${config.baseUrl}${path}?${queryString}`;
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+        "PIONEX-KEY": config.apiKey,
+        "PIONEX-SIGNATURE": signature,
+      },
+    });
+
+    if (response.ok) {
+      return response.json();
+    }
+
+    const responseText = await response.text();
+
+    if (
+      response.status === 429 &&
+      attempt < maxAttempts - 1
+    ) {
+      const delay = getRetryDelay(
+        response,
+        attempt
+      );
+
+      console.warn(
+        `[Pionex] 429 rate limit on ${path}. ` +
+        `Retry ${attempt + 1}/${maxAttempts - 1} ` +
+        `in ${delay}ms.`
+      );
+
+      await sleep(delay);
+
+      continue;
+    }
 
     throw new Error(
-      `Pionex request failed: ${response.status} ${text}`
+      `Pionex request failed: ${response.status} ${responseText}`
     );
   }
 
-  return response.json();
+  throw new Error(
+    "Pionex request failed after retry attempts."
+  );
 }
 
 /*
@@ -124,29 +153,59 @@ async function request(path, query = {}) {
  * No credentials required.
  */
 async function publicRequest(path, query = {}) {
-  const queryString =
-    new URLSearchParams(query).toString();
 
-  const url =
-    `${getPionexConfig().baseUrl}${path}` +
-    (queryString ? `?${queryString}` : "");
+  const maxAttempts = 3;
 
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
-  });
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
 
-  if (!response.ok) {
-    const text = await response.text();
+    const queryString =
+      new URLSearchParams(query).toString();
+
+    const url =
+      `${getPionexConfig().baseUrl}${path}` +
+      (queryString ? `?${queryString}` : "");
+
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (response.ok) {
+      return response.json();
+    }
+
+    const responseText = await response.text();
+
+    if (
+      response.status === 429 &&
+      attempt < maxAttempts - 1
+    ) {
+      const delay = getRetryDelay(
+        response,
+        attempt
+      );
+
+      console.warn(
+        `[Pionex] 429 market rate limit on ${path}. ` +
+        `Retry ${attempt + 1}/${maxAttempts - 1} ` +
+        `in ${delay}ms.`
+      );
+
+      await sleep(delay);
+
+      continue;
+    }
 
     throw new Error(
-      `Pionex market request failed: ${response.status} ${text}`
+      `Pionex market request failed: ${response.status} ${responseText}`
     );
   }
 
-  return response.json();
+  throw new Error(
+    "Pionex market request failed after retry attempts."
+  );
 }
 
 /*
