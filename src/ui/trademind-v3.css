@@ -1,0 +1,364 @@
+/*
+  TradeMindMZ V3 Global UI Layer
+  Applies to the entire application without changing business logic.
+*/
+
+:root {
+  --tmz-bg-0: #050711;
+  --tmz-bg-1: #080b17;
+  --tmz-bg-2: #0d1120;
+  --tmz-panel: rgba(10, 15, 30, 0.88);
+  --tmz-panel-strong: rgba(12, 18, 34, 0.96);
+
+  --tmz-green: #00f5a0;
+  --tmz-green-2: #00d084;
+  --tmz-purple: #9b5cff;
+  --tmz-purple-2: #6f42ff;
+  --tmz-cyan: #00d9ff;
+  --tmz-red: #ff4d67;
+  --tmz-yellow: #ffc83d;
+
+  --tmz-text: #f5f7ff;
+  --tmz-muted: #8e96ad;
+  --tmz-border: rgba(139, 92, 246, 0.22);
+
+  --tmz-radius: 18px;
+  --tmz-radius-sm: 12px;
+  --tmz-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.35),
+    0 0 30px rgba(111, 66, 255, 0.08);
+}
+
+/* Global page atmosphere */
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background:
+    radial-gradient(
+      circle at 12% 8%,
+      rgba(0, 245, 160, 0.06),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 88% 12%,
+      rgba(155, 92, 255, 0.08),
+      transparent 30%
+    ),
+    linear-gradient(
+      180deg,
+      var(--tmz-bg-0) 0%,
+      var(--tmz-bg-1) 55%,
+      var(--tmz-bg-0) 100%
+    );
+  color: var(--tmz-text);
+}
+
+/* Main application surfaces */
+#root [class*="card"],
+#root [class*="panel"],
+#root [class*="Card"],
+#root [class*="Panel"] {
+  border-color: var(--tmz-border);
+}
+
+/* Glass effect */
+.tmz-v3-surface {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(16, 22, 42, 0.94),
+      rgba(7, 11, 23, 0.90)
+    );
+  border: 1px solid var(--tmz-border);
+  border-radius: var(--tmz-radius);
+  box-shadow: var(--tmz-shadow);
+  backdrop-filter: blur(18px);
+}
+
+/* Strong header */
+.tmz-v3-header {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(0, 217, 255, 0.16);
+  border-radius: 20px;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(0, 245, 160, 0.08),
+      rgba(155, 92, 255, 0.07) 50%,
+      rgba(0, 217, 255, 0.06)
+    );
+}
+
+.tmz-v3-header::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.035),
+      transparent
+    );
+  transform: translateX(-100%);
+  animation: tmz-scan 8s linear infinite;
+}
+
+@keyframes tmz-scan {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Logo */
+.tmz-v3-logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+  filter:
+    drop-shadow(0 0 10px rgba(0, 245, 160, 0.35))
+    drop-shadow(0 0 20px rgba(155, 92, 255, 0.18));
+}
+
+/* Brand glow */
+.tmz-v3-brand {
+  background:
+    linear-gradient(
+      90deg,
+      var(--tmz-green),
+      #ffffff 44%,
+      var(--tmz-purple)
+    );
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Accent title */
+.tmz-v3-title {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  text-shadow:
+    0 0 12px rgba(0, 245, 160, 0.14),
+    0 0 22px rgba(155, 92, 255, 0.10);
+}
+
+/* KPI values */
+.tmz-v3-kpi {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+}
+
+.tmz-v3-positive {
+  color: var(--tmz-green) !important;
+  text-shadow: 0 0 15px rgba(0, 245, 160, 0.18);
+}
+
+.tmz-v3-negative {
+  color: var(--tmz-red) !important;
+}
+
+/* Interactive buttons */
+.tmz-v3-btn {
+  border: 1px solid rgba(0, 245, 160, 0.24);
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(0, 245, 160, 0.10),
+      rgba(0, 217, 255, 0.05)
+    );
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    background 160ms ease;
+}
+
+.tmz-v3-btn:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0, 245, 160, 0.48);
+  box-shadow: 0 0 22px rgba(0, 245, 160, 0.10);
+}
+
+/* Active navigation */
+.tmz-v3-active {
+  border-color: rgba(155, 92, 255, 0.65) !important;
+  background:
+    linear-gradient(
+      90deg,
+      rgba(155, 92, 255, 0.18),
+      rgba(0, 245, 160, 0.08)
+    ) !important;
+  box-shadow:
+    inset 0 0 30px rgba(155, 92, 255, 0.06),
+    0 0 24px rgba(155, 92, 255, 0.09);
+}
+
+/* Status indicators */
+.tmz-v3-status-live {
+  color: var(--tmz-green) !important;
+}
+
+.tmz-v3-status-warning {
+  color: var(--tmz-yellow) !important;
+}
+
+.tmz-v3-status-danger {
+  color: var(--tmz-red) !important;
+}
+
+/* Signal pills */
+.tmz-v3-pill-buy {
+  border: 1px solid rgba(0, 245, 160, 0.35);
+  color: var(--tmz-green);
+  background: rgba(0, 245, 160, 0.08);
+}
+
+.tmz-v3-pill-sell {
+  border: 1px solid rgba(255, 77, 103, 0.35);
+  color: var(--tmz-red);
+  background: rgba(255, 77, 103, 0.08);
+}
+
+.tmz-v3-pill-neutral {
+  border: 1px solid rgba(155, 92, 255, 0.32);
+  color: #c7b4ff;
+  background: rgba(155, 92, 255, 0.08);
+}
+
+/* AI Decision Center */
+.tmz-v3-ai {
+  position: relative;
+  overflow: hidden;
+  background:
+    radial-gradient(
+      circle at 90% 10%,
+      rgba(155, 92, 255, 0.16),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 10% 90%,
+      rgba(0, 245, 160, 0.09),
+      transparent 28%
+    ),
+    var(--tmz-panel);
+  border: 1px solid rgba(0, 217, 255, 0.18);
+}
+
+.tmz-v3-ai::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      115deg,
+      transparent 0%,
+      rgba(0, 217, 255, 0.05) 44%,
+      transparent 58%
+    );
+}
+
+/* Tables */
+.tmz-v3-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.tmz-v3-table th {
+  color: var(--tmz-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.tmz-v3-table tr:hover td {
+  background: rgba(155, 92, 255, 0.035);
+}
+
+/* Inputs */
+#root input,
+#root textarea,
+#root select {
+  background-color: rgba(7, 11, 23, 0.82);
+  border-color: rgba(139, 92, 246, 0.20);
+}
+
+#root input:focus,
+#root textarea:focus,
+#root select:focus {
+  border-color: rgba(0, 217, 255, 0.45);
+  box-shadow: 0 0 0 3px rgba(0, 217, 255, 0.07);
+  outline: none;
+}
+
+/* Charts */
+.tmz-v3-chart {
+  min-height: 220px;
+  border: 1px solid rgba(0, 217, 255, 0.10);
+  border-radius: 16px;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(0, 217, 255, 0.028),
+      rgba(0, 0, 0, 0)
+    ),
+    rgba(6, 10, 21, 0.60);
+}
+
+/* Desktop command-center feel */
+@media (min-width: 1280px) {
+  #root main {
+    isolation: isolate;
+  }
+
+  #root main > * {
+    transition:
+      transform 180ms ease,
+      border-color 180ms ease;
+  }
+
+  #root main > *:hover {
+    border-color: rgba(155, 92, 255, 0.18);
+  }
+}
+
+/* Tablet */
+@media (max-width: 1100px) {
+  .tmz-v3-logo {
+    width: 48px;
+    height: 48px;
+  }
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+  .tmz-v3-header {
+    border-radius: 16px;
+  }
+
+  .tmz-v3-surface {
+    border-radius: 14px;
+  }
+
+  .tmz-v3-logo {
+    width: 42px;
+    height: 42px;
+  }
+
+  #root {
+    overflow-x: hidden;
+  }
+
+  #root main {
+    width: 100%;
+  }
+}

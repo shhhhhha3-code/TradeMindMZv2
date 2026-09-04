@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 240" role="img" aria-labelledby="title desc">
+  <title id="title">TradeMindMZ logo</title>
+  <desc id="desc">Neon crown and stylized M shield symbol with TradeMindMZ wordmark.</desc>
+  <defs>
+    <linearGradient id="g1" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#00f5a0"/>
+      <stop offset="0.55" stop-color="#00d9ff"/>
+      <stop offset="1" stop-color="#8a2be2"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur stdDeviation="7" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+  </defs>
+  <rect width="900" height="240" rx="40" fill="#07101a"/>
+  <g transform="translate(32,18)" filter="url(#glow)">
+    <path d="M42 44 L78 10 L108 44 L140 10 L172 48 L174 108 L108 166 L40 108 Z" fill="none" stroke="url(#g1)" stroke-width="12"/>
+    <path d="M56 84 L81 61 L108 118 L139 52 L162 84" fill="none" stroke="url(#g1)" stroke-width="15" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M67 34 L77 4 L92 30 L108 3 L123 30 L139 5 L149 35" fill="none" stroke="#ffe45c" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <g transform="translate(228,57)">
+    <text x="0" y="72" font-family="Inter,Arial,sans-serif" font-size="72" font-weight="800" letter-spacing="8" fill="#f7fbff">TRADE</text>
+    <text x="312" y="72" font-family="Inter,Arial,sans-serif" font-size="72" font-weight="800" letter-spacing="8" fill="url(#g1)">MIND</text>
+    <text x="0" y="125" font-family="Inter,Arial,sans-serif" font-size="28" font-weight="700" letter-spacing="11" fill="#7fe9ff">MZ</text>
+    <text x="92" y="125" font-family="Inter,Arial,sans-serif" font-size="20" font-weight="600" letter-spacing="5" fill="#9eacd0">TRADE SMARTER. LIVE FREER.</text>
+  </g>
+</svg>

@@ -1,3 +1,4 @@
+import "./ui/trademind-v3-global.css";
 import './ui/trademind-design.css';
 import React,{useEffect,useState}from'react';import{createRoot}from'react-dom/client';import{Activity,BrainCircuit,ChevronRight,History,LayoutDashboard,LineChart,Menu,Bell,RefreshCw,Settings,ShieldCheck,Target,TrendingUp,Wallet,X,Zap,Radio}from'lucide-react';import'./styles.css';
 import { useLiveAiSignal } from "./services/useLiveAiSignal.js";
@@ -9,7 +10,22 @@ import { analyzePositionWithAI } from "./services/positionAiService.js";
 import { fetchLearningStats } from "./services/learningStatsService.js";
 import { fetchSignalHistory } from "./services/signalHistoryService.js";
 import { fetchDashboardData } from "./services/dashboardService.js";
-function Logo(){return <div className="brand"><div className="logo"><i/><i/><b/></div><div><strong>TRADEMIND<span>MZ</span></strong><small>AI MARKET INTELLIGENCE</small></div></div>}
+import "./ui/trademind-v3.css";
+function Logo(){
+  return (
+    <div className="brand">
+      <img
+        src="/assets/trademindmz-logo.svg"
+        alt="TradeMindMZ"
+        className="tmz-brand-logo"
+      />
+      <div className="tmz-brand-copy">
+        <strong>TRADEMIND<span>MZ</span></strong>
+        <small>AI MARKET INTELLIGENCE</small>
+      </div>
+    </div>
+  );
+}
 function Ring({score}){return <div className="ring" style={{'--p':score*3.6+'deg'}}><div><b>{score}</b><small>AI SCORE</small></div></div>}
 
 function App(){

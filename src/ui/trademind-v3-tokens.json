@@ -1,0 +1,21 @@
+{
+  "version": "3.0.0",
+  "brand": "TradeMindMZ",
+  "theme": "premium-cyber-finance",
+  "primary": "#00F5A0",
+  "secondary": "#9B5CFF",
+  "accent": "#00D9FF",
+  "danger": "#FF4D67",
+  "warning": "#FFC83D",
+  "surfaces": "glass-dark",
+  "global": true,
+  "tabs": [
+    "Dashboard",
+    "AI Signals",
+    "Live Positions",
+    "Market Overview",
+    "Signal History",
+    "Settings",
+    "Pionex Connection"
+  ]
+}
