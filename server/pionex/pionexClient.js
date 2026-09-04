@@ -37,6 +37,31 @@ function buildSignature({
     .digest("hex");
 }
 
+
+async function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function getRetryDelay(response, attempt) {
+  const retryAfter = response?.headers?.get?.("retry-after");
+
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+
+    if (Number.isFinite(seconds)) {
+      return Math.min(
+        Math.max(seconds * 1000, 1000),
+        30000
+      );
+    }
+  }
+
+  return Math.min(
+    1500 * Math.pow(2, attempt),
+    12000
+  );
+}
+
 async function request(path, query = {}) {
   const config = getPionexConfig();
 

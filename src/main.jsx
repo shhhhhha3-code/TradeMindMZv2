@@ -14,6 +14,7 @@ import "./ui/trademind-v3.css";
 import "./ui/trademind-v4.css";
 import "./ui/trademind-v41.css";
 import "./ui/trademind-v42.css";
+import "./ui/trademind-v43.css";
 function Logo(){
   return (
     <div className="brand">
@@ -60,7 +61,7 @@ const updateAiSetting=(key,value)=>{const next={...aiSettings,[key]:value};setAi
     : tab==='settings'
       ? <SettingsPage settings={aiSettings} updateSetting={updateAiSetting}/>
       : tab==='dashboard'
-        ? <><TopFiveCommandCenter/><Dashboard/></>
+        ? <><TopFiveCommandCenter/><MarketRegimeRiskCenter/><Dashboard/></>
         : tab==='market'
           ? <MarketOverview/>
           : tab==='history'
@@ -1011,6 +1012,488 @@ function TopFiveCommandCenter() {
       </div>
 
     </div>
+  );
+}
+
+
+
+function MarketRegimeRiskCenter() {
+
+  const {
+    data,
+    loading,
+    refreshing,
+    error,
+    refresh,
+  } = useLiveAiSignal({
+    scanLimit: 100,
+    maxMarkets: 25,
+    preferredProvider: "groq",
+  });
+
+  const rawCandidates =
+    data?.candidates ??
+    data?.topCandidates ??
+    data?.top5 ??
+    data?.markets ??
+    [];
+
+  const candidates = Array.isArray(rawCandidates)
+    ? rawCandidates.slice(0, 5)
+    : [];
+
+  const number = (value) => {
+    const n = Number(value);
+
+    if (!Number.isFinite(n)) {
+      return null;
+    }
+
+    return n;
+  };
+
+  const scoreOf = (item) =>
+    number(
+      item?.score ??
+      item?.aiScore ??
+      item?.signalScore
+    ) ?? 0;
+
+  const confidenceOf = (item) =>
+    number(
+      item?.confidence ??
+      item?.aiConfidence
+    ) ?? 0;
+
+  const rsiOf = (item) =>
+    number(
+      item?.rsi ??
+      item?.RSI ??
+      item?.rsi14
+    );
+
+  const rrOf = (item) =>
+    number(
+      item?.riskReward ??
+      item?.rr ??
+      item?.risk_reward
+    ) ?? 0;
+
+  const trendOf = (item) =>
+    String(
+      item?.trend ??
+      item?.direction ??
+      item?.bias ??
+      "NEUTRAL"
+    ).toUpperCase();
+
+  const bullish = candidates.filter(item => {
+    const trend = trendOf(item);
+
+    return (
+      trend.includes("BULL") ||
+      trend === "LONG" ||
+      trend === "BUY" ||
+      trend === "UP"
+    );
+  }).length;
+
+  const bearish = candidates.filter(item => {
+    const trend = trendOf(item);
+
+    return (
+      trend.includes("BEAR") ||
+      trend === "SHORT" ||
+      trend === "SELL" ||
+      trend === "DOWN"
+    );
+  }).length;
+
+  const neutral =
+    Math.max(
+      candidates.length - bullish - bearish,
+      0
+    );
+
+  const breadth =
+    candidates.length
+      ? Math.round(
+          (
+            (bullish - bearish) /
+            candidates.length
+          ) * 100
+        )
+      : 0;
+
+  const avgScore =
+    candidates.length
+      ? Math.round(
+          candidates.reduce(
+            (sum, item) => sum + scoreOf(item),
+            0
+          ) / candidates.length
+        )
+      : 0;
+
+  const avgConfidence =
+    candidates.length
+      ? Math.round(
+          candidates.reduce(
+            (sum, item) => sum + confidenceOf(item),
+            0
+          ) / candidates.length
+        )
+      : 0;
+
+  const rsiValues =
+    candidates
+      .map(rsiOf)
+      .filter(value => value !== null);
+
+  const avgRsi =
+    rsiValues.length
+      ? (
+          rsiValues.reduce(
+            (sum, value) => sum + value,
+            0
+          ) / rsiValues.length
+        )
+      : null;
+
+  const rrValues =
+    candidates
+      .map(rrOf)
+      .filter(value => value > 0);
+
+  const avgRR =
+    rrValues.length
+      ? (
+          rrValues.reduce(
+            (sum, value) => sum + value,
+            0
+          ) / rrValues.length
+        )
+      : null;
+
+  let regime = "NEUTRAL";
+  let regimeClass = "neutral";
+
+  if (
+    candidates.length >= 3 &&
+    bullish > bearish &&
+    breadth >= 20
+  ) {
+    regime = "BULLISH";
+    regimeClass = "bullish";
+  }
+
+  if (
+    candidates.length >= 3 &&
+    bearish > bullish &&
+    breadth <= -20
+  ) {
+    regime = "BEARISH";
+    regimeClass = "bearish";
+  }
+
+  const extremeRsi =
+    avgRsi !== null &&
+    (avgRsi >= 72 || avgRsi <= 28);
+
+  let risk = "MEDIUM";
+  let riskClass = "medium";
+
+  if (
+    extremeRsi ||
+    avgScore < 60 ||
+    avgConfidence < 65 ||
+    candidates.length < 3
+  ) {
+    risk = "HIGH";
+    riskClass = "high";
+  } else if (
+    avgScore >= 80 &&
+    avgConfidence >= 82 &&
+    (avgRR === null || avgRR >= 2)
+  ) {
+    risk = "LOW";
+    riskClass = "low";
+  }
+
+  const tradeQuality =
+    avgScore >= 85 &&
+    avgConfidence >= 90 &&
+    (avgRR === null || avgRR >= 2);
+
+  const marketBreadthLabel =
+    breadth >= 30
+      ? "Positive"
+      : breadth <= -30
+        ? "Negative"
+        : "Mixed";
+
+  const decision =
+    risk === "HIGH"
+      ? "DEFENSIVE"
+      : regime === "BULLISH" && tradeQuality
+        ? "SELECTIVE LONG"
+        : regime === "BEARISH" && tradeQuality
+          ? "SELECTIVE SHORT"
+          : "WAIT / SELECT";
+
+  const format = (value, digits = 0) => {
+    if (!Number.isFinite(Number(value))) {
+      return "—";
+    }
+
+    return Number(value).toLocaleString(
+      "en-US",
+      {
+        maximumFractionDigits: digits,
+      }
+    );
+  };
+
+  return (
+    <section className="tm43-regime">
+
+      <div className="tm43-head">
+
+        <div>
+          <div className="tm43-eyebrow">
+            MARKET REGIME ENGINE
+          </div>
+
+          <div className="tm43-heading">
+            <h2>
+              MARKET REGIME & RISK
+            </h2>
+
+            <span className="tm43-readonly">
+              READ ONLY
+            </span>
+          </div>
+
+          <p>
+            Samlet vurdering fra live TOP 5-marked,
+            signalstyrke, confidence, RSI og risk/reward.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={refresh}
+          disabled={refreshing}
+          className="tm43-refresh"
+        >
+          <RefreshCw
+            size={14}
+            className={refreshing ? "tm43-spin" : ""}
+          />
+
+          {refreshing
+            ? "UPDATING..."
+            : "UPDATE REGIME"}
+        </button>
+
+      </div>
+
+      {loading && !candidates.length ? (
+
+        <div className="tm43-loading">
+          <div className="tm43-loader" />
+          <span>
+            Calculating market regime...
+          </span>
+        </div>
+
+      ) : error ? (
+
+        <div className="tm43-error">
+          <strong>
+            Regime data unavailable
+          </strong>
+
+          <span>
+            {error}
+          </span>
+        </div>
+
+      ) : (
+
+        <div className="tm43-grid">
+
+          <div
+            className={
+              `tm43-regime-card ${regimeClass}`
+            }
+          >
+            <span className="tm43-label">
+              MARKET REGIME
+            </span>
+
+            <strong>
+              {regime}
+            </strong>
+
+            <small>
+              Breadth: {marketBreadthLabel}
+            </small>
+          </div>
+
+          <div
+            className={
+              `tm43-risk-card ${riskClass}`
+            }
+          >
+            <span className="tm43-label">
+              RISK LEVEL
+            </span>
+
+            <strong>
+              {risk}
+            </strong>
+
+            <small>
+              Decision: {decision}
+            </small>
+          </div>
+
+          <div className="tm43-stat">
+            <span className="tm43-label">
+              MARKET BREADTH
+            </span>
+
+            <strong>
+              {breadth > 0 ? "+" : ""}
+              {breadth}%
+            </strong>
+
+            <div className="tm43-bar">
+              <i
+                style={{
+                  width: `${Math.min(
+                    Math.abs(breadth),
+                    100
+                  )}%`,
+                }}
+              />
+            </div>
+
+            <small>
+              BULL {bullish} · NEUTRAL {neutral} · BEAR {bearish}
+            </small>
+          </div>
+
+          <div className="tm43-stat">
+            <span className="tm43-label">
+              AVG SCORE
+            </span>
+
+            <strong>
+              {format(avgScore)}
+            </strong>
+
+            <small>
+              TOP 5 candidates
+            </small>
+          </div>
+
+          <div className="tm43-stat">
+            <span className="tm43-label">
+              AI CONFIDENCE
+            </span>
+
+            <strong>
+              {avgConfidence > 0
+                ? `${format(avgConfidence)}%`
+                : "—"}
+            </strong>
+
+            <small>
+              Aggregate confidence
+            </small>
+          </div>
+
+          <div className="tm43-stat">
+            <span className="tm43-label">
+              AVG RSI
+            </span>
+
+            <strong>
+              {avgRsi !== null
+                ? format(avgRsi, 1)
+                : "—"}
+            </strong>
+
+            <small>
+              {extremeRsi
+                ? "Extreme zone"
+                : "Normal zone"}
+            </small>
+          </div>
+
+          <div className="tm43-stat">
+            <span className="tm43-label">
+              AVG RISK / REWARD
+            </span>
+
+            <strong>
+              {avgRR !== null
+                ? `${format(avgRR, 1)} : 1`
+                : "—"}
+            </strong>
+
+            <small>
+              Across qualified candidates
+            </small>
+          </div>
+
+          <div className="tm43-decision">
+
+            <div>
+              <span className="tm43-label">
+                CURRENT AI POSTURE
+              </span>
+
+              <strong>
+                {decision}
+              </strong>
+
+              <small>
+                {risk === "HIGH"
+                  ? "Risk filters are dominating the current setup."
+                  : regime === "BULLISH"
+                    ? "Momentum is stronger on the upside."
+                    : regime === "BEARISH"
+                      ? "Momentum is stronger on the downside."
+                      : "No dominant market direction detected."}
+              </small>
+            </div>
+
+            <div className="tm43-pulse">
+              <i />
+              LIVE
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
+
+      <div className="tm43-footer">
+        <span>
+          {candidates.length}
+          {" "}markets evaluated
+        </span>
+
+        <span>
+          AI recommendation only — no automatic execution
+        </span>
+      </div>
+
+    </section>
   );
 }
 
