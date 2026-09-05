@@ -400,20 +400,73 @@ function scoreCandidate({
       ? targetDistance / stopDistance
       : 0;
 
-  const confidence =
-    Math.round(
-      Math.max(
-        0,
-        Math.min(
-          100,
-          55 +
-            Math.abs(
-              bullish - bearish
-            ) * 8 +
-            (volumeRatio > 1.1 ? 7 : 0)
-        )
-      )
+  /*
+   * Deterministic directional confidence.
+   *
+   * This is separate from engineScore.
+   * It measures how strongly the indicators agree
+   * with the selected direction.
+   */
+  let confidence = 50;
+
+  const directionalAgreement =
+    Math.abs(
+      bullish - bearish
     );
+
+  confidence += Math.min(
+    20,
+    directionalAgreement * 5
+  );
+
+  if (
+    (direction === "BUY" && ema9 > ema21) ||
+    (direction === "SELL" && ema9 < ema21)
+  ) {
+    confidence += 8;
+  }
+
+  if (
+    (direction === "BUY" && macdValue > 0) ||
+    (direction === "SELL" && macdValue < 0)
+  ) {
+    confidence += 7;
+  }
+
+  if (
+    (direction === "BUY" && change24h > 0) ||
+    (direction === "SELL" && change24h < 0)
+  ) {
+    confidence += 6;
+  }
+
+  if (
+    rsi14 >= 40 &&
+    rsi14 <= 65
+  ) {
+    confidence += 5;
+  } else if (
+    rsi14 >= 35 &&
+    rsi14 <= 70
+  ) {
+    confidence += 3;
+  }
+
+  if (volumeRatio >= 1.1) {
+    confidence += 4;
+  } else if (volumeRatio >= 0.8) {
+    confidence += 2;
+  }
+
+  confidence = Math.round(
+    Math.max(
+      0,
+      Math.min(
+        100,
+        confidence
+      )
+    )
+  );
 
   return {
     symbol,
@@ -425,6 +478,7 @@ function scoreCandidate({
     stopLoss,
     takeProfit,
     riskReward,
+    change24h,
 
     price,
 

@@ -42,11 +42,43 @@ export function calculateEngineScore(market) {
     score += 45;
   }
 
+  /*
+   * Direction-aware momentum.
+   *
+   * BUY:
+   *   positive 24h momentum = bonus
+   *   negative 24h momentum = penalty
+   *
+   * SELL:
+   *   negative 24h momentum = bonus
+   *   positive 24h momentum = penalty
+   */
   if (change !== null) {
-    const momentumScore = Math.min(
-      Math.abs(change) * 8,
-      20
-    );
+    const direction =
+      String(
+        market?.direction ??
+        market?.trend ??
+        ""
+      ).toUpperCase();
+
+    const alignedMomentum =
+      direction === "BUY"
+        ? change
+        : direction === "SELL"
+          ? -change
+          : 0;
+
+    const momentumScore =
+      direction === "BUY" ||
+      direction === "SELL"
+        ? Math.max(
+            -10,
+            Math.min(
+              20,
+              alignedMomentum * 4
+            )
+          )
+        : 0;
 
     score += momentumScore;
   }
