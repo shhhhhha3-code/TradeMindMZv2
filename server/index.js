@@ -14,10 +14,13 @@ import supabaseRouter from "./supabase/route.js";
 import positionsRouter from "./positions/route.js";
 import { analyzeTopCandidates } from "./ai/topCandidatesAnalysis.js";
 import { getTradeCriteria, saveTradeCriteria } from "./ai/tradeCriteria.js";
+import paperRouter from "./paper/index.js";
 
 dotenv.config();
 
 const app = express();
+
+app.use("/api/paper", paperRouter);
 
 const PORT = Number(process.env.PORT || 3001);
 
