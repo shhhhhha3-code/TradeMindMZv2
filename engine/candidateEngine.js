@@ -54,6 +54,22 @@ export function buildCandidates(
       symbol:
         market.symbol,
 
+      /* Preserve executable paper-trading fields */
+      price:
+        market.price,
+
+      entry:
+        market.entry,
+
+      stopLoss:
+        market.stopLoss,
+
+      takeProfit:
+        market.takeProfit,
+
+      direction:
+        market.direction,
+
       engineScore:
         market.engineScore,
 

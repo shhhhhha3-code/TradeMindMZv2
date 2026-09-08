@@ -14,6 +14,7 @@ import { getWalletBalancesFull } from "./pionexClient.js";
 import {
   runAIDecisionLayer,
 } from "../ai/aiDecisionEngine.js";
+import { processPaperSignal } from "../paper/paperSignalEngine.js";
 
 const router =
   express.Router();
@@ -266,12 +267,48 @@ router.get(
           ? aiDecision.decision
           : "NO_TRADE";
 
+      /*
+       * Paper Trading V2:
+       * record every real market scan and use
+       * Stability as a gate before opening a
+       * simulated paper position.
+       *
+       * Pionex remains READ-ONLY.
+       */
+      let paperPipeline = null;
+
+      try {
+        paperPipeline =
+          processPaperSignal({
+            scanResult: {
+              ...result,
+              finalDecision,
+            },
+
+            aiDecision,
+          });
+      } catch (paperError) {
+        console.error(
+          "TradeMindMZ paper signal pipeline failed:",
+          paperError
+        );
+
+        paperPipeline = {
+          error:
+            paperError instanceof Error
+              ? paperError.message
+              : String(paperError),
+        };
+      }
+
       res.json({
         ...result,
 
         aiDecision,
 
         finalDecision,
+
+        paperPipeline,
 
         decisionPipeline: {
           marketSource: "PIONEX",
