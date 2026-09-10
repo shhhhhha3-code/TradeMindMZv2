@@ -25,6 +25,7 @@ import {
   getPaperMonitorStatus,
   forcePaperMonitorRun,
 } from "./paperMonitor.js";
+import { getPaperPerformance } from "./paperPerformance.js";
 
 const router =
   express.Router();
@@ -159,6 +160,32 @@ router.post(
           error instanceof Error
             ? error.message
             : String(error),
+      });
+    }
+  }
+);
+
+
+router.get(
+  "/performance",
+  (req, res) => {
+    try {
+      const result =
+        getPaperPerformance({
+          limit:
+            Number(
+              req.query?.limit || 50
+            )
+        });
+
+      res.json(result);
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error)
       });
     }
   }
