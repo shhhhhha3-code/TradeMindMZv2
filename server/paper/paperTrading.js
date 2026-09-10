@@ -1,4 +1,6 @@
 import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
 
 const MAX_OPEN_PAPER_TRADES = 20;
 const DEFAULT_HORIZON_MINUTES = 60;
@@ -41,44 +43,70 @@ function normalizeDirection(value) {
   return "BUY";
 }
 
-function storageKey() {
-  return "trademindmz-paper-trades";
+const DATA_DIR =
+  path.resolve(
+    process.cwd(),
+    "data"
+  );
+
+const DATA_FILE =
+  path.join(
+    DATA_DIR,
+    "paper-trades.json"
+  );
+
+function ensureStorage() {
+  fs.mkdirSync(
+    DATA_DIR,
+    {
+      recursive: true,
+    }
+  );
+
+  if (
+    !fs.existsSync(DATA_FILE)
+  ) {
+    fs.writeFileSync(
+      DATA_FILE,
+      JSON.stringify([], null, 2),
+      "utf8"
+    );
+  }
 }
 
 function readTrades() {
   try {
-    if (
-      typeof localStorage !== "undefined"
-    ) {
-      const value =
-        localStorage.getItem(
-          storageKey()
-        );
+    ensureStorage();
 
-      return value
-        ? JSON.parse(value)
-        : [];
-    }
-  } catch {}
+    const raw =
+      fs.readFileSync(
+        DATA_FILE,
+        "utf8"
+      );
 
-  return globalThis.__TRADEMINDMZ_PAPER_TRADES__ || [];
+    const parsed =
+      JSON.parse(raw);
+
+    return Array.isArray(parsed)
+      ? parsed
+      : [];
+  } catch {
+    return [];
+  }
 }
 
 function writeTrades(trades) {
-  try {
-    if (
-      typeof localStorage !== "undefined"
-    ) {
-      localStorage.setItem(
-        storageKey(),
-        JSON.stringify(trades)
-      );
-      return;
-    }
-  } catch {}
+  ensureStorage();
 
-  globalThis.__TRADEMINDMZ_PAPER_TRADES__ =
-    trades;
+  fs.writeFileSync(
+    DATA_FILE,
+    JSON.stringify(
+      trades,
+      null,
+      2
+    ),
+    "utf8"
+  );
 }
 
 export function getPaperTrades() {
@@ -500,4 +528,5 @@ export function getPaperStats() {
 export {
   MAX_OPEN_PAPER_TRADES,
   DEFAULT_HORIZON_MINUTES,
+  DATA_FILE,
 };

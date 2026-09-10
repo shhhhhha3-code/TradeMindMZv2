@@ -15,6 +15,10 @@ import positionsRouter from "./positions/route.js";
 import { analyzeTopCandidates } from "./ai/topCandidatesAnalysis.js";
 import { getTradeCriteria, saveTradeCriteria } from "./ai/tradeCriteria.js";
 import paperRouter from "./paper/index.js";
+import {
+  startPaperMonitor,
+} from "./paper/paperMonitor.js";
+
 
 dotenv.config();
 
@@ -536,6 +540,8 @@ app.post("/api/ai/trade-criteria", (req, res) => {
   }
 });
 
+
+startPaperMonitor(30_000);
 
 app.listen(PORT, () => {
   console.log(

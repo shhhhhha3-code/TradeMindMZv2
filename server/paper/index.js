@@ -14,6 +14,18 @@ import {
   evaluateTradeStability,
 } from "./signalStability.js";
 
+import {
+  getLivePaperSnapshot,
+  evaluatePaperTradesLive,
+} from "./paperEvaluator.js";
+
+import {
+  startPaperMonitor,
+  stopPaperMonitor,
+  getPaperMonitorStatus,
+  forcePaperMonitorRun,
+} from "./paperMonitor.js";
+
 const router =
   express.Router();
 
@@ -40,6 +52,115 @@ router.get(
       stats:
         getPaperStats(),
     });
+  }
+);
+
+router.get(
+  "/live",
+  async (_req, res) => {
+    try {
+      const result =
+        await getLivePaperSnapshot();
+
+      res.json(result);
+    } catch (error) {
+      res.status(502).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      });
+    }
+  }
+);
+
+router.post(
+  "/evaluate",
+  async (_req, res) => {
+    try {
+      const result =
+        await evaluatePaperTradesLive();
+
+      res.json(result);
+    } catch (error) {
+      res.status(502).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      });
+    }
+  }
+);
+
+
+/* -----------------------------------------------------------
+   PAPER MONITOR
+----------------------------------------------------------- */
+
+router.get(
+  "/monitor",
+  (_req, res) => {
+    res.json({
+      success: true,
+      monitor:
+        getPaperMonitorStatus(),
+    });
+  }
+);
+
+router.post(
+  "/monitor/start",
+  (req, res) => {
+    const interval =
+      Number(
+        req.body?.intervalMs ||
+        30_000
+      );
+
+    res.json({
+      success: true,
+      monitor:
+        startPaperMonitor(
+          interval
+        ),
+    });
+  }
+);
+
+router.post(
+  "/monitor/stop",
+  (_req, res) => {
+    res.json({
+      success: true,
+      monitor:
+        stopPaperMonitor(),
+    });
+  }
+);
+
+router.post(
+  "/monitor/run",
+  async (_req, res) => {
+    try {
+      const monitor =
+        await forcePaperMonitorRun();
+
+      res.json({
+        success: true,
+        monitor,
+      });
+    } catch (error) {
+      res.status(502).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      });
+    }
   }
 );
 
