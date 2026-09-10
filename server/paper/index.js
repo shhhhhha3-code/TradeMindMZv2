@@ -26,6 +26,7 @@ import {
   forcePaperMonitorRun,
 } from "./paperMonitor.js";
 import { getPaperPerformance } from "./paperPerformance.js";
+import { getPaperLearning, syncPaperLearning, resetPaperLearning } from "./paperLearning.js";
 
 const router =
   express.Router();
@@ -179,6 +180,77 @@ router.get(
         });
 
       res.json(result);
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error)
+      });
+    }
+  }
+);
+
+
+router.get(
+  "/learning",
+  (req, res) => {
+    try {
+      const sync =
+        syncPaperLearning();
+
+      const result =
+        getPaperLearning({
+          limit:
+            Number(
+              req.query?.limit ||
+                100
+            )
+        });
+
+      res.json({
+        ...result,
+        sync
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error)
+      });
+    }
+  }
+);
+
+router.post(
+  "/learning/sync",
+  (_req, res) => {
+    try {
+      res.json(
+        syncPaperLearning()
+      );
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error)
+      });
+    }
+  }
+);
+
+router.post(
+  "/learning/reset",
+  (_req, res) => {
+    try {
+      res.json(
+        resetPaperLearning()
+      );
     } catch (error) {
       res.status(500).json({
         success: false,

@@ -6,6 +6,10 @@ import {
   evaluatePaperTradesLive,
 } from "./paperEvaluator.js";
 
+import {
+  syncPaperLearning,
+} from "./paperLearning.js";
+
 const DEFAULT_INTERVAL_MS =
   30_000;
 
@@ -35,6 +39,9 @@ async function runOnce() {
     const result =
       await evaluatePaperTradesLive();
 
+    const learningSync =
+      syncPaperLearning();
+
     state.lastRunAt =
       new Date().toISOString();
 
@@ -47,6 +54,11 @@ async function runOnce() {
     state.lastClosedNow =
       Number(
         result?.closedNow || 0
+      );
+
+    state.lastLearningAdded =
+      Number(
+        learningSync?.added || 0
       );
   } catch (error) {
     state.lastRunAt =
