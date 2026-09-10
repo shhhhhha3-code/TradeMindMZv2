@@ -27,6 +27,7 @@ import {
 } from "./paperMonitor.js";
 import { getPaperPerformance } from "./paperPerformance.js";
 import { getPaperLearning, syncPaperLearning, resetPaperLearning } from "./paperLearning.js";
+import { getPatternIntelligence } from "./patternIntelligence.js";
 
 const router =
   express.Router();
@@ -192,6 +193,26 @@ router.get(
   }
 );
 
+
+
+router.get(
+  "/learning/patterns",
+  (_req, res) => {
+    try {
+      res.json(
+        getPatternIntelligence()
+      );
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error)
+      });
+    }
+  }
+);
 
 router.get(
   "/learning",
