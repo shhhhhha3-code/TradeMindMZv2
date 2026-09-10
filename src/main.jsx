@@ -3,6 +3,7 @@ import './ui/trademind-design.css';
 import React,{useEffect,useState}from'react';import{createRoot}from'react-dom/client';import{Activity,BrainCircuit,ChevronRight,History,LayoutDashboard,LineChart,Menu,Bell,RefreshCw,Settings,ShieldCheck,Target,TrendingUp,Wallet,X,Zap,Radio}from'lucide-react';import'./styles.css';
 import { useLiveAiSignal } from "./services/useLiveAiSignal.js";
 import ManualPurchaseModal from "./components/ManualPurchaseModal";
+import PaperPerformancePanel from "./components/PaperPerformancePanel.jsx";
 import { loadTrackedPositions } from "./positions/positionStorage.js";
 import { registerManualPurchase } from "./positions/workflowIndex.js";
 import { fetchLivePositions } from "./services/livePositionService.js";
@@ -61,7 +62,7 @@ const updateAiSetting=(key,value)=>{const next={...aiSettings,[key]:value};setAi
     : tab==='settings'
       ? <SettingsPage settings={aiSettings} updateSetting={updateAiSetting}/>
       : tab==='dashboard'
-        ? <><TopFiveCommandCenter/><MarketRegimeRiskCenter/><Dashboard/></>
+        ? <><PaperPerformancePanel/><TopFiveCommandCenter/><MarketRegimeRiskCenter/><Dashboard/></>
         : tab==='market'
           ? <MarketOverview/>
           : tab==='history'
