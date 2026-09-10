@@ -28,6 +28,7 @@ import {
 import { getPaperPerformance } from "./paperPerformance.js";
 import { getPaperLearning, syncPaperLearning, resetPaperLearning } from "./paperLearning.js";
 import { getPatternIntelligence } from "./patternIntelligence.js";
+import { calculateAdaptiveShadowScore, getAdaptiveShadowSummary } from "./adaptiveShadowScore.js";
 
 const router =
   express.Router();
@@ -194,6 +195,47 @@ router.get(
 );
 
 
+
+
+router.post(
+  "/learning/shadow-score",
+  (req, res) => {
+    try {
+      res.json(
+        calculateAdaptiveShadowScore(
+          req.body || {}
+        )
+      );
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error)
+      });
+    }
+  }
+);
+
+router.get(
+  "/learning/shadow-score",
+  (_req, res) => {
+    try {
+      res.json(
+        getAdaptiveShadowSummary()
+      );
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error)
+      });
+    }
+  }
+);
 
 router.get(
   "/learning/patterns",

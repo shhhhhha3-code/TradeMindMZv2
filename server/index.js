@@ -24,8 +24,6 @@ dotenv.config();
 
 const app = express();
 
-app.use("/api/paper", paperRouter);
-
 const PORT = Number(process.env.PORT || 3001);
 
 app.use(
@@ -36,6 +34,8 @@ app.use(
 );
 
 app.use(express.json({ limit: "1mb" }));
+
+app.use("/api/paper", paperRouter);
 
 /*
  * Basic health endpoint.

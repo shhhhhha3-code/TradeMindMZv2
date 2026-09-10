@@ -202,6 +202,22 @@ function createRecord(trade) {
         trade?.takeProfit
       ),
 
+    rsi:
+      numberOrZero(
+        trade?.rsi
+      ),
+
+    volumeRatio:
+      numberOrZero(
+        trade?.volumeRatio
+      ),
+
+    trend:
+      trade?.trend || null,
+
+    momentum:
+      trade?.momentum || null,
+
     horizonMinutes:
       numberOrZero(
         trade?.horizonMinutes

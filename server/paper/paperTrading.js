@@ -221,6 +221,24 @@ export function createPaperTrade({
         candidate.riskReward
       ),
 
+    rsi:
+      finite(
+        candidate.rsi
+      ),
+
+    volumeRatio:
+      finite(
+        candidate.volumeRatio
+      ),
+
+    trend:
+      candidate.trend ??
+      null,
+
+    momentum:
+      candidate.momentum ??
+      null,
+
     aiDecision:
       aiDecision?.decision ??
       null,
