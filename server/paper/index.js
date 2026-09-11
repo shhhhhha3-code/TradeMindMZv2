@@ -26,6 +26,7 @@ import {
   forcePaperMonitorRun,
 } from "./paperMonitor.js";
 import { getPaperPerformance } from "./paperPerformance.js";
+import { getAdaptiveLearningV4 } from "./adaptiveLearningV4.js";
 import { getPaperLearning, syncPaperLearning, resetPaperLearning } from "./paperLearning.js";
 import { getPatternIntelligence } from "./patternIntelligence.js";
 import { calculateAdaptiveShadowScore, getAdaptiveShadowSummary } from "./adaptiveShadowScore.js";
@@ -235,6 +236,22 @@ router.get(
       });
     }
   }
+);
+
+
+router.get(
+  "/learning/adaptive-v4",
+  async (_req, res) => {
+    try {
+      res.json(getAdaptiveLearningV4());
+    } catch (error) {
+      console.error("Adaptive Learning V4 failed:", error);
+      res.status(500).json({
+        success: false,
+        error: error?.message || "Adaptive Learning V4 failed",
+      });
+    }
+  },
 );
 
 router.get(
