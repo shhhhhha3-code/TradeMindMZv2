@@ -28,6 +28,7 @@ import {
 import { getPaperPerformance } from "./paperPerformance.js";
 import { getAdaptiveLearningV4 } from "./adaptiveLearningV4.js";
 import { getAdaptiveLearningV5 } from "./adaptiveLearningV5.js";
+import { getConfidenceCalibrationV6 } from "./confidenceCalibrationV6.js";
 import { getPaperLearning, syncPaperLearning, resetPaperLearning } from "./paperLearning.js";
 import { getPatternIntelligence } from "./patternIntelligence.js";
 import { calculateAdaptiveShadowScore, getAdaptiveShadowSummary } from "./adaptiveShadowScore.js";
@@ -240,6 +241,22 @@ router.get(
 );
 
 
+
+
+router.get(
+  "/learning/confidence-v6",
+  async (_req, res) => {
+    try {
+      res.json(getConfidenceCalibrationV6());
+    } catch (error) {
+      console.error("Confidence Calibration V6 failed:", error);
+      res.status(500).json({
+        success: false,
+        error: error?.message || "Confidence Calibration V6 failed",
+      });
+    }
+  },
+);
 
 router.get(
   "/learning/adaptive-v5",
