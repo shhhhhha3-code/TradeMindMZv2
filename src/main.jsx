@@ -4,6 +4,7 @@ import React,{useEffect,useState}from'react';import{createRoot}from'react-dom/cl
 import { useLiveAiSignal } from "./services/useLiveAiSignal.js";
 import ManualPurchaseModal from "./components/ManualPurchaseModal";
 import PaperPerformancePanel from "./components/PaperPerformancePanel.jsx";
+import LearningDashboardPanel from "./components/LearningDashboardPanel.jsx";
 import { loadTrackedPositions } from "./positions/positionStorage.js";
 import { registerManualPurchase } from "./positions/workflowIndex.js";
 import { fetchLivePositions } from "./services/livePositionService.js";
@@ -62,7 +63,7 @@ const updateAiSetting=(key,value)=>{const next={...aiSettings,[key]:value};setAi
     : tab==='settings'
       ? <SettingsPage settings={aiSettings} updateSetting={updateAiSetting}/>
       : tab==='dashboard'
-        ? <><PaperPerformancePanel/><TopFiveCommandCenter/><MarketRegimeRiskCenter/><Dashboard/></>
+        ? <><PaperPerformancePanel/><LearningDashboardPanel/><TopFiveCommandCenter/><MarketRegimeRiskCenter/><Dashboard/></>
         : tab==='market'
           ? <MarketOverview/>
           : tab==='history'
