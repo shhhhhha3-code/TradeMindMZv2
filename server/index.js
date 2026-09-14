@@ -26,6 +26,9 @@ const app = express();
 
 const PORT = Number(process.env.PORT || 3001);
 
+let serverInstance = null;
+let shuttingDown = false;
+
 app.use(
   cors({
     origin: true,
@@ -543,15 +546,74 @@ app.post("/api/ai/trade-criteria", (req, res) => {
 
 startPaperMonitor(30_000);
 
-app.listen(PORT, () => {
-  console.log(
-    `TradeMindMZ V2 server running on port ${PORT}`
-  );
+function shutdown(signal) {
+  if (shuttingDown) {
+    return;
+  }
+
+  shuttingDown = true;
 
   console.log(
-    "Pionex trading execution: DISABLED"
+    `TradeMindMZ V2 shutdown requested: ${signal}`
   );
-});
+
+  serverInstance?.close(() => {
+    console.log(
+      "TradeMindMZ V2 HTTP server closed"
+    );
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    console.error(
+      "Forced shutdown after timeout"
+    );
+    process.exit(1);
+  }, 10_000).unref();
+}
+
+process.on("SIGTERM", () =>
+  shutdown("SIGTERM")
+);
+
+process.on("SIGINT", () =>
+  shutdown("SIGINT")
+);
+
+process.on(
+  "uncaughtException",
+  (error) => {
+    console.error(
+      "Uncaught exception:",
+      error,
+    );
+    shutdown("uncaughtException");
+  },
+);
+
+process.on(
+  "unhandledRejection",
+  (reason) => {
+    console.error(
+      "Unhandled rejection:",
+      reason,
+    );
+    shutdown("unhandledRejection");
+  },
+);
+
+serverInstance = app.listen(
+  PORT,
+  () => {
+    console.log(
+      `TradeMindMZ V2 server running on port ${PORT}`
+    );
+
+    console.log(
+      "Pionex trading execution: DISABLED"
+    );
+  },
+);
 
 export default app;
 
