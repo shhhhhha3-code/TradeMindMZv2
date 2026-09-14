@@ -24,6 +24,7 @@ import {
   stopPaperMonitor,
   getPaperMonitorStatus,
   forcePaperMonitorRun,
+  resetPaperMonitorRecovery,
 } from "./paperMonitor.js";
 import { getPaperPerformance } from "./paperPerformance.js";
 import { getAdaptiveLearningV4 } from "./adaptiveLearningV4.js";
@@ -145,6 +146,25 @@ router.post(
       monitor:
         stopPaperMonitor(),
     });
+  }
+);
+
+router.post(
+  "/monitor/recover",
+  (_req, res) => {
+    try {
+      res.json(
+        resetPaperMonitorRecovery()
+      );
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      });
+    }
   }
 );
 

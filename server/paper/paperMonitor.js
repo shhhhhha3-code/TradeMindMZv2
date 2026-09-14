@@ -24,6 +24,12 @@ let state = {
   lastSuccess: null,
   lastError: null,
   lastClosedNow: 0,
+  lastLearningAdded: 0,
+  runCount: 0,
+  failureCount: 0,
+  consecutiveFailures: 0,
+  lastDurationMs: 0,
+  lastRecoveryAt: null,
 };
 
 let subscribers = 0;
@@ -33,7 +39,10 @@ async function runOnce() {
     return;
   }
 
+  const startedAt = Date.now();
+
   state.running = true;
+  state.runCount += 1;
 
   try {
     const result =
@@ -60,6 +69,10 @@ async function runOnce() {
       Number(
         learningSync?.added || 0
       );
+
+    state.consecutiveFailures = 0;
+    state.lastDurationMs =
+      Date.now() - startedAt;
   } catch (error) {
     state.lastRunAt =
       new Date().toISOString();
@@ -67,10 +80,16 @@ async function runOnce() {
     state.lastSuccess =
       false;
 
+    state.failureCount += 1;
+    state.consecutiveFailures += 1;
+
     state.lastError =
       error instanceof Error
         ? error.message
         : String(error);
+
+    state.lastDurationMs =
+      Date.now() - startedAt;
   } finally {
     state.running = false;
   }
@@ -139,4 +158,16 @@ export function forcePaperMonitorRun() {
   return runOnce().then(
     () => getPaperMonitorStatus()
   );
+}
+
+export function resetPaperMonitorRecovery() {
+  state.lastError = null;
+  state.consecutiveFailures = 0;
+  state.lastRecoveryAt =
+    new Date().toISOString();
+
+  return {
+    success: true,
+    state: getPaperMonitorStatus(),
+  };
 }
