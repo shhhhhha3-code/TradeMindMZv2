@@ -18,7 +18,12 @@ import "./ui/trademind-v4.css";
 import "./ui/trademind-v41.css";
 import "./ui/trademind-v42.css";
 import "./ui/trademind-v43.css";
+
+import CoinLogo from "./components/CoinLogo.jsx";
+import MarketSparkline from "./components/MarketSparkline.jsx";
+import "./ui/trademind-terminal-v5.css";
 import "./ui/trademind-mobile.css";
+
 function Logo(){
   return (
     <div className="brand">

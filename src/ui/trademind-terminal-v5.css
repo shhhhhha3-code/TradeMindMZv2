@@ -1,0 +1,461 @@
+/* ==========================================================
+   TRADEMINDMZ V5 — PREMIUM TERMINAL VISUAL LAYER
+   Visual/UI only.
+   Trading logic untouched.
+   ========================================================== */
+
+:root {
+  --tm-accent-green: #00f5a0;
+  --tm-accent-cyan: #00dcff;
+  --tm-accent-purple: #8d5cff;
+  --tm-accent-red: #ff4d6a;
+  --tm-bg: #03050b;
+  --tm-panel: rgba(8,13,23,.88);
+  --tm-panel2: rgba(11,17,29,.94);
+  --tm-border: rgba(255,255,255,.075);
+  --tm-text: #f5f7ff;
+  --tm-muted: #77839a;
+}
+
+/* ----------------------------------------------------------
+   GLOBAL
+   ---------------------------------------------------------- */
+
+html,
+body,
+#root {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow-x: hidden !important;
+}
+
+body {
+  background:
+    radial-gradient(
+      circle at 80% -10%,
+      rgba(0,220,255,.10),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 5% 85%,
+      rgba(141,92,255,.09),
+      transparent 30%
+    ),
+    linear-gradient(
+      180deg,
+      #03050b 0%,
+      #060914 55%,
+      #03050b 100%
+    ) !important;
+}
+
+/* ----------------------------------------------------------
+   MAIN APP
+   ---------------------------------------------------------- */
+
+.app {
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
+main {
+  min-width: 0 !important;
+}
+
+/* ----------------------------------------------------------
+   PREMIUM PANELS
+   ---------------------------------------------------------- */
+
+.panel {
+  position: relative;
+  overflow: hidden;
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(14,20,33,.96),
+      rgba(6,10,18,.95)
+    ) !important;
+
+  border:
+    1px solid var(--tm-border) !important;
+
+  box-shadow:
+    0 18px 55px rgba(0,0,0,.28),
+    inset 0 1px rgba(255,255,255,.025) !important;
+
+  transition:
+    transform .18s ease,
+    border-color .18s ease,
+    box-shadow .18s ease !important;
+}
+
+.panel:hover {
+  transform: translateY(-2px);
+
+  border-color:
+    rgba(0,220,255,.16) !important;
+
+  box-shadow:
+    0 24px 65px rgba(0,0,0,.34),
+    0 0 40px rgba(0,220,255,.035) !important;
+}
+
+/* top technical line */
+
+.panel::before {
+  content: "";
+
+  position: absolute;
+
+  left: 0;
+  right: 0;
+  top: 0;
+
+  height: 1px;
+
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(0,245,160,.22),
+      rgba(0,220,255,.18),
+      transparent
+    );
+
+  opacity: .8;
+}
+
+/* ----------------------------------------------------------
+   HEADERS
+   ---------------------------------------------------------- */
+
+header {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+
+  border-bottom:
+    1px solid rgba(255,255,255,.055) !important;
+
+  background:
+    rgba(4,7,15,.88) !important;
+
+  backdrop-filter:
+    blur(20px) saturate(130%) !important;
+}
+
+/* ----------------------------------------------------------
+   CONTENT WIDTH
+   ---------------------------------------------------------- */
+
+main > section,
+.content,
+section {
+  width: 100% !important;
+  max-width: 1500px !important;
+  min-width: 0 !important;
+
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* ----------------------------------------------------------
+   HERO
+   ---------------------------------------------------------- */
+
+.hero h1,
+.hero-row h2 {
+  color: #f7f9ff !important;
+
+  text-shadow:
+    0 0 35px rgba(0,220,255,.045);
+}
+
+.hero p {
+  color: #8793a8 !important;
+}
+
+/* ----------------------------------------------------------
+   TOP FIVE / OPPORTUNITY CARDS
+   ---------------------------------------------------------- */
+
+.opp,
+.pos {
+  position: relative;
+  overflow: hidden;
+}
+
+.opp::after,
+.pos::after {
+  content: "";
+
+  position: absolute;
+
+  right: -30px;
+  top: -40px;
+
+  width: 120px;
+  height: 120px;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(0,220,255,.055),
+      transparent 70%
+    );
+
+  pointer-events: none;
+}
+
+/* ----------------------------------------------------------
+   COIN LOGO
+   ---------------------------------------------------------- */
+
+.tmz-coin-logo,
+.tmz-coin-fallback {
+  flex: 0 0 auto;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 10px;
+
+  overflow: hidden;
+
+  border:
+    1px solid rgba(255,255,255,.08);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(255,255,255,.07),
+      rgba(255,255,255,.018)
+    );
+
+  box-shadow:
+    0 5px 18px rgba(0,0,0,.28);
+}
+
+.tmz-coin-logo img {
+  display: block;
+
+  width: 78%;
+  height: 78%;
+
+  object-fit: contain;
+}
+
+.tmz-coin-fallback {
+  color: #cbd4e4;
+
+  font-size: 10px;
+  font-weight: 800;
+
+  letter-spacing: .04em;
+}
+
+/* ----------------------------------------------------------
+   SPARKLINES
+   ---------------------------------------------------------- */
+
+.tmz-sparkline {
+  display: block;
+
+  width: 100%;
+
+  min-width: 0;
+
+  overflow: visible;
+}
+
+.tmz-sparkline-empty {
+  width: 100%;
+
+  border-radius: 10px;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(255,255,255,.02),
+      rgba(255,255,255,.045),
+      rgba(255,255,255,.02)
+    );
+}
+
+/* ----------------------------------------------------------
+   MARKET VISUAL AREAS
+   ---------------------------------------------------------- */
+
+[class*="market"],
+[class*="Market"],
+[class*="signal"],
+[class*="Signal"] {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+svg {
+  max-width: 100%;
+}
+
+/* ----------------------------------------------------------
+   TABLES
+   ---------------------------------------------------------- */
+
+table {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+th,
+td {
+  min-width: 0 !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* ----------------------------------------------------------
+   MOBILE
+   ---------------------------------------------------------- */
+
+@media (max-width: 1100px) {
+
+  .side {
+    width: min(292px, 86vw) !important;
+
+    position: fixed !important;
+
+    transform:
+      translateX(-110%) !important;
+
+    z-index: 100 !important;
+  }
+
+  .side.open {
+    transform:
+      translateX(0) !important;
+  }
+
+  main {
+    width: 100% !important;
+
+    margin-left: 0 !important;
+  }
+
+  header {
+    padding:
+      0 14px !important;
+  }
+
+  main > section,
+  .content,
+  section {
+    width: 100% !important;
+
+    padding:
+      20px 14px 30px !important;
+  }
+
+  .grid,
+  .positions,
+  .opps,
+  .stack {
+    width: 100% !important;
+
+    grid-template-columns:
+      minmax(0, 1fr) !important;
+  }
+
+  .hero {
+    width: 100% !important;
+
+    flex-direction: column !important;
+    align-items: flex-start !important;
+  }
+
+  .hero h1,
+  .hero-row h2 {
+    max-width: 100% !important;
+
+    font-size:
+      clamp(23px, 6vw, 38px) !important;
+
+    overflow-wrap:
+      anywhere !important;
+  }
+
+  .hero p {
+    max-width: 100% !important;
+  }
+
+  .levels,
+  .details {
+    width: 100% !important;
+
+    grid-template-columns:
+      repeat(2, minmax(0,1fr)) !important;
+  }
+}
+
+@media (max-width: 600px) {
+
+  header {
+    height: 64px !important;
+
+    padding:
+      0 10px !important;
+  }
+
+  main > section,
+  .content,
+  section {
+    padding:
+      16px 11px 24px !important;
+  }
+
+  .panel {
+    border-radius: 14px !important;
+  }
+
+  .main,
+  .pos,
+  .opp {
+    padding: 14px !important;
+  }
+
+  .hero h1,
+  .hero-row h2 {
+    font-size: 22px !important;
+  }
+
+  .levels,
+  .details {
+    grid-template-columns:
+      minmax(0,1fr) !important;
+  }
+
+  .core {
+    flex-wrap: wrap !important;
+  }
+
+  .posbuttons {
+    flex-direction:
+      column !important;
+  }
+
+  .posbuttons button {
+    width: 100% !important;
+  }
+
+  th,
+  td {
+    padding:
+      7px 5px !important;
+
+    font-size:
+      10px !important;
+  }
+}
