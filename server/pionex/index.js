@@ -332,10 +332,22 @@ router.get(
         error
       );
 
-      res.status(502).json({
+      const rateLimited =
+        error?.status === 429 ||
+        error?.code ===
+          "PIONEX_RATE_LIMITED";
+
+      res.status(
+        rateLimited ? 429 : 502
+      ).json({
         success: false,
         scanned: 0,
         candidates: [],
+        status:
+          rateLimited
+            ? "PIONEX_RATE_LIMITED"
+            : "PIONEX_MARKET_ERROR",
+        retryable: true,
         error:
           error instanceof Error
             ? error.message

@@ -5,23 +5,112 @@ import {
   isPionexConfigured,
 } from "./pionexConfig.js";
 
-/*
- * TradeMindMZ V2 — Pionex READ-ONLY client
- *
- * IMPORTANT:
- * - GET requests only
- * - NO order creation
- * - NO cancel
- * - NO execution
- * - NO trading
- */
+const REQUEST_TIMEOUT_MS = 15000;
+const MAX_RETRIES = 4;
+const MIN_REQUEST_GAP_MS = 350;
+
+let lastRequestAt = 0;
+
+const responseCache = new Map();
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function cacheKey(path, query) {
+  return `${path}?${new URLSearchParams(query).toString()}`;
+}
+
+function getCached(key, ttlMs) {
+  const entry = responseCache.get(key);
+
+  if (!entry) {
+    return null;
+  }
+
+  if (Date.now() - entry.timestamp > ttlMs) {
+    responseCache.delete(key);
+    return null;
+  }
+
+  return entry.value;
+}
+
+function setCached(key, value) {
+  responseCache.set(key, {
+    timestamp: Date.now(),
+    value,
+  });
+}
+
+async function respectRequestGap() {
+  const elapsed = Date.now() - lastRequestAt;
+
+  if (elapsed < MIN_REQUEST_GAP_MS) {
+    await sleep(
+      MIN_REQUEST_GAP_MS - elapsed
+    );
+  }
+
+  lastRequestAt = Date.now();
+}
+
+function getRetryDelay(response, attempt) {
+  const retryAfter =
+    response?.headers?.get?.("retry-after");
+
+  if (retryAfter) {
+    const seconds = Number(retryAfter);
+
+    if (Number.isFinite(seconds)) {
+      return Math.min(
+        Math.max(seconds * 1000, 1500),
+        30000
+      );
+    }
+  }
+
+  return Math.min(
+    2000 * Math.pow(2, attempt),
+    30000
+  );
+}
+
+async function fetchWithTimeout(
+  url,
+  options
+) {
+  const controller =
+    new AbortController();
+
+  const timeout =
+    setTimeout(
+      () =>
+        controller.abort(),
+      REQUEST_TIMEOUT_MS
+    );
+
+  try {
+    return await fetch(
+      url,
+      {
+        ...options,
+        signal:
+          controller.signal,
+      }
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+}
 
 function buildSignature({
   method,
   path,
   queryString = "",
 }) {
-  const config = getPionexConfig();
+  const config =
+    getPionexConfig();
 
   const pathUrl =
     queryString
@@ -32,38 +121,42 @@ function buildSignature({
     `${method}${pathUrl}`;
 
   return crypto
-    .createHmac("sha256", config.apiSecret)
+    .createHmac(
+      "sha256",
+      config.apiSecret
+    )
     .update(message)
     .digest("hex");
 }
 
+function buildQuery(query = {}) {
+  const params =
+    new URLSearchParams({
+      ...query,
+      timestamp:
+        Date.now().toString(),
+    });
 
-async function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
+  return [...params.entries()]
+    .sort(([a], [b]) =>
+      a.localeCompare(b)
+    )
+    .map(
+      ([key, value]) =>
+        `${key}=${value}`
+    )
+    .join("&");
 }
 
-function getRetryDelay(response, attempt) {
-  const retryAfter = response?.headers?.get?.("retry-after");
-
-  if (retryAfter) {
-    const seconds = Number(retryAfter);
-
-    if (Number.isFinite(seconds)) {
-      return Math.min(
-        Math.max(seconds * 1000, 1000),
-        30000
-      );
-    }
-  }
-
-  return Math.min(
-    1500 * Math.pow(2, attempt),
-    12000
-  );
-}
-
-async function request(path, query = {}) {
-  const config = getPionexConfig();
+async function request(
+  path,
+  query = {},
+  {
+    cacheTtlMs = 0,
+  } = {}
+) {
+  const config =
+    getPionexConfig();
 
   if (!isPionexConfigured()) {
     throw new Error(
@@ -71,64 +164,123 @@ async function request(path, query = {}) {
     );
   }
 
-  const maxAttempts = 3;
+  const staticQuery = {
+    ...query,
+  };
 
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+  const key =
+    cacheKey(path, staticQuery);
 
-    const timestamp = Date.now().toString();
+  if (cacheTtlMs > 0) {
+    const cached =
+      getCached(
+        key,
+        cacheTtlMs
+      );
 
-    const params = new URLSearchParams({
-      ...query,
-      timestamp,
-    });
+    if (cached !== null) {
+      return cached;
+    }
+  }
+
+  for (
+    let attempt = 0;
+    attempt < MAX_RETRIES;
+    attempt += 1
+  ) {
+    await respectRequestGap();
 
     const queryString =
-      [...params.entries()]
-        .sort(([a], [b]) =>
-          a.localeCompare(b)
-        )
-        .map(
-          ([key, value]) =>
-            `${key}=${value}`
-        )
-        .join("&");
+      buildQuery(
+        query
+      );
 
-    const signature = buildSignature({
-      method: "GET",
-      path,
-      queryString,
-    });
+    const signature =
+      buildSignature({
+        method: "GET",
+        path,
+        queryString,
+      });
 
     const url =
       `${config.baseUrl}${path}?${queryString}`;
 
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-        "PIONEX-KEY": config.apiKey,
-        "PIONEX-SIGNATURE": signature,
-      },
-    });
+    let response;
 
-    if (response.ok) {
-      return response.json();
+    try {
+      response =
+        await fetchWithTimeout(
+          url,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type":
+                "application/json",
+              "PIONEX-KEY":
+                config.apiKey,
+              "PIONEX-SIGNATURE":
+                signature,
+            },
+          }
+        );
+    } catch (error) {
+      if (
+        attempt <
+        MAX_RETRIES - 1
+      ) {
+        const delay =
+          Math.min(
+            2000 *
+              Math.pow(
+                2,
+                attempt
+              ),
+            15000
+          );
+
+        console.warn(
+          `[Pionex] network/timeout on ${path}. ` +
+          `Retry in ${delay}ms.`
+        );
+
+        await sleep(delay);
+        continue;
+      }
+
+      throw error;
     }
 
-    const responseText = await response.text();
+    if (response.ok) {
+      const json =
+        await response.json();
+
+      if (cacheTtlMs > 0) {
+        setCached(
+          key,
+          json
+        );
+      }
+
+      return json;
+    }
+
+    const text =
+      await response.text();
 
     if (
       response.status === 429 &&
-      attempt < maxAttempts - 1
+      attempt <
+        MAX_RETRIES - 1
     ) {
-      const delay = getRetryDelay(
-        response,
-        attempt
-      );
+      const delay =
+        getRetryDelay(
+          response,
+          attempt
+        );
 
       console.warn(
-        `[Pionex] 429 rate limit on ${path}. ` +
-        `Retry ${attempt + 1}/${maxAttempts - 1} ` +
+        `[Pionex] 429 on ${path}. ` +
+        `Retry ${attempt + 1}/${MAX_RETRIES - 1} ` +
         `in ${delay}ms.`
       );
 
@@ -137,59 +289,145 @@ async function request(path, query = {}) {
       continue;
     }
 
-    throw new Error(
-      `Pionex request failed: ${response.status} ${responseText}`
-    );
+    const error =
+      new Error(
+        `Pionex request failed: ` +
+        `${response.status} ${text}`
+      );
+
+    error.status =
+      response.status;
+
+    error.code =
+      response.status === 429
+        ? "PIONEX_RATE_LIMITED"
+        : "PIONEX_REQUEST_FAILED";
+
+    throw error;
   }
 
   throw new Error(
-    "Pionex request failed after retry attempts."
+    "Pionex request failed after retries."
   );
 }
 
-/*
- * Public market GET.
- *
- * No credentials required.
- */
-async function publicRequest(path, query = {}) {
+async function publicRequest(
+  path,
+  query = {},
+  {
+    cacheTtlMs = 0,
+  } = {}
+) {
+  const config =
+    getPionexConfig();
 
-  const maxAttempts = 3;
+  const key =
+    cacheKey(path, query);
 
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+  if (cacheTtlMs > 0) {
+    const cached =
+      getCached(
+        key,
+        cacheTtlMs
+      );
+
+    if (cached !== null) {
+      return cached;
+    }
+  }
+
+  for (
+    let attempt = 0;
+    attempt < MAX_RETRIES;
+    attempt += 1
+  ) {
+    await respectRequestGap();
 
     const queryString =
-      new URLSearchParams(query).toString();
+      new URLSearchParams(
+        query
+      ).toString();
 
     const url =
-      `${getPionexConfig().baseUrl}${path}` +
-      (queryString ? `?${queryString}` : "");
+      `${config.baseUrl}${path}` +
+      (
+        queryString
+          ? `?${queryString}`
+          : ""
+      );
 
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+    let response;
 
-    if (response.ok) {
-      return response.json();
+    try {
+      response =
+        await fetchWithTimeout(
+          url,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type":
+                "application/json",
+            },
+          }
+        );
+    } catch (error) {
+      if (
+        attempt <
+        MAX_RETRIES - 1
+      ) {
+        const delay =
+          Math.min(
+            2000 *
+              Math.pow(
+                2,
+                attempt
+              ),
+            15000
+          );
+
+        console.warn(
+          `[Pionex] market network/timeout ` +
+          `on ${path}. Retry in ${delay}ms.`
+        );
+
+        await sleep(delay);
+        continue;
+      }
+
+      throw error;
     }
 
-    const responseText = await response.text();
+    if (response.ok) {
+      const json =
+        await response.json();
+
+      if (cacheTtlMs > 0) {
+        setCached(
+          key,
+          json
+        );
+      }
+
+      return json;
+    }
+
+    const text =
+      await response.text();
 
     if (
       response.status === 429 &&
-      attempt < maxAttempts - 1
+      attempt <
+        MAX_RETRIES - 1
     ) {
-      const delay = getRetryDelay(
-        response,
-        attempt
-      );
+      const delay =
+        getRetryDelay(
+          response,
+          attempt
+        );
 
       console.warn(
-        `[Pionex] 429 market rate limit on ${path}. ` +
-        `Retry ${attempt + 1}/${maxAttempts - 1} ` +
+        `[Pionex] 429 market on ${path}. ` +
+        `Retry ${attempt + 1}/${MAX_RETRIES - 1} ` +
         `in ${delay}ms.`
       );
 
@@ -198,77 +436,82 @@ async function publicRequest(path, query = {}) {
       continue;
     }
 
-    throw new Error(
-      `Pionex market request failed: ${response.status} ${responseText}`
-    );
+    const error =
+      new Error(
+        `Pionex market request failed: ` +
+        `${response.status} ${text}`
+      );
+
+    error.status =
+      response.status;
+
+    error.code =
+      response.status === 429
+        ? "PIONEX_RATE_LIMITED"
+        : "PIONEX_MARKET_FAILED";
+
+    throw error;
   }
 
   throw new Error(
-    "Pionex market request failed after retry attempts."
+    "Pionex market request failed after retries."
   );
 }
 
-/*
- * Account / balance.
- */
 export async function getAccountInfo() {
   return request(
-    "/api/v1/account/balances"
+    "/api/v1/account/balances",
+    {},
+    {
+      cacheTtlMs: 5000,
+    }
   );
 }
 
-/*
- * Full wallet balance overview.
- *
- * Includes Spot/Bot Account and Futures/Trader Account.
- * READ ONLY.
- */
 export async function getWalletBalancesFull() {
   return request(
-    "/api/v1/wallet/balancesFull"
+    "/api/v1/wallet/balancesFull",
+    {},
+    {
+      cacheTtlMs: 5000,
+    }
   );
 }
 
-/*
- * USDT-M futures positions.
- *
- * IMPORTANT:
- * /api/v1/account/positions is NOT the correct
- * endpoint for the USDT-M position feed.
- *
- * Use the uapi endpoint.
- */
 export async function getOpenPositions() {
   return request(
-    "/uapi/v1/account/positions"
+    "/uapi/v1/account/positions",
+    {},
+    {
+      cacheTtlMs: 5000,
+    }
   );
 }
 
-/*
- * Public ticker feed.
- */
 export async function getMarketTickers() {
   return publicRequest(
-    "/api/v1/market/tickers"
+    "/api/v1/market/tickers",
+    {},
+    {
+      cacheTtlMs: 5000,
+    }
   );
 }
 
-/*
- * Public symbol list.
- */
 export async function getMarketSymbols() {
   return publicRequest(
-    "/api/v1/common/symbols"
+    "/api/v1/common/symbols",
+    {},
+    {
+      cacheTtlMs: 60000,
+    }
   );
 }
 
-/*
- * Public OHLCV candles.
- */
 export async function getMarketKlines({
   symbol,
   interval = "1D",
-  limit = 200,
+  limit = 100,
 } = {}) {
   if (!symbol) {
     throw new Error(
@@ -282,6 +525,13 @@ export async function getMarketKlines({
       symbol,
       interval,
       limit: String(limit),
+    },
+    {
+      cacheTtlMs: 30000,
     }
   );
+}
+
+export function clearPionexMarketCache() {
+  responseCache.clear();
 }

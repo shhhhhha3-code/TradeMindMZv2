@@ -102,11 +102,16 @@ export function useLiveAiSignal(
           err
         );
 
-        setError(
+        const message =
           err instanceof Error
             ? err.message
-            : "Unable to load live AI signal."
-        );
+            : "Unable to load live AI signal.";
+
+        /*
+         * Keep the previous successful market data
+         * visible during temporary API throttling.
+         */
+        setError(message);
 
       } finally {
 
