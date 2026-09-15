@@ -10,6 +10,10 @@ import {
   syncPaperLearning,
 } from "./paperLearning.js";
 
+import {
+  recordPaperMonitorHealth,
+} from "./runtimeHealth.js";
+
 const DEFAULT_INTERVAL_MS =
   30_000;
 
@@ -77,6 +81,14 @@ async function runOnce() {
     state.consecutiveFailures = 0;
     state.lastDurationMs =
       Date.now() - startedAt;
+
+    recordPaperMonitorHealth({
+      ...state,
+      type: "SUCCESS",
+      running: false,
+      healthy: true,
+      stale: false,
+    });
   } catch (error) {
     state.lastRunAt =
       new Date().toISOString();
@@ -94,6 +106,14 @@ async function runOnce() {
 
     state.lastDurationMs =
       Date.now() - startedAt;
+
+    recordPaperMonitorHealth({
+      ...state,
+      type: "FAILURE",
+      running: false,
+      healthy: false,
+      stale: false,
+    });
   } finally {
     state.running = false;
   }
@@ -207,8 +227,22 @@ export function resetPaperMonitorRecovery() {
   state.lastRecoveryAt =
     new Date().toISOString();
 
+  const monitor =
+    getPaperMonitorStatus();
+
+  recordPaperMonitorHealth({
+    type: "RECOVERY",
+    ...state,
+    healthy:
+      monitor?.observability?.healthy ??
+      false,
+    stale:
+      monitor?.observability?.stale ??
+      false,
+  });
+
   return {
     success: true,
-    state: getPaperMonitorStatus(),
+    state: monitor,
   };
 }

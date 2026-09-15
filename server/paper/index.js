@@ -34,6 +34,13 @@ import { getPaperLearning, syncPaperLearning, resetPaperLearning } from "./paper
 import { getPatternIntelligence } from "./patternIntelligence.js";
 import { calculateAdaptiveShadowScore, getAdaptiveShadowSummary } from "./adaptiveShadowScore.js";
 
+import {
+  getPaperMonitorHealthHistory,
+  getPaperMonitorHealthSummary,
+  clearPaperMonitorHealthHistory,
+} from "./runtimeHealth.js";
+
+
 const router =
   express.Router();
 
@@ -166,6 +173,67 @@ router.post(
       });
     }
   }
+);
+
+router.get(
+  "/monitor/health-history",
+  (req, res) => {
+    try {
+      res.json({
+        success: true,
+        history:
+          getPaperMonitorHealthHistory(
+            req.query?.limit,
+          ),
+      });
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      });
+    }
+  },
+);
+
+router.get(
+  "/monitor/health-summary",
+  (_req, res) => {
+    try {
+      res.json(
+        getPaperMonitorHealthSummary(),
+      );
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      });
+    }
+  },
+);
+
+router.post(
+  "/monitor/health-clear",
+  (_req, res) => {
+    try {
+      res.json(
+        clearPaperMonitorHealthHistory(),
+      );
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      });
+    }
+  },
 );
 
 router.post(
