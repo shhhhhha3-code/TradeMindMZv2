@@ -24,6 +24,8 @@ import MarketSparkline from "./components/MarketSparkline.jsx";
 import "./ui/trademind-terminal-v5.css";
 import "./ui/trademind-mobile.css";
 
+
+
 function Logo(){
   return (
     <div className="brand">
