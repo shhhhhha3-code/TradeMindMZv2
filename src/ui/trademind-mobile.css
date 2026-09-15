@@ -1,0 +1,239 @@
+/* =========================================================
+   TradeMindMZ V2 - Mobile Responsive Layer
+   Desktop design remains unchanged.
+   ========================================================= */
+
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Prevent oversized media/content from forcing horizontal scroll */
+img,
+svg,
+video,
+canvas,
+table {
+  max-width: 100%;
+}
+
+button,
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+/* ---------------------------------------------------------
+   MOBILE ONLY
+   --------------------------------------------------------- */
+@media (max-width: 768px) {
+
+  html,
+  body {
+    width: 100%;
+    min-width: 0;
+    overflow-x: hidden !important;
+  }
+
+  body {
+    margin: 0;
+  }
+
+  #root {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  /* Kill desktop minimum widths that cause the right-side crop */
+  [style*="min-width"],
+  [class*="min-w-"] {
+    min-width: 0 !important;
+  }
+
+  /* Main page containers */
+  [class*="content"],
+  [class*="Content"],
+  [class*="main"],
+  [class*="Main"],
+  [class*="page"],
+  [class*="Page"],
+  [class*="workspace"],
+  [class*="Workspace"] {
+    max-width: 100% !important;
+  }
+
+  /* Responsive grid fallback */
+  [class*="grid-cols-2"],
+  [class*="grid-cols-3"],
+  [class*="grid-cols-4"],
+  [class*="grid-cols-5"],
+  [class*="grid-cols-6"] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  /* Flex rows should be allowed to wrap */
+  [class*="flex-nowrap"] {
+    flex-wrap: wrap !important;
+  }
+
+  /* Cards / panels */
+  [class*="card"],
+  [class*="Card"],
+  [class*="panel"],
+  [class*="Panel"] {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Tables */
+  table {
+    width: 100% !important;
+    table-layout: fixed;
+  }
+
+  th,
+  td {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  /* Long AI explanations must wrap */
+  p,
+  span,
+  div {
+    overflow-wrap: anywhere;
+  }
+
+  /* Headings */
+  h1,
+  h2,
+  h3,
+  h4 {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  /* Buttons should remain touch friendly */
+  button {
+    min-height: 40px;
+  }
+
+  /* Modals / dialogs */
+  [role="dialog"],
+  [class*="modal"],
+  [class*="Modal"],
+  [class*="dialog"],
+  [class*="Dialog"] {
+    width: calc(100vw - 24px) !important;
+    max-width: calc(100vw - 24px) !important;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* Prevent decorative elements from creating horizontal overflow */
+  [class*="absolute"] {
+    max-width: 100%;
+  }
+
+  /* -------------------------------------------------------
+     Existing sidebar: make it mobile friendly
+     ------------------------------------------------------- */
+
+  [class*="sidebar"],
+  [class*="Sidebar"],
+  [class*="side-bar"],
+  [class*="SideBar"] {
+    max-width: 86vw;
+  }
+
+  /* -------------------------------------------------------
+     Header
+     ------------------------------------------------------- */
+
+  header {
+    max-width: 100% !important;
+  }
+
+  /* Reduce giant desktop-only horizontal gaps */
+  [class*="gap-10"],
+  [class*="gap-12"],
+  [class*="gap-14"],
+  [class*="gap-16"] {
+    gap: 1rem !important;
+  }
+
+  /* Better mobile horizontal spacing */
+  [class*="px-10"],
+  [class*="px-12"],
+  [class*="px-14"],
+  [class*="px-16"] {
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+  }
+
+  /* Keep content visible inside viewport */
+  section,
+  main,
+  article {
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  /* Inputs */
+  input,
+  textarea,
+  select {
+    width: 100%;
+  }
+}
+
+/* ---------------------------------------------------------
+   SMALL PHONES
+   --------------------------------------------------------- */
+@media (max-width: 480px) {
+
+  h1 {
+    font-size: clamp(1.7rem, 8vw, 2.3rem) !important;
+    line-height: 1.05 !important;
+  }
+
+  h2 {
+    font-size: clamp(1.35rem, 6vw, 1.8rem) !important;
+  }
+
+  h3 {
+    font-size: 1.05rem !important;
+  }
+
+  body {
+    font-size: 14px;
+  }
+
+  button {
+    min-height: 42px;
+  }
+
+  table {
+    font-size: 12px;
+  }
+
+  th,
+  td {
+    padding-left: 0.45rem !important;
+    padding-right: 0.45rem !important;
+  }
+}

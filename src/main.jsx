@@ -18,6 +18,7 @@ import "./ui/trademind-v4.css";
 import "./ui/trademind-v41.css";
 import "./ui/trademind-v42.css";
 import "./ui/trademind-v43.css";
+import "./ui/trademind-mobile.css";
 function Logo(){
   return (
     <div className="brand">
