@@ -39,6 +39,7 @@ import {
   getPaperMonitorHealthSummary,
   clearPaperMonitorHealthHistory,
 } from "./runtimeHealth.js";
+import { calculatePaperHealthScore } from "./paperHealthScore.js";
 
 
 const router =
@@ -223,6 +224,34 @@ router.post(
     try {
       res.json(
         clearPaperMonitorHealthHistory(),
+      );
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : String(error),
+      });
+    }
+  },
+);
+
+router.get(
+  "/monitor/health-score",
+  (_req, res) => {
+    try {
+      const monitor =
+        getPaperMonitorStatus();
+
+      const historySummary =
+        getPaperMonitorHealthSummary();
+
+      res.json(
+        calculatePaperHealthScore(
+          monitor,
+          historySummary,
+        ),
       );
     } catch (error) {
       res.status(500).json({

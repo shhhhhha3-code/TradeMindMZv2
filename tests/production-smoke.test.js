@@ -120,6 +120,24 @@ test("confidence calibration V6 is available", async () => {
   );
 });
 
+test("paper monitor health score is available", async () => {
+  const { response, body } =
+    await getJson(
+      "/api/paper/monitor/health-score",
+    );
+
+  assert.equal(response.status, 200);
+  assert.equal(body.success, true);
+  assert.match(
+    String(body.level),
+    /^(HEALTHY|WARNING|CRITICAL)$/,
+  );
+  assert.equal(
+    typeof body.score,
+    "number",
+  );
+});
+
 test("pattern intelligence is available", async () => {
   const { response, body } =
     await getJson(
