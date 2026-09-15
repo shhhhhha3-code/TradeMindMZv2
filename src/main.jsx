@@ -22,7 +22,11 @@ import "./ui/trademind-v43.css";
 import CoinLogo from "./components/CoinLogo.jsx";
 import MarketSparkline from "./components/MarketSparkline.jsx";
 import "./ui/trademind-terminal-v5.css";
+
+import ProDashboard from "./components/ProDashboard.jsx";
+import "./ui/trademind-dashboard-v6.css";
 import "./ui/trademind-mobile.css";
+
 
 
 
@@ -72,7 +76,7 @@ const updateAiSetting=(key,value)=>{const next={...aiSettings,[key]:value};setAi
     : tab==='settings'
       ? <SettingsPage settings={aiSettings} updateSetting={updateAiSetting}/>
       : tab==='dashboard'
-        ? <><PaperPerformancePanel/><LearningDashboardPanel/><LearningJournalPanel/><TopFiveCommandCenter/><MarketRegimeRiskCenter/><Dashboard/></>
+        ? <ProDashboard/>
         : tab==='market'
           ? <MarketOverview/>
           : tab==='history'

@@ -1,0 +1,853 @@
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
+import CoinLogo from "./CoinLogo.jsx";
+import MarketSparkline from "./MarketSparkline.jsx";
+
+function number(value, fallback = null) {
+  const n = Number(value);
+  return Number.isFinite(n)
+    ? n
+    : fallback;
+}
+
+function formatPrice(value) {
+  const n = number(value);
+
+  if (n === null) return "—";
+
+  if (n >= 1000) {
+    return n.toLocaleString(
+      "en-US",
+      {
+        maximumFractionDigits: 2,
+      }
+    );
+  }
+
+  if (n >= 1) {
+    return n.toLocaleString(
+      "en-US",
+      {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 4,
+      }
+    );
+  }
+
+  if (n >= 0.01) {
+    return n.toLocaleString(
+      "en-US",
+      {
+        minimumFractionDigits: 3,
+        maximumFractionDigits: 5,
+      }
+    );
+  }
+
+  return n.toLocaleString(
+    "en-US",
+    {
+      minimumFractionDigits: 6,
+      maximumFractionDigits: 8,
+    }
+  );
+}
+
+function formatPct(value) {
+  const n = number(value);
+
+  if (n === null) return "—";
+
+  return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
+}
+
+function directionClass(value) {
+  const n = number(value, 0);
+
+  return n >= 0
+    ? "tmz-positive"
+    : "tmz-negative";
+}
+
+function toBaseSymbol(symbol = "") {
+  return String(symbol)
+    .toUpperCase()
+    .replace(/[_-].*$/, "")
+    .replace(/USDT.*$/, "")
+    .replace(/USDC.*$/, "")
+    .replace(/USD.*$/, "");
+}
+
+function normalizePionexCandidates(
+  candidates = []
+) {
+  return candidates
+    .filter(Boolean)
+    .slice(0, 5)
+    .map((candidate, index) => {
+      const symbol =
+        candidate.symbol ||
+        candidate.market ||
+        `COIN_${index + 1}`;
+
+      return {
+        ...candidate,
+        symbol,
+        baseSymbol:
+          toBaseSymbol(symbol),
+        price:
+          number(
+            candidate.price ??
+            candidate.entry ??
+            candidate.lastPrice
+          ),
+        change24h:
+          number(
+            candidate.change24h ??
+            candidate?.indicators?.change24h
+          ),
+        score:
+          number(
+            candidate.score ??
+            candidate.engineScore
+          ),
+        confidence:
+          number(
+            candidate.confidence
+          ),
+        riskReward:
+          number(
+            candidate.riskReward
+          ),
+        sparkline:
+          Array.isArray(
+            candidate.sparkline
+          )
+            ? candidate.sparkline
+            : [],
+        source:
+          candidate.source ||
+          "PIONEX",
+      };
+    });
+}
+
+export default function ProDashboard() {
+  const [
+    data,
+    setData
+  ] = useState(null);
+
+  const [
+    loading,
+    setLoading
+  ] = useState(true);
+
+  const [
+    refreshing,
+    setRefreshing
+  ] = useState(false);
+
+  const [
+    error,
+    setError
+  ] = useState("");
+
+  const load = useCallback(
+    async () => {
+      setRefreshing(true);
+
+      try {
+        const pionexResponse =
+          await fetch(
+            "/api/pionex/market-scan?limit=60&maxMarkets=5",
+            {
+              method: "GET",
+              headers: {
+                Accept:
+                  "application/json",
+              },
+              cache: "no-store",
+            }
+          );
+
+        const pionex =
+          await pionexResponse.json();
+
+        if (
+          pionexResponse.ok &&
+          pionex?.success !== false &&
+          Array.isArray(
+            pionex?.engineTop5
+          ) &&
+          pionex.engineTop5.length
+        ) {
+          setData({
+            mode: "PIONEX",
+            source:
+              "PIONEX LIVE",
+            delayed: false,
+            updatedAt:
+              new Date().toISOString(),
+            candidates:
+              normalizePionexCandidates(
+                pionex.engineTop5
+              ),
+            aiDecision:
+              pionex.aiDecision ||
+              null,
+            finalDecision:
+              pionex.finalDecision ||
+              "NO_TRADE",
+          });
+
+          setError("");
+          setLoading(false);
+          return;
+        }
+
+        /* Pionex can be temporarily rate limited.
+         * Never render the dashboard as broken.
+         */
+
+        const fallbackResponse =
+          await fetch(
+            "/api/market/overview",
+            {
+              method: "GET",
+              headers: {
+                Accept:
+                  "application/json",
+              },
+              cache: "no-store",
+            }
+          );
+
+        const fallback =
+          await fallbackResponse.json();
+
+        if (
+          Array.isArray(
+            fallback?.candidates
+          ) &&
+          fallback.candidates.length
+        ) {
+          setData({
+            mode: "FALLBACK",
+            source:
+              "FALLBACK MARKET DATA",
+            delayed:
+              fallback.delayed === true,
+            updatedAt:
+              fallback.updatedAt,
+            candidates:
+              normalizePionexCandidates(
+                fallback.candidates
+              ),
+            aiDecision: null,
+            finalDecision:
+              "NO_TRADE",
+          });
+
+          setError("");
+          setLoading(false);
+          return;
+        }
+
+        setData({
+          mode: "OFFLINE",
+          source:
+            "MARKET DATA UNAVAILABLE",
+          delayed: true,
+          updatedAt:
+            new Date().toISOString(),
+          candidates: [],
+          aiDecision: null,
+          finalDecision:
+            "NO_TRADE",
+        });
+
+        setError(
+          pionex?.error ||
+          fallback?.error ||
+          "Market data is temporarily unavailable."
+        );
+      } catch (err) {
+        setData({
+          mode: "OFFLINE",
+          source:
+            "MARKET DATA UNAVAILABLE",
+          delayed: true,
+          updatedAt:
+            new Date().toISOString(),
+          candidates: [],
+          aiDecision: null,
+          finalDecision:
+            "NO_TRADE",
+        });
+
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Market data unavailable."
+        );
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    load();
+
+    const timer =
+      setInterval(
+        load,
+        60000
+      );
+
+    return () =>
+      clearInterval(timer);
+  }, [load]);
+
+  const candidates =
+    useMemo(
+      () =>
+        Array.isArray(
+          data?.candidates
+        )
+          ? data.candidates.slice(0, 5)
+          : [],
+      [data]
+    );
+
+  const bestCandidate =
+    candidates[0] || null;
+
+  const positiveCount =
+    candidates.filter(
+      candidate =>
+        number(
+          candidate.change24h,
+          0
+        ) >= 0
+    ).length;
+
+  return (
+    <div className="tmz-dashboard">
+
+      {/* =====================================================
+          HERO
+          ===================================================== */}
+
+      <div className="tmz-dashboard-hero">
+
+        <div>
+          <div className="tmz-eyebrow">
+            <span className="tmz-eyebrow-dot" />
+            MARKET INTELLIGENCE
+          </div>
+
+          <h1>
+            TradeMind
+            <span>MZ</span>
+          </h1>
+
+          <p>
+            Pionex market scan, engine scoring
+            and AI decision intelligence.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          className="tmz-refresh"
+          onClick={load}
+          disabled={refreshing}
+        >
+          <span
+            className={
+              refreshing
+                ? "tmz-spin"
+                : ""
+            }
+          >
+            ↻
+          </span>
+          {refreshing
+            ? "Updating"
+            : "Refresh"}
+        </button>
+
+      </div>
+
+      {/* =====================================================
+          STATUS BAR
+          ===================================================== */}
+
+      <div className="tmz-statusbar">
+
+        <div className="tmz-status-source">
+          <span
+            className={
+              data?.mode === "PIONEX"
+                ? "tmz-status-dot live"
+                : data?.mode === "FALLBACK"
+                  ? "tmz-status-dot fallback"
+                  : "tmz-status-dot offline"
+            }
+          />
+
+          <div>
+            <strong>
+              {data?.source ||
+                "CONNECTING MARKET DATA"}
+            </strong>
+
+            <small>
+              {data?.mode === "PIONEX"
+                ? "Live Pionex feed"
+                : data?.mode === "FALLBACK"
+                  ? "Pionex temporarily limited"
+                  : data?.mode === "OFFLINE"
+                    ? "Waiting for market feed"
+                    : "Connecting…"}
+            </small>
+          </div>
+        </div>
+
+        <div className="tmz-status-item">
+          <small>MARKETS</small>
+          <strong>
+            {candidates.length || "—"}
+          </strong>
+        </div>
+
+        <div className="tmz-status-item">
+          <small>POSITIVE</small>
+          <strong>
+            {candidates.length
+              ? `${positiveCount}/${candidates.length}`
+              : "—"}
+          </strong>
+        </div>
+
+        <div className="tmz-status-item">
+          <small>DECISION</small>
+          <strong
+            className={
+              data?.finalDecision ===
+              "NO_TRADE"
+                ? "tmz-warning-text"
+                : "tmz-positive"
+            }
+          >
+            {data?.finalDecision ||
+              "—"}
+          </strong>
+        </div>
+
+      </div>
+
+      {/* =====================================================
+          MAIN COMMAND CENTER
+          ===================================================== */}
+
+      <div className="tmz-command-grid">
+
+        {/* BEST SETUP */}
+
+        <section className="tmz-command-panel tmz-featured">
+
+          <div className="tmz-panel-header">
+            <div>
+              <span className="tmz-section-label">
+                BEST SETUP
+              </span>
+
+              <h2>
+                {bestCandidate
+                  ? bestCandidate.baseSymbol
+                  : "WAITING"}
+              </h2>
+            </div>
+
+            {bestCandidate && (
+              <span
+                className={
+                  directionClass(
+                    bestCandidate.change24h
+                  ) ===
+                  "tmz-positive"
+                    ? "tmz-badge green"
+                    : "tmz-badge red"
+                }
+              >
+                {formatPct(
+                  bestCandidate.change24h
+                )}
+              </span>
+            )}
+          </div>
+
+          {bestCandidate ? (
+            <div className="tmz-feature-content">
+
+              <div className="tmz-feature-identity">
+
+                <CoinLogo
+                  symbol={
+                    bestCandidate.baseSymbol
+                  }
+                  size={58}
+                />
+
+                <div>
+                  <strong>
+                    {bestCandidate.name ||
+                      bestCandidate.baseSymbol}
+                  </strong>
+
+                  <small>
+                    {bestCandidate.symbol}
+                  </small>
+                </div>
+
+              </div>
+
+              <div className="tmz-big-price">
+                {formatPrice(
+                  bestCandidate.price
+                )}
+
+                <small> USDT</small>
+              </div>
+
+              <div className="tmz-feature-chart">
+                <MarketSparkline
+                  values={
+                    bestCandidate.sparkline
+                  }
+                  positive={
+                    number(
+                      bestCandidate.change24h,
+                      0
+                    ) >= 0
+                  }
+                  height={100}
+                />
+              </div>
+
+              <div className="tmz-feature-metrics">
+
+                <div>
+                  <small>ENGINE SCORE</small>
+                  <strong>
+                    {bestCandidate.score ??
+                      "—"}
+                  </strong>
+                </div>
+
+                <div>
+                  <small>CONFIDENCE</small>
+                  <strong>
+                    {bestCandidate.confidence !==
+                    null &&
+                    bestCandidate.confidence !==
+                    undefined
+                      ? `${bestCandidate.confidence}%`
+                      : "—"}
+                  </strong>
+                </div>
+
+                <div>
+                  <small>RISK / REWARD</small>
+                  <strong>
+                    {bestCandidate.riskReward ??
+                      "—"}
+                  </strong>
+                </div>
+
+              </div>
+
+            </div>
+          ) : (
+            <div className="tmz-empty-state">
+              {loading
+                ? "Loading market intelligence…"
+                : "No live market candidate available."}
+            </div>
+          )}
+
+        </section>
+
+        {/* AI DECISION */}
+
+        <section className="tmz-command-panel tmz-ai-panel">
+
+          <div className="tmz-panel-header">
+            <div>
+              <span className="tmz-section-label">
+                AI DECISION
+              </span>
+
+              <h2>
+                {data?.finalDecision ||
+                  "NO_TRADE"}
+              </h2>
+            </div>
+
+            <div className="tmz-ai-orb">
+              AI
+            </div>
+          </div>
+
+          <div className="tmz-decision-box">
+
+            <div className="tmz-decision-icon">
+              {data?.finalDecision ===
+              "NO_TRADE"
+                ? "!"
+                : "✓"}
+            </div>
+
+            <div>
+              <strong>
+                {data?.finalDecision ===
+                "NO_TRADE"
+                  ? "NO TRADE"
+                  : "TRADE SIGNAL"}
+              </strong>
+
+              <p>
+                {data?.mode === "FALLBACK"
+                  ? "Pionex is temporarily rate limited. Fallback market data is shown for visual monitoring only."
+                  : data?.aiDecision?.reason ||
+                    data?.aiDecision?.reasoning ||
+                    "TradeMindMZ risk criteria remain enforced."}
+              </p>
+            </div>
+
+          </div>
+
+          <div className="tmz-safety-row">
+            <span>READ ONLY</span>
+            <span>NO AUTO ORDERS</span>
+          </div>
+
+        </section>
+
+      </div>
+
+      {/* =====================================================
+          TOP 5
+          ===================================================== */}
+
+      <div className="tmz-section-heading">
+        <div>
+          <span className="tmz-section-label">
+            MARKET WATCHLIST
+          </span>
+          <h2>TOP 5</h2>
+        </div>
+
+        <small>
+          Ranked market candidates
+        </small>
+      </div>
+
+      <div className="tmz-market-grid">
+
+        {candidates.map(
+          (candidate, index) => {
+
+            const positive =
+              number(
+                candidate.change24h,
+                0
+              ) >= 0;
+
+            return (
+              <article
+                className="tmz-market-card"
+                key={
+                  candidate.symbol ||
+                  index
+                }
+              >
+
+                <div className="tmz-card-top">
+
+                  <div className="tmz-coin-identity">
+
+                    <CoinLogo
+                      symbol={
+                        candidate.baseSymbol
+                      }
+                      size={42}
+                    />
+
+                    <div>
+                      <strong>
+                        {candidate.baseSymbol}
+                      </strong>
+
+                      <small>
+                        #{index + 1}
+                      </small>
+                    </div>
+
+                  </div>
+
+                  <span
+                    className={
+                      positive
+                        ? "tmz-move positive"
+                        : "tmz-move negative"
+                    }
+                  >
+                    {formatPct(
+                      candidate.change24h
+                    )}
+                  </span>
+
+                </div>
+
+                <div className="tmz-card-price">
+                  {formatPrice(
+                    candidate.price
+                  )}
+                  <small>
+                    USDT
+                  </small>
+                </div>
+
+                <div className="tmz-card-chart">
+                  <MarketSparkline
+                    values={
+                      candidate.sparkline
+                    }
+                    positive={
+                      positive
+                    }
+                    height={70}
+                  />
+                </div>
+
+                <div className="tmz-card-footer">
+
+                  <div>
+                    <small>SCORE</small>
+                    <strong>
+                      {candidate.score ??
+                        "—"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <small>
+                      CONFIDENCE
+                    </small>
+                    <strong>
+                      {candidate.confidence !==
+                      null &&
+                      candidate.confidence !==
+                      undefined
+                        ? `${candidate.confidence}%`
+                        : "—"}
+                    </strong>
+                  </div>
+
+                  <div>
+                    <small>SOURCE</small>
+                    <strong>
+                      {data?.mode ===
+                      "PIONEX"
+                        ? "PIONEX"
+                        : "FALLBACK"}
+                    </strong>
+                  </div>
+
+                </div>
+
+              </article>
+            );
+          }
+        )}
+
+        {!loading &&
+        candidates.length === 0 ? (
+          <div className="tmz-market-empty">
+            <strong>
+              MARKET FEED TEMPORARILY UNAVAILABLE
+            </strong>
+
+            <span>
+              Pionex rate limiting is being
+              respected. Refresh shortly.
+            </span>
+          </div>
+        ) : null}
+
+      </div>
+
+      {/* =====================================================
+          FOOTER STATUS
+          ===================================================== */}
+
+      <div className="tmz-dashboard-footer">
+
+        <span>
+          TradeMindMZ Engine
+        </span>
+
+        <span>
+          •
+        </span>
+
+        <span>
+          Market source:{" "}
+          {data?.source ||
+            "Connecting"}
+        </span>
+
+        <span>
+          •
+        </span>
+
+        <span>
+          {data?.updatedAt
+            ? new Date(
+                data.updatedAt
+              ).toLocaleTimeString(
+                "nb-NO",
+                {
+                  hour:
+                    "2-digit",
+                  minute:
+                    "2-digit",
+                }
+              )
+            : "—"}
+        </span>
+
+      </div>
+
+      {error ? (
+        <div className="tmz-soft-error">
+          {data?.mode === "FALLBACK"
+            ? "Pionex live feed is temporarily limited. Dashboard is showing clearly-labelled fallback data."
+            : error}
+        </div>
+      ) : null}
+
+    </div>
+  );
+}

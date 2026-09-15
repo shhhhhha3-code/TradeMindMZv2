@@ -549,19 +549,7 @@ function getSymbolValue(row, keys) {
   return null;
 }
 
-let activeScan = null;
-
 export async function scanPionexMarket({
-  if (activeScan) {
-    console.warn(
-      "[Pionex] market scan already running; reusing active scan."
-    );
-
-    return activeScan;
-  }
-
-  activeScan = (async () => {
-
   interval = "1D",
   candleLimit = 100,
   maxMarkets = 25,
@@ -721,12 +709,4 @@ return {
       engineResult.top5,
 
   };
-
-  })();
-
-  try {
-    return await activeScan;
-  } finally {
-    activeScan = null;
-  }
 }

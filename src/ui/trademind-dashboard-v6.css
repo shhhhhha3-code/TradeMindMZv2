@@ -1,0 +1,799 @@
+/* ============================================================
+   TRADEMINDMZ V6 — COMMAND CENTER
+   Visual dashboard layer.
+   ============================================================ */
+
+.tmz-dashboard {
+  width: 100%;
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 26px 30px 48px;
+  color: #f4f7fb;
+}
+
+.tmz-dashboard *,
+.tmz-dashboard *::before,
+.tmz-dashboard *::after {
+  min-width: 0;
+}
+
+.tmz-dashboard-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 30px;
+  margin-bottom: 22px;
+}
+
+.tmz-eyebrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #00f5a0;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .22em;
+}
+
+.tmz-eyebrow-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #00f5a0;
+  box-shadow:
+    0 0 10px rgba(0,245,160,.75);
+}
+
+.tmz-dashboard-hero h1 {
+  margin: 0;
+  font-size: clamp(32px, 5vw, 52px);
+  line-height: .95;
+  letter-spacing: -.055em;
+}
+
+.tmz-dashboard-hero h1 span {
+  color: #ff4d6a;
+}
+
+.tmz-dashboard-hero p {
+  margin: 10px 0 0;
+  color: #758299;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.tmz-refresh {
+  flex: 0 0 auto;
+  min-height: 42px;
+  padding: 0 16px;
+  border: 1px solid rgba(0,220,255,.18);
+  border-radius: 11px;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(0,220,255,.08),
+      rgba(141,92,255,.08)
+    );
+  color: #e9f8ff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  cursor: pointer;
+  transition:
+    transform .18s ease,
+    border-color .18s ease,
+    box-shadow .18s ease;
+}
+
+.tmz-refresh:hover {
+  transform: translateY(-1px);
+  border-color: rgba(0,220,255,.32);
+  box-shadow:
+    0 10px 25px rgba(0,0,0,.25);
+}
+
+.tmz-refresh span {
+  margin-right: 7px;
+  font-size: 16px;
+}
+
+.tmz-refresh:disabled {
+  opacity: .55;
+  cursor: wait;
+}
+
+.tmz-spin {
+  display: inline-block;
+  animation: tmz-spin 1s linear infinite;
+}
+
+@keyframes tmz-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================================
+   STATUS BAR
+   ============================================================ */
+
+.tmz-statusbar {
+  display: grid;
+  grid-template-columns:
+    minmax(240px, 1.6fr)
+    repeat(3, minmax(90px, .55fr));
+  gap: 1px;
+  margin-bottom: 18px;
+  overflow: hidden;
+  border:
+    1px solid rgba(255,255,255,.07);
+  border-radius: 14px;
+  background:
+    rgba(255,255,255,.045);
+}
+
+.tmz-status-source,
+.tmz-status-item {
+  padding: 13px 15px;
+  background:
+    rgba(7,11,20,.92);
+}
+
+.tmz-status-source {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tmz-status-source strong {
+  display: block;
+  font-size: 10px;
+  letter-spacing: .09em;
+}
+
+.tmz-status-source small,
+.tmz-status-item small {
+  display: block;
+  margin-top: 3px;
+  color: #65738b;
+  font-size: 8px;
+  letter-spacing: .07em;
+}
+
+.tmz-status-dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border-radius: 50%;
+}
+
+.tmz-status-dot.live {
+  background: #00f5a0;
+  box-shadow:
+    0 0 13px rgba(0,245,160,.8);
+}
+
+.tmz-status-dot.fallback {
+  background: #ffd15c;
+  box-shadow:
+    0 0 13px rgba(255,209,92,.5);
+}
+
+.tmz-status-dot.offline {
+  background: #ff4d6a;
+}
+
+.tmz-status-item strong {
+  font-size: 14px;
+  font-family: "Space Mono", monospace;
+}
+
+/* ============================================================
+   COMMAND GRID
+   ============================================================ */
+
+.tmz-command-grid {
+  display: grid;
+  grid-template-columns:
+    minmax(0, 1.35fr)
+    minmax(300px, .65fr);
+  gap: 16px;
+}
+
+.tmz-command-panel {
+  position: relative;
+  overflow: hidden;
+  padding: 20px;
+  border:
+    1px solid rgba(255,255,255,.075);
+  border-radius: 17px;
+  background:
+    linear-gradient(
+      145deg,
+      rgba(12,18,31,.97),
+      rgba(5,9,16,.98)
+    );
+  box-shadow:
+    0 20px 50px rgba(0,0,0,.26),
+    inset 0 1px rgba(255,255,255,.025);
+}
+
+.tmz-command-panel::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background:
+    linear-gradient(
+      90deg,
+      transparent,
+      rgba(0,245,160,.22),
+      rgba(0,220,255,.2),
+      transparent
+    );
+}
+
+.tmz-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 15px;
+}
+
+.tmz-section-label {
+  color: #6b7991;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .18em;
+}
+
+.tmz-panel-header h2 {
+  margin: 7px 0 0;
+  font-size: 22px;
+  letter-spacing: -.025em;
+}
+
+.tmz-badge,
+.tmz-move {
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.tmz-badge {
+  padding: 6px 9px;
+}
+
+.tmz-badge.green {
+  border:
+    1px solid rgba(0,245,160,.18);
+  background:
+    rgba(0,245,160,.07);
+  color: #00f5a0;
+}
+
+.tmz-badge.red {
+  border:
+    1px solid rgba(255,77,106,.18);
+  background:
+    rgba(255,77,106,.07);
+  color: #ff6d85;
+}
+
+/* ============================================================
+   FEATURED
+   ============================================================ */
+
+.tmz-feature-content {
+  margin-top: 18px;
+}
+
+.tmz-feature-identity {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.tmz-feature-identity strong {
+  display: block;
+  font-size: 14px;
+}
+
+.tmz-feature-identity small {
+  display: block;
+  margin-top: 3px;
+  color: #6b7890;
+  font-size: 9px;
+}
+
+.tmz-big-price {
+  margin-top: 13px;
+  color: #f7f9ff;
+  font:
+    700 clamp(28px, 4vw, 46px)
+    "Space Mono", monospace;
+  letter-spacing: -.04em;
+}
+
+.tmz-big-price small {
+  color: #68758a;
+  font:
+    500 10px
+    Inter, sans-serif;
+}
+
+.tmz-feature-chart {
+  margin-top: 12px;
+  height: 100px;
+  padding: 2px 0;
+}
+
+.tmz-feature-metrics {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0,1fr));
+  gap: 1px;
+  margin-top: 15px;
+  overflow: hidden;
+  border:
+    1px solid rgba(255,255,255,.06);
+  border-radius: 10px;
+  background:
+    rgba(255,255,255,.035);
+}
+
+.tmz-feature-metrics > div {
+  padding: 11px;
+  background:
+    rgba(5,9,16,.8);
+}
+
+.tmz-feature-metrics small,
+.tmz-card-footer small {
+  display: block;
+  color: #5e6c83;
+  font-size: 7px;
+  letter-spacing: .12em;
+}
+
+.tmz-feature-metrics strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+}
+
+/* ============================================================
+   AI PANEL
+   ============================================================ */
+
+.tmz-ai-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.tmz-ai-orb {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  place-items: center;
+  border:
+    1px solid rgba(141,92,255,.32);
+  border-radius: 13px;
+  background:
+    radial-gradient(
+      circle,
+      rgba(141,92,255,.28),
+      rgba(0,220,255,.05)
+    );
+  color: #d8ceff;
+  font:
+    800 10px
+    "Space Mono", monospace;
+  box-shadow:
+    0 0 30px rgba(141,92,255,.12);
+}
+
+.tmz-decision-box {
+  display: flex;
+  gap: 11px;
+  margin-top: 22px;
+  padding: 15px;
+  border:
+    1px solid rgba(255,77,106,.12);
+  border-radius: 12px;
+  background:
+    rgba(255,77,106,.035);
+}
+
+.tmz-decision-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border:
+    1px solid rgba(255,77,106,.26);
+  border-radius: 9px;
+  color: #ff6d85;
+  background:
+    rgba(255,77,106,.08);
+  font-weight: 900;
+}
+
+.tmz-decision-box strong {
+  display: block;
+  font-size: 12px;
+}
+
+.tmz-decision-box p {
+  margin: 5px 0 0;
+  color: #78859a;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.tmz-safety-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 18px;
+  color: #59677b;
+  font-size: 7px;
+  font-weight: 800;
+  letter-spacing: .12em;
+}
+
+.tmz-safety-row span:first-child {
+  color: #00f5a0;
+}
+
+/* ============================================================
+   TOP 5
+   ============================================================ */
+
+.tmz-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 15px;
+  margin-top: 28px;
+  margin-bottom: 13px;
+}
+
+.tmz-section-heading h2 {
+  margin: 6px 0 0;
+  font-size: 18px;
+  letter-spacing: -.02em;
+}
+
+.tmz-section-heading > small {
+  color: #59677b;
+  font-size: 9px;
+}
+
+.tmz-market-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tmz-market-card {
+  min-width: 0;
+  overflow: hidden;
+  padding: 15px;
+  border:
+    1px solid rgba(255,255,255,.065);
+  border-radius: 14px;
+  background:
+    linear-gradient(
+      155deg,
+      rgba(13,19,31,.96),
+      rgba(6,10,17,.98)
+    );
+  box-shadow:
+    0 12px 35px rgba(0,0,0,.22);
+  transition:
+    transform .18s ease,
+    border-color .18s ease,
+    box-shadow .18s ease;
+}
+
+.tmz-market-card:hover {
+  transform: translateY(-2px);
+  border-color:
+    rgba(0,220,255,.18);
+  box-shadow:
+    0 18px 45px rgba(0,0,0,.32);
+}
+
+.tmz-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tmz-coin-identity {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.tmz-coin-identity strong {
+  display: block;
+  font-size: 12px;
+}
+
+.tmz-coin-identity small {
+  display: block;
+  margin-top: 3px;
+  color: #58667a;
+  font-size: 8px;
+}
+
+.tmz-move {
+  padding: 5px 7px;
+}
+
+.tmz-move.positive {
+  color: #00f5a0;
+  background:
+    rgba(0,245,160,.07);
+  border:
+    1px solid rgba(0,245,160,.12);
+}
+
+.tmz-move.negative {
+  color: #ff6d85;
+  background:
+    rgba(255,77,106,.07);
+  border:
+    1px solid rgba(255,77,106,.12);
+}
+
+.tmz-card-price {
+  margin-top: 14px;
+  font:
+    700 19px
+    "Space Mono", monospace;
+  letter-spacing: -.025em;
+}
+
+.tmz-card-price small {
+  margin-left: 4px;
+  color: #59677b;
+  font:
+    500 7px
+    Inter, sans-serif;
+}
+
+.tmz-card-chart {
+  height: 70px;
+  margin-top: 9px;
+}
+
+.tmz-card-footer {
+  display: grid;
+  grid-template-columns:
+    repeat(3, minmax(0,1fr));
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.tmz-card-footer > div {
+  padding-top: 9px;
+  border-top:
+    1px solid rgba(255,255,255,.05);
+}
+
+.tmz-card-footer strong {
+  display: block;
+  margin-top: 3px;
+  color: #dfe6ef;
+  font-size: 10px;
+}
+
+.tmz-market-empty {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 190px;
+  padding: 30px;
+  border:
+    1px dashed rgba(255,255,255,.09);
+  border-radius: 14px;
+  text-align: center;
+  background:
+    rgba(255,255,255,.018);
+}
+
+.tmz-market-empty strong {
+  font-size: 11px;
+}
+
+.tmz-market-empty span {
+  margin-top: 7px;
+  color: #65738a;
+  font-size: 9px;
+}
+
+/* ============================================================
+   FOOTER / ERROR
+   ============================================================ */
+
+.tmz-dashboard-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 20px;
+  color: #4f5c6f;
+  font-size: 8px;
+  letter-spacing: .05em;
+}
+
+.tmz-soft-error {
+  margin-top: 10px;
+  color: #6d798c;
+  font-size: 8px;
+}
+
+.tmz-empty-state {
+  display: grid;
+  min-height: 220px;
+  place-items: center;
+  color: #66748a;
+  font-size: 11px;
+  text-align: center;
+}
+
+.tmz-positive {
+  color: #00f5a0 !important;
+}
+
+.tmz-negative {
+  color: #ff6d85 !important;
+}
+
+.tmz-warning-text {
+  color: #ffd15c !important;
+}
+
+/* ============================================================
+   RESPONSIVE
+   ============================================================ */
+
+@media (max-width: 1200px) {
+  .tmz-market-grid {
+    grid-template-columns:
+      repeat(3, minmax(0,1fr));
+  }
+}
+
+@media (max-width: 900px) {
+
+  .tmz-dashboard {
+    padding: 20px 16px 35px;
+  }
+
+  .tmz-dashboard-hero {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tmz-command-grid {
+    grid-template-columns:
+      minmax(0,1fr);
+  }
+
+  .tmz-market-grid {
+    grid-template-columns:
+      repeat(2, minmax(0,1fr));
+  }
+
+  .tmz-statusbar {
+    grid-template-columns:
+      1fr 1fr;
+  }
+
+  .tmz-status-source {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 600px) {
+
+  .tmz-dashboard {
+    padding:
+      15px 10px 25px;
+  }
+
+  .tmz-dashboard-hero {
+    gap: 15px;
+  }
+
+  .tmz-dashboard-hero h1 {
+    font-size: 30px;
+  }
+
+  .tmz-dashboard-hero p {
+    font-size: 10px;
+  }
+
+  .tmz-refresh {
+    width: 100%;
+  }
+
+  .tmz-statusbar {
+    grid-template-columns:
+      repeat(2, minmax(0,1fr));
+  }
+
+  .tmz-status-source {
+    grid-column: 1 / -1;
+  }
+
+  .tmz-command-panel {
+    padding: 15px;
+    border-radius: 13px;
+  }
+
+  .tmz-feature-metrics {
+    grid-template-columns:
+      1fr;
+  }
+
+  .tmz-market-grid {
+    grid-template-columns:
+      minmax(0,1fr);
+  }
+
+  .tmz-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .tmz-card-price {
+    font-size: 18px;
+  }
+}
+
+.tmz-coin-logo,
+.tmz-coin-fallback {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 12px;
+  border:
+    1px solid rgba(255,255,255,.09);
+  background:
+    radial-gradient(
+      circle at 35% 25%,
+      rgba(255,255,255,.08),
+      rgba(255,255,255,.015)
+    );
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.03),
+    0 8px 20px rgba(0,0,0,.22);
+}
+
+.tmz-coin-logo img {
+  width: 78%;
+  height: 78%;
+  display: block;
+  object-fit: contain;
+}
+
+.tmz-coin-fallback {
+  color: #b8c4d5;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .06em;
+}

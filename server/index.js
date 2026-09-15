@@ -15,6 +15,7 @@ import positionsRouter from "./positions/route.js";
 import { analyzeTopCandidates } from "./ai/topCandidatesAnalysis.js";
 import { getTradeCriteria, saveTradeCriteria } from "./ai/tradeCriteria.js";
 import paperRouter from "./paper/index.js";
+import { getFallbackMarket } from "./market/fallbackMarket.js";
 import {
   startPaperMonitor,
 } from "./paper/paperMonitor.js";
@@ -39,6 +40,48 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 
 app.use("/api/paper", paperRouter);
+
+/*
+ * Market Overview fallback endpoint.
+ *
+ * Pionex remains the preferred live source.
+ * When Pionex is temporarily rate limited,
+ * this endpoint provides clearly-labelled
+ * fallback market data for the UI only.
+ *
+ * No trading operation is performed here.
+ */
+app.get("/api/market/overview", async (_req, res) => {
+  try {
+    const fallback =
+      await getFallbackMarket();
+
+    return res.json({
+      success: true,
+      ...fallback,
+    });
+  } catch (error) {
+    console.error(
+      "Fallback market overview failed:",
+      error
+    );
+
+    return res.json({
+      success: true,
+      source: "FALLBACK_UNAVAILABLE",
+      delayed: true,
+      updatedAt:
+        new Date().toISOString(),
+      candidates: [],
+      error:
+        error instanceof Error
+          ? error.message
+          : String(error),
+    });
+  }
+});
+
+
 
 /*
  * Basic health endpoint.
