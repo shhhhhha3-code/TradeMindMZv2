@@ -22,6 +22,7 @@ let state = {
     DEFAULT_INTERVAL_MS,
   lastRunAt: null,
   lastSuccess: null,
+  lastSuccessAt: null,
   lastError: null,
   lastClosedNow: 0,
   lastLearningAdded: 0,
@@ -56,6 +57,9 @@ async function runOnce() {
 
     state.lastSuccess =
       true;
+
+    state.lastSuccessAt =
+      new Date().toISOString();
 
     state.lastError =
       null;
@@ -143,6 +147,34 @@ export function stopPaperMonitor() {
 }
 
 export function getPaperMonitorStatus() {
+  const now = Date.now();
+
+  const lastRunMs =
+    state.lastRunAt
+      ? now - new Date(state.lastRunAt).getTime()
+      : null;
+
+  const lastSuccessMs =
+    state.lastSuccessAt
+      ? now - new Date(state.lastSuccessAt).getTime()
+      : null;
+
+  const staleThresholdMs =
+    Math.max(
+      state.intervalMs * 3,
+      120_000
+    );
+
+  const stale =
+    lastRunMs !== null &&
+    lastRunMs > staleThresholdMs;
+
+  const healthy =
+    state.enabled &&
+    !state.running &&
+    !stale &&
+    state.consecutiveFailures === 0;
+
   return {
     ...state,
     openPaperTrades:
@@ -151,6 +183,15 @@ export function getPaperMonitorStatus() {
           trade.status === "OPEN"
       ).length,
     subscribers,
+    observability: {
+      healthy,
+      stale,
+      lastRunAgeMs:
+        lastRunMs,
+      lastSuccessAgeMs:
+        lastSuccessMs,
+      staleThresholdMs,
+    },
   };
 }
 
