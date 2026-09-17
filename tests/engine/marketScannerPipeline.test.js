@@ -12,7 +12,7 @@ const scannerPath = resolve(
   "../../server/pionex/marketScanner.js"
 );
 
-test("Engine can rank a candidate outside the scanner's preselected TOP 5", () => {
+test("Engine can rank a candidate outside the scanner's former preselected TOP 5", () => {
   const markets = Array.from({ length: 6 }, (_, index) => ({
     symbol: `MARKET${index + 1}USDT`,
     score: 70 + index,
@@ -32,24 +32,25 @@ test("Engine can rank a candidate outside the scanner's preselected TOP 5", () =
   assert.equal(engineResult.top5[0].symbol, "MARKET6USDT");
 });
 
-test("Current scanner pipeline sends only its preselected topFive into the Engine", async () => {
+test("Current scanner pipeline sends the full candidate set into Engine V2", async () => {
   const source = await readFile(scannerPath, "utf8");
 
-  const topFiveDeclaration = source.indexOf("const topFive =");
-  const engineCall = source.indexOf(
-    "runTradeMindEngine(\n    topFive"
-  );
-
   assert.ok(
-    topFiveDeclaration >= 0,
-    "Expected scanner TOP 5 declaration"
+    source.includes('runTradeMindEngineV2'),
+    "Expected scanner to use TradeMind Engine V2"
   );
   assert.ok(
-    engineCall >= 0,
-    "Expected scanner to pass topFive into TradeMind Engine"
+    source.includes("runTradeMindEngineV2(\n    candidates"),
+    "Expected scanner to pass the full candidates array into Engine V2"
   );
-  assert.ok(
-    topFiveDeclaration < engineCall,
-    "Expected scanner to select TOP 5 before calling the Engine"
+  assert.equal(
+    source.includes("const topFive ="),
+    false,
+    "Scanner must not preselect a final TOP 5 before Engine V2"
+  );
+  assert.equal(
+    source.includes("runTradeMindEngine(\n    topFive"),
+    false,
+    "Scanner must not pass a scanner-selected TOP 5 into the Engine"
   );
 });
