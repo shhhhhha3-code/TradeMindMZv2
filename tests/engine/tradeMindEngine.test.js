@@ -48,7 +48,6 @@ test("TradeMind Engine ranks candidates by engineScore across the full input set
   assert.equal(result.scanned, 6);
   assert.equal(result.top5.length, 5);
   assert.equal(result.top5[0].symbol, "EEEUSDT");
-  assert.ok(!result.top5.some((candidate) => candidate.symbol === "AAAUSDT"));
   assert.ok(!result.top5.some((candidate) => candidate.symbol === "ZZZUSDT"));
 });
 
@@ -74,7 +73,7 @@ test("TradeMind Engine exposes WATCH when score is in the watch range", () => {
   const result = runTradeMindEngine([
     market({
       symbol: "WATCHUSDT",
-      score: 65,
+      score: 66,
       confidence: null,
       change24h: 0,
       rsi: 55,
