@@ -27,4 +27,4 @@ jobs:
           cache: true
 
       - name: Type-check TradeMindMZ Edge API
-        run: deno check supabase/functions/trademind-api/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/trademind-api/index.ts
