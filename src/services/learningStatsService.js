@@ -1,3 +1,4 @@
+import { apiUrl } from "./apiBase.js";
 async function readJson(response) {
   let data;
 
@@ -22,7 +23,7 @@ async function readJson(response) {
 
 export async function fetchLearningStats() {
   const response = await fetch(
-    "/api/ai/learning-stats",
+    apiUrl("/api/ai/learning-stats"),
     {
       method: "GET",
       headers: {
