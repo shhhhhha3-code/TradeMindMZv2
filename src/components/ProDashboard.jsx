@@ -1,3 +1,4 @@
+import { apiUrl } from "../services/apiBase.js";
 import React, {
   useCallback,
   useEffect,
@@ -164,8 +165,7 @@ export default function ProDashboard() {
 
       try {
         const pionexResponse =
-          await fetch(
-            "/api/pionex/market-scan?limit=60&maxMarkets=5",
+          await fetch(apiUrl("/api/pionex/market-scan?limit=60&maxMarkets=5",
             {
               method: "GET",
               headers: {
@@ -216,8 +216,7 @@ export default function ProDashboard() {
          */
 
         const fallbackResponse =
-          await fetch(
-            "/api/market/overview",
+          await fetch(apiUrl("/api/market/overview",
             {
               method: "GET",
               headers: {
