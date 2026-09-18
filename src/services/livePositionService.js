@@ -1,3 +1,4 @@
+import { apiUrl } from "./apiBase.js";
 function extractError(data, fallback) {
   return (
     data?.error ||
@@ -180,7 +181,7 @@ function normalizePionexResponse(data) {
  */
 export async function fetchLivePionexPositions() {
   const response = await fetch(
-    "/api/pionex/live-positions",
+    apiUrl("/api/pionex/live-positions"),
     {
       method: "GET",
       headers: {
