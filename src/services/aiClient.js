@@ -1,4 +1,3 @@
-import { apiUrl } from "./apiBase.js";
 import {
   assertAIAccess,
 } from "../ai/aiGateway";
