@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { scanPionexMarket } from "../_shared/marketScanner.js";
 import { getAccountInfo, getOpenPositions, getWalletBalancesFull } from "../_shared/pionex.js";
