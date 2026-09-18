@@ -1,3 +1,4 @@
+import { apiUrl } from "./apiBase.js";
 async function readJson(response) {
   let data;
 
@@ -26,9 +27,9 @@ export async function fetchDashboardData() {
     positionsResponse,
     historyResponse
   ] = await Promise.all([
-    fetch("/api/ai/learning-stats"),
-    fetch("/api/positions"),
-    fetch("/api/ai/signal-history?limit=10")
+    fetch(apiUrl("/api/ai/learning-stats")),
+    fetch(apiUrl("/api/positions")),
+    fetch(apiUrl("/api/ai/signal-history?limit=10"))
   ]);
 
   const [
