@@ -413,7 +413,7 @@ function LivePionexBalance(){
 
     try {
 
-      const response = await fetch(apiUrl("/api/pionex/wallet-balances"
+      const response = await fetch(apiUrl("/api/pionex/wallet-balances")
       );
 
       if (!response.ok) {
@@ -1547,8 +1547,8 @@ function Dashboard(){
           return response.json();
         }),
 
-        fetch(apiUrl("/api/pionex/market-scan?limit=100&maxMarkets=5"
-        ).then(async response => {
+        fetch(apiUrl("/api/pionex/market-scan?limit=100&maxMarkets=5"))
+        .then(async response => {
           if (!response.ok) {
             throw new Error(
               `Market scan failed (${response.status})`
@@ -3387,7 +3387,7 @@ function DiagnosticsPanel() {
 
     try {
       const response =
-        await fetch(apiUrl("/api/diagnostics", {
+        await fetch(apiUrl("/api/diagnostics"), {
           cache: "no-store",
         });
 
@@ -3795,7 +3795,7 @@ function TradeCriteriaPanel() {
 
       try {
         const response =
-          await fetch(apiUrl("/api/ai/trade-criteria",
+          await fetch(apiUrl("/api/ai/trade-criteria"),
             {
               cache: "no-store",
             }
@@ -3861,7 +3861,7 @@ function TradeCriteriaPanel() {
 
       try {
         const response =
-          await fetch(apiUrl("/api/ai/trade-criteria",
+          await fetch(apiUrl("/api/ai/trade-criteria"),
             {
               method: "POST",
               headers: {
