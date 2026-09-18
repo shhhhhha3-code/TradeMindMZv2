@@ -1,3 +1,4 @@
+import { apiUrl } from "./apiBase.js";
 async function readJson(response) {
   let data;
 
@@ -24,7 +25,7 @@ export async function fetchSignalHistory(
   limit = 50
 ) {
   const response = await fetch(
-    `/api/ai/signal-history?limit=${encodeURIComponent(limit)}`,
+    apiUrl(`/api/ai/signal-history?limit=${encodeURIComponent(limit)}`),
     {
       method: "GET",
       headers: {
