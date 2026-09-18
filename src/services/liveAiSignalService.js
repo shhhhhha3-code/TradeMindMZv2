@@ -1,3 +1,4 @@
+import { apiUrl } from "./apiBase.js";
 async function readJson(
   response,
   label
@@ -36,7 +37,7 @@ export async function fetchLiveAiSignal(
 
   const scannerResponse =
     await fetch(
-      `/api/pionex/market-scan?limit=100&maxMarkets=${maxMarkets}`,
+      apiUrl(`/api/pionex/market-scan?limit=100&maxMarkets=${maxMarkets}`),
       {
         method: "GET",
         headers: {
@@ -73,7 +74,7 @@ export async function fetchLiveAiSignal(
 
   const aiResponse =
     await fetch(
-      "/api/ai/top-candidates",
+      apiUrl("/api/ai/top-candidates"),
       {
         method: "POST",
 
