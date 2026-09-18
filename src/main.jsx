@@ -1,3 +1,4 @@
+import { apiUrl } from "./services/apiBase.js";
 import "./ui/trademind-v3-global.css";
 import './ui/trademind-design.css';
 import React,{useEffect,useState}from'react';import{createRoot}from'react-dom/client';import{Activity,BrainCircuit,ChevronRight,History,LayoutDashboard,LineChart,Menu,Bell,RefreshCw,Settings,ShieldCheck,Target,TrendingUp,Wallet,X,Zap,Radio}from'lucide-react';import'./styles.css';
@@ -412,8 +413,7 @@ function LivePionexBalance(){
 
     try {
 
-      const response = await fetch(
-        "/api/pionex/wallet-balances"
+      const response = await fetch(apiUrl("/api/pionex/wallet-balances"
       );
 
       if (!response.ok) {
@@ -1536,8 +1536,7 @@ function Dashboard(){
       ] = await Promise.all([
         fetchDashboardData(),
 
-        fetch(
-          "/api/pionex/wallet-balances"
+        fetch(apiUrl("/api/pionex/wallet-balances"
         ).then(async response => {
           if (!response.ok) {
             throw new Error(
@@ -1548,8 +1547,7 @@ function Dashboard(){
           return response.json();
         }),
 
-        fetch(
-          "/api/pionex/market-scan?limit=100&maxMarkets=5"
+        fetch(apiUrl("/api/pionex/market-scan?limit=100&maxMarkets=5"
         ).then(async response => {
           if (!response.ok) {
             throw new Error(
@@ -2824,8 +2822,7 @@ function MarketOverview(){
     setError("");
 
     try {
-      const response = await fetch(
-        "/api/pionex/market-scan?scanLimit=15&maxMarkets=15"
+      const response = await fetch(apiUrl("/api/pionex/market-scan?scanLimit=15&maxMarkets=15"
       );
 
       const text = await response.text();
@@ -3390,7 +3387,7 @@ function DiagnosticsPanel() {
 
     try {
       const response =
-        await fetch("/api/diagnostics", {
+        await fetch(apiUrl("/api/diagnostics", {
           cache: "no-store",
         });
 
@@ -3798,8 +3795,7 @@ function TradeCriteriaPanel() {
 
       try {
         const response =
-          await fetch(
-            "/api/ai/trade-criteria",
+          await fetch(apiUrl("/api/ai/trade-criteria",
             {
               cache: "no-store",
             }
@@ -3865,8 +3861,7 @@ function TradeCriteriaPanel() {
 
       try {
         const response =
-          await fetch(
-            "/api/ai/trade-criteria",
+          await fetch(apiUrl("/api/ai/trade-criteria",
             {
               method: "POST",
               headers: {
