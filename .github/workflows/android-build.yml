@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   android-debug:
@@ -31,11 +31,17 @@ jobs:
       - name: Install web dependencies
         run: npm install
 
-      - name: Upload generated lockfile
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-package-lock
-          path: package-lock.json
+      - name: Commit synchronized lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet -- package-lock.json; then
+            echo "package-lock.json is already synchronized"
+          else
+            git add package-lock.json
+            git commit -m "chore: sync package lockfile"
+            git push
+          fi
 
       - name: Build web app
         run: npm run build
