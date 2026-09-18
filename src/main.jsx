@@ -1536,8 +1536,8 @@ function Dashboard(){
       ] = await Promise.all([
         fetchDashboardData(),
 
-        fetch(apiUrl("/api/pionex/wallet-balances"
-        ).then(async response => {
+        fetch(apiUrl("/api/pionex/wallet-balances"))
+        .then(async response => {
           if (!response.ok) {
             throw new Error(
               `Wallet request failed (${response.status})`
@@ -2822,7 +2822,7 @@ function MarketOverview(){
     setError("");
 
     try {
-      const response = await fetch(apiUrl("/api/pionex/market-scan?scanLimit=15&maxMarkets=15"
+      const response = await fetch(apiUrl("/api/pionex/market-scan?scanLimit=15&maxMarkets=15")
       );
 
       const text = await response.text();
