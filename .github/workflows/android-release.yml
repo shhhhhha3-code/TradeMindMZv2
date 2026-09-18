@@ -2,6 +2,12 @@ name: TradeMind Android Release
 
 on:
   workflow_dispatch:
+    inputs:
+      source_ref:
+        description: "Branch or tag to build"
+        required: true
+        default: "codex-android-capacitor"
+        type: string
 
 permissions:
   contents: read
@@ -12,6 +18,8 @@ jobs:
     steps:
       - name: Checkout selected ref
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_ref }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
