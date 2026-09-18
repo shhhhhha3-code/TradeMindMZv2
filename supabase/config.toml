@@ -1,0 +1,4 @@
+# TradeMindMZ Supabase Edge API
+[functions.trademind-api]
+verify_jwt = false
+entrypoint = "./functions/trademind-api/index.ts"
