@@ -1,6 +1,8 @@
+import { apiUrl } from "./apiBase.js";
 import {
   assertAIAccess,
 } from "../ai/aiGateway";
+import { apiUrl } from "./apiBase.js";
 
 const AI_SERVER_URL =
   import.meta.env.VITE_AI_SERVER_URL ||
@@ -31,7 +33,7 @@ export async function requestAIAnalysis({
   }
 
   const response = await fetch(
-    `${AI_SERVER_URL}/api/ai/analyze`,
+    apiUrl(`${AI_SERVER_URL}/api/ai/analyze`),
     {
       method: "POST",
       headers: {
