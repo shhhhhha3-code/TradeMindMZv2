@@ -1,3 +1,4 @@
+import { apiUrl } from "./apiBase.js";
 async function readJson(response, label) {
   let data;
 
@@ -76,7 +77,7 @@ export async function analyzeLivePosition(
     );
 
   const response = await fetch(
-    "/api/ai/position-analyze",
+    apiUrl("/api/ai/position-analyze"),
     {
       method: "POST",
 
