@@ -72,47 +72,36 @@ export async function fetchLiveAiSignal(
     );
   }
 
-  const aiResponse =
-    await fetch(
-      apiUrl("/api/ai/top-candidates"),
-      {
-        method: "POST",
+  const ai = scanner?.aiDecision || null;
 
-        headers: {
-          "Content-Type":
-            "application/json",
-          Accept:
-            "application/json"
-        },
-
-        cache: "no-store",
-
-        body: JSON.stringify({
-          candidates:
-            topCandidates,
-
-          preferredProvider:
-            options.preferredProvider ||
-            "groq"
-        })
-      }
-    );
-
-  const ai =
-    await readJson(
-      aiResponse,
-      "Groq TOP5 analysis"
-    );
-
-  const recommendation =
-    ai?.recommendation ||
+  const selectedCandidate =
+    topCandidates.find(
+      candidate =>
+        candidate?.symbol === ai?.symbol
+    ) ||
+    topCandidates[0] ||
     null;
+
+  const recommendation = {
+    verdict:
+      ai?.decision === "TRADE"
+        ? "RECOMMENDED"
+        : "NO_TRADE",
+
+    recommended:
+      selectedCandidate,
+
+    summary:
+      ai?.reason ||
+      "Live market analysis completed."
+  };
 
   return {
     success: true,
 
     provider:
       ai?.provider ||
+      options.preferredProvider ||
       "groq",
 
     candidates:
@@ -121,16 +110,16 @@ export async function fetchLiveAiSignal(
     recommendation,
 
     comparison:
-      Array.isArray(
-        ai?.comparison
-      )
-        ? ai.comparison
-        : [],
+      [],
+
+    verdict:
+      recommendation.verdict,
+
+    recommended:
+      recommendation.recommended,
 
     summary:
-      ai?.summary ||
-      ai?.reasoning ||
-      "Live market analysis completed.",
+      recommendation.summary,
 
     scannedAt:
       new Date().toISOString()

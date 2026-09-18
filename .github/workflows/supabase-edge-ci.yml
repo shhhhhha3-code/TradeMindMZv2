@@ -1,0 +1,30 @@
+name: Supabase Edge Function CI
+
+on:
+  push:
+    branches:
+      - codex-android-capacitor
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  edge-api:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+          cache: true
+
+      - name: Type-check TradeMindMZ Edge API
+        run: deno check supabase/functions/trademind-api/index.ts
