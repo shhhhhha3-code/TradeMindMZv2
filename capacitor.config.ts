@@ -2,7 +2,7 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 const config: CapacitorConfig = {
   appId: "com.trademindmz.app",
-  appName: "TMZ21",
+  appName: "TradeMindMZ",
   webDir: "dist",
   server: {
     androidScheme: "https",
