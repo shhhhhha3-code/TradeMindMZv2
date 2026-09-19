@@ -275,6 +275,22 @@ async function handle(req) {
     catch(error){ return response({success:false,source:"pionex",data:null,error:error?.message||"Pionex wallet request failed."},502); }
   }
 
+  if (path === "/api/ai/trade-criteria" && method === "GET") {
+    return response({
+      success: true,
+      criteria: normalizeTradeCriteria(),
+    });
+  }
+
+  if (path === "/api/ai/trade-criteria" && method === "POST") {
+    const criteria = normalizeTradeCriteria(body || {});
+    return response({
+      success: true,
+      criteria,
+      saved: true,
+    });
+  }
+
   if (path === "/api/ai/top-candidates" && method === "POST") {
     try {
       const candidates = Array.isArray(body?.candidates) ? body.candidates : [];
