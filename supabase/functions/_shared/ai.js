@@ -12,7 +12,7 @@ async function callGroq(payload) {
     method: "POST",
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
     body: JSON.stringify({
-      model: Deno.env.get("GROQ_MODEL") || "llama-3.3-70b-versatile",
+      model: Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b",
       temperature: 0.1,
       response_format: { type: "json_object" },
       messages: [{ role: "system", content: payload.systemPrompt }, { role: "user", content: payload.userPrompt }],
