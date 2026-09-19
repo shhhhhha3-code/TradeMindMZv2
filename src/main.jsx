@@ -4460,9 +4460,11 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
   ).toUpperCase();
 
   const direction =
-    directionRaw === "BUY" ? "LONG" :
-    directionRaw === "SELL" ? "SHORT" :
-    "WATCH";
+    directionRaw === "BUY" || directionRaw === "LONG"
+      ? "BUY"
+      : directionRaw === "SELL" || directionRaw === "SHORT"
+        ? "SELL"
+        : "";
 
   const score =
     Number.isFinite(Number(recommended?.score))
@@ -4627,7 +4629,7 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
   };
 
   const handlePurchase = () => {
-    if (!recommended) return;
+    if (!recommended || !direction) return;
 
     setPurchaseDefaults({
       symbol: symbolRaw.replace("_",""),
@@ -4689,9 +4691,9 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
             </div>
           </div>
 
-          <span className="long">
+          <span className={direction === "SELL" ? "short" : "long"}>
             <TrendingUp/>
-            {direction}
+            {direction || "NO TRADE"}
           </span>
         </div>
 
@@ -4716,12 +4718,11 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
 
         <div className="levels">
           {[
-            ["ENTRY",formatPrice(entry)],
-            ["TAKE PROFIT",formatPrice(tp)],
-            ["", ""],
-            ["STOP LOSS",formatPrice(stop)]
+            ["ENTRY", formatPrice(entry)],
+            ["TAKE PROFIT", formatPrice(tp)],
+            ["STOP LOSS", formatPrice(stop)]
           ].map((x,i)=>
-            <div className={i===3?"danger":""} key={`${x[0]}-${i}`}>
+            <div className={i===2 ? "danger" : ""} key={x[0]}>
               <small>{x[0]}</small>
               <b>{x[1]}</b>
             </div>
@@ -4747,7 +4748,7 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
         <button
           className={bought?"buy done":"buy"}
           onClick={handlePurchase}
-          disabled={!recommended || loading}
+          disabled={!recommended || !direction || loading}
         >
           {bought
             ? <><ShieldCheck/> PURCHASE REGISTERED IN PIONEX</>
@@ -5017,7 +5018,7 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
                     )
                   : "—"}
               </b>
-              <small>WATCH analyses</small>
+              <small>BUY/SELL analyses</small>
             </span>
           </div>
         </div>
@@ -5034,13 +5035,21 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
 
     <div className="opps">
       {(comparison.length
-        ? comparison.filter(x => x.symbol !== symbolRaw).slice(0,3)
+        ? comparison
+            .filter(x => {
+              if (x.symbol === symbolRaw) return false;
+              const side = String(x.direction || x.side || "").toUpperCase();
+              return side === "BUY" || side === "SELL" || side === "LONG" || side === "SHORT";
+            })
+            .slice(0,3)
         : []
       ).map((x)=>
         <div className="panel opp" key={x.symbol}>
           <div>
             <b>{String(x.symbol || "").replace("_"," / ")}</b>
-            <span>WATCH</span>
+            <span>
+              {["SELL","SHORT"].includes(String(x.direction || x.side || "").toUpperCase()) ? "SELL" : "BUY"}
+            </span>
           </div>
 
           <strong>
