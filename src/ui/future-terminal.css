@@ -315,21 +315,4 @@ label{color:#929a95!important}
   .tm42-row .tm42-metric:nth-of-type(n+3),.tm42-row .tm42-hide-mobile{display:none!important}
 }
 
-/* Compact bottom navigation for the phone */
-@media(max-width:900px){
-  main:after{
-    content:"";
-    position:fixed;
-    z-index:30;
-    left:10px;right:10px;bottom:10px;height:58px;
-    background:rgba(15,18,17,.94);
-    border:1px solid #2b322f;
-    border-radius:13px;
-    box-shadow:0 18px 45px rgba(0,0,0,.5);
-    pointer-events:none;
-    backdrop-filter:blur(18px);
-  }
-}
-
-/* Kill the old neon identity: no purple/cyan/blue accents in the new terminal. */
-.tmz-dashboard [style*="#00"],.tmz-dashboard [style*="#6c"],.tmz-dashboard [style*="#7c"]{filter:none}
+/* Mobile navigation stays functional through the existing hamburger/side navigation. */
