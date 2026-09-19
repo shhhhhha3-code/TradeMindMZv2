@@ -74,13 +74,22 @@ export async function fetchLiveAiSignal(
 
   const ai = scanner?.aiDecision || null;
 
+  /*
+   * Only expose a candidate as the actionable recommendation
+   * when the Decision Layer explicitly returned TRADE.
+   *
+   * On NO_TRADE/WATCH we keep the TOP 5 candidates available,
+   * but never render one of them as a long/short recommendation.
+   * This prevents engine confidence/score values from being
+   * mistaken for an AI-approved trade.
+   */
   const selectedCandidate =
-    topCandidates.find(
-      candidate =>
-        candidate?.symbol === ai?.symbol
-    ) ||
-    topCandidates[0] ||
-    null;
+    ai?.decision === "TRADE"
+      ? topCandidates.find(
+          candidate =>
+            candidate?.symbol === ai?.symbol
+        ) || null
+      : null;
 
   const recommendation = {
     verdict:
