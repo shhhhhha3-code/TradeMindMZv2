@@ -55,7 +55,7 @@ jobs:
 
           # Modern Android/Samsung: use a real adaptive icon so the launcher
           # does not display the SVG's square background as a hard-edged tile.
-          convert resources/icon-foreground.svg -background none -resize 432x432 -gravity center -extent 432x432 \ android/app/src/main/res/drawable-nodpi/tmz_launcher_foreground.png
+          convert resources/icon-foreground.svg -background none -resize 432x432 -gravity center -extent 432x432 android/app/src/main/res/drawable-nodpi/tmz_launcher_foreground.png
 
           cat > android/app/src/main/res/values/tmz_icon_colors.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
