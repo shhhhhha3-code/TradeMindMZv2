@@ -100,6 +100,12 @@ export async function fetchLiveAiSignal(
   const approvedRecommendation = selectedCandidate
     ? {
         ...selectedCandidate,
+        direction:
+          String(selectedCandidate?.direction || "").toUpperCase() === "LONG"
+            ? "BUY"
+            : String(selectedCandidate?.direction || "").toUpperCase() === "SHORT"
+              ? "SELL"
+              : String(selectedCandidate?.direction || "").toUpperCase(),
         aiConfidence:
           Number.isFinite(Number(ai?.confidence))
             ? Number(ai.confidence)
