@@ -316,3 +316,126 @@ label{color:#929a95!important}
 }
 
 /* Mobile navigation stays functional through the existing hamburger/side navigation. */
+
+
+/* Future Terminal — legacy screens rebuilt visually, logic untouched */
+.hero{
+  display:flex!important;justify-content:space-between!important;align-items:flex-end!important;
+  gap:24px!important;margin:0 0 22px!important;padding:18px 2px 10px!important;
+}
+.hero label{
+  color:var(--future-lime)!important;font-size:10px!important;font-weight:850!important;
+  letter-spacing:.18em!important;display:flex!important;align-items:center!important;gap:7px!important;
+}
+.hero label svg{color:var(--future-lime)!important;width:16px!important}
+.hero h1{
+  color:var(--future-white)!important;font-size:clamp(30px,4.5vw,52px)!important;
+  line-height:1.02!important;letter-spacing:-.055em!important;margin:9px 0 8px!important;
+}
+.hero h1::first-letter{color:inherit}
+.hero p{color:var(--future-muted)!important;font-size:13px!important;line-height:1.55!important}
+.refresh{
+  background:var(--future-lime)!important;color:#10130f!important;border:0!important;
+  border-radius:7px!important;padding:13px 18px!important;font-weight:850!important;
+  box-shadow:0 0 24px rgba(214,255,63,.12)!important;
+}
+.grid{
+  display:grid!important;grid-template-columns:minmax(0,1.65fr) minmax(300px,.75fr)!important;gap:16px!important;
+}
+.panel{
+  background:linear-gradient(145deg,#121716,#0d100f)!important;
+  border:1px solid #29302d!important;border-radius:12px!important;box-shadow:0 16px 45px rgba(0,0,0,.34)!important;
+}
+.panel.main{padding:22px!important}
+.head{border-bottom:1px solid #242a28!important;padding-bottom:15px!important}
+.pair .coin{
+  background:#171b19!important;border-color:#343a36!important;color:var(--future-lime)!important;
+}
+.pair b{color:var(--future-white)!important}
+.pair small{color:var(--future-dim)!important}
+.long{
+  color:#10130f!important;background:var(--future-lime)!important;border:1px solid var(--future-lime)!important;
+}
+.short{
+  color:#fff!important;background:#45171d!important;border:1px solid #743039!important;
+}
+.core{padding:28px 0 24px!important}
+.ring{
+  background:conic-gradient(var(--future-lime) var(--p),#252b28 0)!important;
+  box-shadow:0 0 30px rgba(214,255,63,.06)!important;
+}
+.ring:before{background:#0b0e0d!important}
+.ring b{color:var(--future-white)!important}
+.copy small{color:var(--future-muted)!important}
+.copy b{color:var(--future-white)!important}
+.meter{background:#242a27!important}
+.meter i{background:var(--future-lime)!important}
+.copy p{color:var(--future-muted)!important}
+.levels{
+  grid-template-columns:repeat(3,1fr)!important;border:1px solid #292f2d!important;background:#0b0e0d!important;
+}
+.levels div{padding:16px!important;border-color:#292f2d!important}
+.levels small{color:var(--future-dim)!important}
+.levels b{color:var(--future-white)!important;font-size:14px!important}
+.levels .danger b{color:var(--future-red)!important}
+.meta{border-top:1px solid #242a28!important;padding:14px 2px!important;color:var(--future-dim)!important}
+.meta b{color:var(--future-text)!important}
+.buy{
+  background:var(--future-lime)!important;color:#10130f!important;border:0!important;border-radius:7px!important;
+}
+.buy.done{background:#14352b!important;color:#8de7bb!important;border:1px solid #2a765a!important}
+.stack{gap:16px!important}
+.stack .panel{padding:18px!important}
+.stack h3{color:#b9c0bb!important}
+.stack h3 svg{color:var(--future-lime)!important}
+.metric{border-color:#242a28!important}
+.metric span{color:var(--future-dim)!important}
+.metric b{color:var(--future-lime)!important}
+.big{color:var(--future-white)!important}
+.mini b{color:var(--future-lime)!important}
+.section{margin-top:30px!important}
+.section h2{color:var(--future-white)!important;font-size:18px!important;letter-spacing:-.02em!important}
+.section button{color:var(--future-muted)!important}
+.opps{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:14px!important}
+.opp{padding:17px!important}
+.opp b{color:var(--future-white)!important}
+.opp span{
+  color:#10130f!important;background:var(--future-lime)!important;border:0!important;border-radius:5px!important;font-weight:850!important;
+}
+.opp strong{color:var(--future-white)!important}
+.opp strong small{color:var(--future-dim)!important}
+.opp p{color:var(--future-muted)!important}
+
+/* Remove the old cyan/purple identity from legacy signal components */
+.tm43-label,.tm43-section-label,.tm43-title,.tm43-eyebrow{color:var(--future-lime)!important}
+.tm43-stat,.tm43-decision,.tm43-panel,.tm43-card{
+  background:#111514!important;border-color:#292f2d!important;color:var(--future-text)!important;
+}
+.tm43-bar{background:#242a27!important}
+.tm43-bar i{background:var(--future-lime)!important}
+.tm43-pulse i{background:var(--future-lime)!important;box-shadow:0 0 9px var(--future-lime)!important}
+.tm43-pulse{color:var(--future-lime)!important}
+
+/* Mobile header uses the new wordmark rather than the old cyan logo artwork */
+@media(max-width:900px){
+  .mobilelogo .tmz-brand-logo{display:none!important}
+  .mobilelogo .tmz-brand-copy{display:block!important}
+  .mobilelogo .tmz-brand-copy strong{
+    color:var(--future-white)!important;font-size:15px!important;letter-spacing:.1em!important;
+  }
+  .mobilelogo .tmz-brand-copy strong span{color:var(--future-lime)!important}
+  .mobilelogo .tmz-brand-copy small{display:none!important}
+  .hero{display:block!important;padding:15px 2px 8px!important}
+  .hero h1{font-size:34px!important}
+  .hero p{font-size:12px!important}
+  .hero .refresh{width:100%!important;justify-content:center!important;margin-top:14px!important}
+  .grid{grid-template-columns:1fr!important}
+  .panel.main{padding:16px!important}
+  .core{gap:16px!important}
+  .ring{width:118px!important;height:118px!important}
+  .levels{grid-template-columns:1fr!important}
+  .levels div{border-right:0!important;border-bottom:1px solid #292f2d!important}
+  .levels div:last-child{border-bottom:0!important}
+  .opps{grid-template-columns:1fr!important}
+  .section h2{font-size:17px!important}
+}
