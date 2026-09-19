@@ -957,3 +957,5 @@ button.refresh svg {
   flex-shrink: 0;
 }
 
+
+.short{display:flex;align-items:center;gap:5px;color:#ff6b7a;background:#2a1017;border:1px solid #63232f;border-radius:6px;padding:6px 9px;font-size:9px;font-weight:800}.short svg{width:14px}
