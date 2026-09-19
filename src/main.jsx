@@ -27,6 +27,7 @@ import "./ui/trademind-terminal-v5.css";
 import ProDashboard from "./components/ProDashboard.jsx";
 import "./ui/trademind-dashboard-v6.css";
 import "./ui/trademind-mobile.css";
+import "./ui/future-terminal.css";
 
 
 
