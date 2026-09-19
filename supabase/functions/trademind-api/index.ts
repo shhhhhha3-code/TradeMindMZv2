@@ -187,6 +187,9 @@ async function getSignalHistory(supabase, limit) {
 }
 
 function normalizeTradeCriteria(input = {}) {
+  const source = Object.keys(input || {}).length
+    ? input
+    : globalThis.__tradeMindCriteria || {};
   const n = (v, d) => Number.isFinite(Number(v)) ? Number(v) : d;
   return {
     minimumScore: Math.round(Math.max(0, Math.min(100, n(input.minimumScore,75)))),
@@ -284,6 +287,7 @@ async function handle(req) {
 
   if (path === "/api/ai/trade-criteria" && method === "POST") {
     const criteria = normalizeTradeCriteria(body || {});
+    globalThis.__tradeMindCriteria = criteria;
     return response({
       success: true,
       criteria,
