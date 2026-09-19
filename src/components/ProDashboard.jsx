@@ -5,6 +5,7 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { Wallet } from "lucide-react";
 
 import CoinLogo from "./CoinLogo.jsx";
 import MarketSparkline from "./MarketSparkline.jsx";
@@ -159,6 +160,11 @@ export default function ProDashboard() {
     setError
   ] = useState("");
 
+  const [wallet, setWallet] = useState(null);
+  const [walletLoading, setWalletLoading] = useState(true);
+  const [walletRefreshing, setWalletRefreshing] = useState(false);
+  const [walletError, setWalletError] = useState("");
+
   const load = useCallback(
     async () => {
       setRefreshing(true);
@@ -303,6 +309,42 @@ export default function ProDashboard() {
     []
   );
 
+  const loadWallet = useCallback(async () => {
+    setWalletRefreshing(true);
+    setWalletError("");
+
+    try {
+      const response = await fetch(
+        apiUrl("/api/pionex/wallet-balances"),
+        {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        }
+      );
+
+      const result = await response.json();
+
+      if (!response.ok || result?.success !== true) {
+        throw new Error(
+          result?.error ||
+          `Wallet request failed (${response.status})`
+        );
+      }
+
+      setWallet(result);
+    } catch (err) {
+      setWalletError(
+        err instanceof Error
+          ? err.message
+          : "Unable to load Pionex wallet."
+      );
+    } finally {
+      setWalletLoading(false);
+      setWalletRefreshing(false);
+    }
+  }, []);
+
   useEffect(() => {
     load();
 
@@ -315,6 +357,19 @@ export default function ProDashboard() {
     return () =>
       clearInterval(timer);
   }, [load]);
+
+  useEffect(() => {
+    loadWallet();
+
+    const timer =
+      setInterval(
+        loadWallet,
+        60000
+      );
+
+    return () =>
+      clearInterval(timer);
+  }, [loadWallet]);
 
   const candidates =
     useMemo(
@@ -338,6 +393,20 @@ export default function ProDashboard() {
           0
         ) >= 0
     ).length;
+
+  const walletData = wallet?.data || {};
+  const walletTotal = number(walletData?.totalInUsdt);
+  const walletSpot = number(walletData?.botAccount?.totalInUsdt);
+  const walletFutures = number(walletData?.traderAccount?.totalInUsdt);
+
+  const formatUsdt = value => {
+    const n = number(value);
+    if (n === null) return "—";
+    return n.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  };
 
   return (
     <div className="tmz-dashboard">
@@ -454,6 +523,66 @@ export default function ProDashboard() {
         </div>
 
       </div>
+
+      {/* =====================================================
+          LIVE PIONEX BALANCE
+          ===================================================== */}
+
+      <div
+        className="tmz-statusbar"
+        style={{ marginBottom: "18px" }}
+      >
+        <div className="tmz-status-source">
+          <Wallet size={20} />
+          <div>
+            <strong>PIONEX BALANCE</strong>
+            <small>
+              {walletRefreshing
+                ? "Updating live account"
+                : "Actual account value"}
+            </small>
+          </div>
+        </div>
+
+        <div className="tmz-status-item">
+          <small>TOTAL ACCOUNT</small>
+          <strong>
+            {walletLoading
+              ? "..."
+              : walletTotal === null
+                ? "—"
+                : `${formatUsdt(walletTotal)} USDT`}
+          </strong>
+        </div>
+
+        <div className="tmz-status-item">
+          <small>SPOT</small>
+          <strong>
+            {walletLoading
+              ? "..."
+              : walletSpot === null
+                ? "—"
+                : `${formatUsdt(walletSpot)} USDT`}
+          </strong>
+        </div>
+
+        <div className="tmz-status-item">
+          <small>USDT-M</small>
+          <strong>
+            {walletLoading
+              ? "..."
+              : walletFutures === null
+                ? "—"
+                : `${formatUsdt(walletFutures)} USDT`}
+          </strong>
+        </div>
+      </div>
+
+      {walletError ? (
+        <div className="tmz-soft-error" style={{ marginBottom: "18px" }}>
+          Pionex balance unavailable: {walletError}
+        </div>
+      ) : null}
 
       {/* =====================================================
           MAIN COMMAND CENTER
