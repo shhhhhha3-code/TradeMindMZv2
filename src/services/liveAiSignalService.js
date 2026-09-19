@@ -91,6 +91,20 @@ export async function fetchLiveAiSignal(
         ) || null
       : null;
 
+  const approvedRecommendation = selectedCandidate
+    ? {
+        ...selectedCandidate,
+        aiConfidence:
+          Number.isFinite(Number(ai?.confidence))
+            ? Number(ai.confidence)
+            : null,
+        aiDecision:
+          ai?.decision || null,
+        aiProvider:
+          ai?.provider || null,
+      }
+    : null;
+
   const recommendation = {
     verdict:
       ai?.decision === "TRADE"
