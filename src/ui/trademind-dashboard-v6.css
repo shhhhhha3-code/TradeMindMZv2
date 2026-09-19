@@ -839,3 +839,58 @@
 .tmz-soft-error{padding:10px 12px;border:1px solid rgba(255,77,106,.12);border-radius:10px;background:rgba(255,77,106,.035)}
 @media(max-width:900px){.tmz-dashboard{padding:20px 16px 38px}.tmz-wallet-bar{grid-template-columns:1fr 1fr}.tmz-wallet-bar .tmz-status-source{grid-column:1/-1}}
 @media(max-width:600px){.tmz-dashboard{padding:12px 10px 28px}.tmz-dashboard-hero{padding:20px 17px 18px;border-radius:17px}.tmz-dashboard-hero h1{font-size:32px}.tmz-command-panel{padding:16px}.tmz-ai-stats{grid-template-columns:1fr}.tmz-wallet-bar{grid-template-columns:1fr 1fr}.tmz-wallet-bar .tmz-status-item strong{font-size:12px}}
+
+
+/* ============================================================
+   TRADEMINDMZ V7.1 — MOBILE LAYOUT FIX
+   ============================================================ */
+@media (max-width: 900px) {
+  .tmz-command-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .tmz-command-panel {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  .tmz-dashboard {
+    width: 100%;
+    box-sizing: border-box;
+    overflow-x: hidden;
+  }
+
+  .tmz-command-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 14px;
+  }
+
+  .tmz-command-panel {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .tmz-featured,
+  .tmz-ai-panel {
+    min-width: 0;
+  }
+
+  .tmz-panel-header h2 {
+    font-size: 21px;
+  }
+
+  .tmz-decision-box {
+    align-items: flex-start;
+  }
+
+  .tmz-ai-stats {
+    grid-template-columns: 1fr;
+  }
+
+  .tmz-ai-stats > div {
+    min-width: 0;
+  }
+}
