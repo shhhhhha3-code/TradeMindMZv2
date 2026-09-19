@@ -2,6 +2,9 @@ name: Deploy TradeMindMZ Supabase Edge API
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - codex-android-capacitor
 
 permissions:
   contents: read
