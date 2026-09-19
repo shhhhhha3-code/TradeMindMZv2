@@ -420,7 +420,7 @@ export default function ProDashboard() {
         <div>
           <div className="tmz-eyebrow">
             <span className="tmz-eyebrow-dot" />
-            MARKET INTELLIGENCE
+            TRADEMINDMZ • COMMAND CENTER
           </div>
 
           <h1>
@@ -429,8 +429,8 @@ export default function ProDashboard() {
           </h1>
 
           <p>
-            Pionex market scan, engine scoring
-            and AI decision intelligence.
+            Live Pionex account, AI market intelligence
+            and risk-first monitoring in read-only mode.
           </p>
         </div>
 
@@ -529,7 +529,7 @@ export default function ProDashboard() {
           ===================================================== */}
 
       <div
-        className="tmz-statusbar"
+        className="tmz-statusbar tmz-wallet-bar"
         style={{ marginBottom: "18px" }}
       >
         <div className="tmz-status-source">
@@ -590,7 +590,9 @@ export default function ProDashboard() {
 
       <div className="tmz-command-grid">
 
-        {/* BEST SETUP */}
+        {/* {data?.finalDecision === "TRADE"
+                  ? "APPROVED SETUP"
+                  : "TOP ENGINE CANDIDATE"} */}
 
         <section className="tmz-command-panel tmz-featured">
 
@@ -763,6 +765,27 @@ export default function ProDashboard() {
               </p>
             </div>
 
+          </div>
+
+          <div className="tmz-ai-stats">
+            <div>
+              <small>AI CONFIDENCE</small>
+              <strong>
+                {Number.isFinite(Number(data?.aiDecision?.confidence))
+                  ? `${Number(data.aiDecision.confidence)}%`
+                  : "—"}
+              </strong>
+            </div>
+            <div>
+              <small>AI PROVIDER</small>
+              <strong>
+                {data?.aiDecision?.provider || "—"}
+              </strong>
+            </div>
+            <div>
+              <small>EXECUTION</small>
+              <strong>READ ONLY</strong>
+            </div>
           </div>
 
           <div className="tmz-safety-row">

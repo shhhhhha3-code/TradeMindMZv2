@@ -797,3 +797,45 @@
   font-weight: 900;
   letter-spacing: .06em;
 }
+
+
+/* ============================================================
+   TRADEMINDMZ V7 — PREMIUM COMMAND CENTER
+   ============================================================ */
+.tmz-dashboard{max-width:1540px;padding:30px 34px 56px}
+.tmz-dashboard-hero{position:relative;padding:24px 26px 22px;margin-bottom:16px;border:1px solid rgba(255,255,255,.075);border-radius:20px;background:radial-gradient(circle at 92% 0%,rgba(0,220,255,.11),transparent 28%),radial-gradient(circle at 60% 120%,rgba(141,92,255,.10),transparent 34%),linear-gradient(145deg,rgba(13,20,33,.98),rgba(5,9,16,.99));box-shadow:0 24px 60px rgba(0,0,0,.28),inset 0 1px rgba(255,255,255,.035)}
+.tmz-dashboard-hero h1{font-size:clamp(34px,5vw,58px);letter-spacing:-.065em}
+.tmz-dashboard-hero h1 span{color:#00d9ff}
+.tmz-dashboard-hero p{max-width:720px;font-size:12px}
+.tmz-refresh{min-height:44px;border-color:rgba(0,217,255,.24);background:linear-gradient(135deg,rgba(0,217,255,.10),rgba(155,92,255,.10));box-shadow:0 10px 28px rgba(0,0,0,.20)}
+.tmz-statusbar{border-color:rgba(255,255,255,.085);border-radius:15px;background:rgba(255,255,255,.035);box-shadow:0 12px 34px rgba(0,0,0,.16)}
+.tmz-status-source,.tmz-status-item{background:rgba(6,10,18,.94)}
+.tmz-wallet-bar{grid-template-columns:minmax(250px,1.25fr) repeat(3,minmax(130px,.75fr));margin-bottom:20px!important;border-color:rgba(0,217,255,.13)}
+.tmz-wallet-bar .tmz-status-source{background:linear-gradient(135deg,rgba(0,217,255,.06),rgba(141,92,255,.035)),rgba(6,10,18,.96)}
+.tmz-wallet-bar .tmz-status-source svg{color:#00d9ff;filter:drop-shadow(0 0 8px rgba(0,217,255,.35))}
+.tmz-wallet-bar .tmz-status-item strong{color:#f7fbff;font-size:15px}
+.tmz-command-grid{grid-template-columns:minmax(0,1.45fr) minmax(320px,.75fr);gap:18px}
+.tmz-command-panel{padding:22px;border-radius:19px;border-color:rgba(255,255,255,.085);background:radial-gradient(circle at 100% 0%,rgba(0,217,255,.055),transparent 30%),linear-gradient(145deg,rgba(13,20,33,.98),rgba(5,9,16,.99));box-shadow:0 22px 55px rgba(0,0,0,.25),inset 0 1px rgba(255,255,255,.025)}
+.tmz-command-panel::before{background:linear-gradient(90deg,transparent,rgba(0,217,255,.28),rgba(155,92,255,.20),transparent)}
+.tmz-section-label{color:#71809a}
+.tmz-panel-header h2{font-size:24px}
+.tmz-big-price{font-size:clamp(31px,4.5vw,50px)}
+.tmz-feature-chart{height:112px;padding:0}
+.tmz-feature-metrics{border-radius:12px}
+.tmz-feature-metrics>div{padding:13px}
+.tmz-ai-panel{min-height:100%}
+.tmz-ai-orb{border-color:rgba(0,217,255,.25);background:radial-gradient(circle,rgba(155,92,255,.24),rgba(0,217,255,.08),transparent 72%);color:#ccecff;box-shadow:0 0 34px rgba(0,217,255,.10)}
+.tmz-decision-box{margin-top:20px;border-color:rgba(255,209,92,.16);background:linear-gradient(135deg,rgba(255,209,92,.055),rgba(255,77,106,.025))}
+.tmz-decision-icon{border-color:rgba(255,209,92,.28);color:#ffd15c;background:rgba(255,209,92,.08)}
+.tmz-ai-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;margin-top:12px;overflow:hidden;border:1px solid rgba(255,255,255,.055);border-radius:11px;background:rgba(255,255,255,.035)}
+.tmz-ai-stats>div{padding:11px;background:rgba(5,9,16,.76)}
+.tmz-ai-stats small{display:block;color:#5f6e84;font-size:7px;letter-spacing:.12em}
+.tmz-ai-stats strong{display:block;margin-top:5px;color:#edf5fb;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tmz-safety-row{color:#66748a}
+.tmz-section-heading{margin-top:30px}
+.tmz-market-grid{gap:13px}
+.tmz-market-card{padding:16px;border-radius:15px;background:linear-gradient(145deg,rgba(13,20,33,.98),rgba(5,9,16,.99))}
+.tmz-market-card:hover{transform:translateY(-3px);border-color:rgba(0,217,255,.24);box-shadow:0 20px 45px rgba(0,0,0,.34),0 0 24px rgba(0,217,255,.035)}
+.tmz-soft-error{padding:10px 12px;border:1px solid rgba(255,77,106,.12);border-radius:10px;background:rgba(255,77,106,.035)}
+@media(max-width:900px){.tmz-dashboard{padding:20px 16px 38px}.tmz-wallet-bar{grid-template-columns:1fr 1fr}.tmz-wallet-bar .tmz-status-source{grid-column:1/-1}}
+@media(max-width:600px){.tmz-dashboard{padding:12px 10px 28px}.tmz-dashboard-hero{padding:20px 17px 18px;border-radius:17px}.tmz-dashboard-hero h1{font-size:32px}.tmz-command-panel{padding:16px}.tmz-ai-stats{grid-template-columns:1fr}.tmz-wallet-bar{grid-template-columns:1fr 1fr}.tmz-wallet-bar .tmz-status-item strong{font-size:12px}}
