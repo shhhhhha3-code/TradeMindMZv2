@@ -1,27 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
 <defs>
-  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#05070b"/><stop offset=".55" stop-color="#11151d"/><stop offset="1" stop-color="#020307"/></linearGradient>
-  <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fff1a8"/><stop offset=".3" stop-color="#ffc83d"/><stop offset=".65" stop-color="#b56b00"/><stop offset="1" stop-color="#ffe477"/></linearGradient>
-  <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#bff5ff"/><stop offset=".35" stop-color="#19a8ff"/><stop offset="1" stop-color="#005eff"/></linearGradient>
-  <filter id="glow"><feGaussianBlur stdDeviation="12" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+ <linearGradient id="lime" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#8be51c"/><stop offset=".55" stop-color="#d6ff3f"/><stop offset="1" stop-color="#72ff2a"/></linearGradient>
+ <filter id="glow"><feGaussianBlur stdDeviation="14" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 </defs>
-<circle cx="512" cy="410" r="315" fill="none" stroke="#d99a22" stroke-width="12" opacity=".8"/>
-<g stroke="url(#gold)" stroke-width="16" opacity=".75">
-<path d="M170 520V350M215 520V290M260 520V330M764 520V310M809 520V250M854 520V210"/>
+
+
+<g filter="url(#glow)">
+ <path d="M185 675 L185 490 L300 563 L443 385 L577 470 L755 270" fill="none" stroke="url(#lime)" stroke-width="60" stroke-linecap="round" stroke-linejoin="round"/>
+ <path d="M675 270 H755 V350" fill="none" stroke="url(#lime)" stroke-width="60" stroke-linecap="round"/>
 </g>
-<g fill="url(#gold)" stroke="#6f4300" stroke-width="5">
-<rect x="158" y="410" width="28" height="110"/><rect x="203" y="350" width="28" height="170"/><rect x="248" y="390" width="28" height="130"/>
-<rect x="750" y="365" width="28" height="155"/><rect x="795" y="300" width="28" height="220"/><rect x="840" y="260" width="28" height="260"/>
-</g>
-<g fill="#090b10" stroke="url(#gold)" stroke-width="16">
-<path d="M335 295 C250 230 190 245 125 285 C205 335 260 340 335 320"/>
-<path d="M689 295 C774 230 834 245 899 285 C819 335 764 340 689 320"/>
-<path d="M355 300 C390 215 450 170 512 160 C574 170 634 215 669 300 L640 515 C590 575 434 575 384 515 Z"/>
-</g>
-<path d="M410 365 L470 325 L512 360 L554 325 L614 365 L590 445 L512 500 L434 445 Z" fill="#05070a" stroke="url(#gold)" stroke-width="10"/>
-<path d="M420 385 L475 365 L450 420 Z M604 385 L549 365 L574 420 Z" fill="url(#blue)" filter="url(#glow)"/>
-<path d="M455 485 Q512 520 569 485 L545 535 Q512 558 479 535Z" fill="url(#gold)"/>
-<text x="512" y="735" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="190" font-weight="900" letter-spacing="-8" fill="url(#gold)" stroke="#3b2500" stroke-width="7" paint-order="stroke">TMZ</text>
-<path d="M160 780 H864" stroke="url(#blue)" stroke-width="8" filter="url(#glow)"/>
-<text x="512" y="850" text-anchor="middle" font-family="Arial,Helvetica,sans-serif" font-size="54" font-weight="700" letter-spacing="12" fill="#f4d77c">TRADEMINDMZ</text>
+<path d="M180 720 H840" stroke="#263229" stroke-width="24"/>
+<text x="185" y="855" font-family="Arial,sans-serif" font-size="205" font-weight="900" fill="#f7faf7">MZ</text>
+<text x="512" y="930" text-anchor="middle" font-family="Arial,sans-serif" font-size="48" font-weight="800" letter-spacing="10" fill="#d6ff3f">TRADEMINDMZ</text>
 </svg>
