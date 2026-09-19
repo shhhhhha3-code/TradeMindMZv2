@@ -87,7 +87,13 @@ export async function fetchLiveAiSignal(
     ai?.decision === "TRADE"
       ? topCandidates.find(
           candidate =>
-            candidate?.symbol === ai?.symbol
+            candidate?.symbol === ai?.symbol ||
+            String(candidate?.symbol || "")
+              .toUpperCase()
+              .replace(/[_-]?USDT.*$/, "") ===
+              String(ai?.symbol || "")
+                .toUpperCase()
+                .replace(/[_-]?USDT.*$/, "")
         ) || null
       : null;
 
