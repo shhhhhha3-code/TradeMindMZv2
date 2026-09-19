@@ -223,7 +223,7 @@ function evaluateCandidate(candidate) {
 
 async function handle(req) {
   const url = new URL(req.url);
-  const path = url.pathname.replace(/^\/functions\/v1\/trademind-api/, "") || "/";
+  const path = url.pathname.replace(/^\/functions\/v1\/trademind-api/, "").replace(/^\/trademind-api/, "") || "/";
   const method = req.method.toUpperCase();
   const body = method === "GET" ? {} : await req.json().catch(() => ({}));
 
