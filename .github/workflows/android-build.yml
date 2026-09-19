@@ -43,13 +43,45 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y imagemagick
+
           mkdir -p android/app/src/main/res/mipmap-mdpi
           mkdir -p android/app/src/main/res/mipmap-hdpi
           mkdir -p android/app/src/main/res/mipmap-xhdpi
           mkdir -p android/app/src/main/res/mipmap-xxhdpi
           mkdir -p android/app/src/main/res/mipmap-xxxhdpi
-          rm -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml
-          rm -f android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+          mkdir -p android/app/src/main/res/mipmap-anydpi-v26
+          mkdir -p android/app/src/main/res/drawable-nodpi
+          mkdir -p android/app/src/main/res/values
+
+          # Modern Android/Samsung: use a real adaptive icon so the launcher
+          # does not display the SVG's square background as a hard-edged tile.
+          convert resources/icon-foreground.svg -background none -resize 432x432 -gravity center -extent 432x432 \\
+            android/app/src/main/res/drawable-nodpi/tmz_launcher_foreground.png
+
+          cat > android/app/src/main/res/values/tmz_icon_colors.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+            <color name="tmz_icon_background">#05070B</color>
+          </resources>
+          EOF
+
+          cat > android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+            <background android:drawable="@color/tmz_icon_background" />
+            <foreground android:drawable="@drawable/tmz_launcher_foreground" />
+          </adaptive-icon>
+          EOF
+
+          cat > android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+            <background android:drawable="@color/tmz_icon_background" />
+            <foreground android:drawable="@drawable/tmz_launcher_foreground" />
+          </adaptive-icon>
+          EOF
+
+          # Legacy Android fallback icons.
           for spec in "mdpi:48" "hdpi:72" "xhdpi:96" "xxhdpi:144" "xxxhdpi:192"; do
             density="${spec%%:*}"
             size="${spec##*:}"
