@@ -209,6 +209,7 @@ function scoreCandidate({
   ticker = {},
   marketType = "PERP",
   leverage = 2,
+  interval = "15M",
 }) {
   if (candles.length < 40) {
     return null;
@@ -673,6 +674,7 @@ export async function scanPionexMarket({
           ticker: item.ticker,
           marketType,
           leverage,
+          interval,
         });
 
       if (candidate) {
