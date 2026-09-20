@@ -101,7 +101,8 @@ export function useLiveAiSignal(
       options.scanLimit,
       options.maxMarkets,
       options.preferredProvider,
-      options.interval
+      options.interval,
+      options.marketType
     ]
   );
 
@@ -176,7 +177,8 @@ export function useLiveAiSignal(
       options.scanLimit,
       options.maxMarkets,
       options.preferredProvider,
-      options.interval
+      options.interval,
+      options.marketType
     ]
   );
 
