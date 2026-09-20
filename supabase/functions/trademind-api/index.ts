@@ -772,6 +772,11 @@ async function getServerPositionMonitoring(supabase) {
 
   const closed = (journal || []).filter((row) => row.status === "CLOSED");
   const closedPnl = closed.map((row) => Number(row.realized_pnl)).filter(Number.isFinite);
+  const positiveCount = closedPnl.filter((value) => value > 0).length;
+  const negativeCount = closedPnl.filter((value) => value < 0).length;
+  const entryConfidence = (journal || [])
+    .map((row) => Number(row.ai_confidence_at_entry))
+    .filter(Number.isFinite);
 
   return {
     success: true,
@@ -786,6 +791,12 @@ async function getServerPositionMonitoring(supabase) {
       closed: closed.length,
       closedPnl: closedPnl.reduce((sum, value) => sum + value, 0),
       closedCountWithPnl: closedPnl.length,
+      positiveCount,
+      negativeCount,
+      positiveRate: closedPnl.length ? Math.round((positiveCount / closedPnl.length) * 1000) / 10 : null,
+      averageAiConfidenceAtEntry: entryConfidence.length
+        ? Math.round((entryConfidence.reduce((sum, value) => sum + value, 0) / entryConfidence.length) * 10) / 10
+        : null,
     },
   };
 }
