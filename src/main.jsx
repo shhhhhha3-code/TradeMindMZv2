@@ -4793,6 +4793,9 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
         <small className="note">
           Records your manual Pionex purchase.
           TradeMindMZ does not place orders.
+          {recommended?.holdTimeReason
+            ? " AI hold-time view: " + recommended.holdTimeReason
+            : ""}
         </small>
       </div>
 
