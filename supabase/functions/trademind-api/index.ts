@@ -339,6 +339,18 @@ function normalizeSpotHoldings(accountPayload, tickerPayload) {
       const quantity = free + frozen;
       if (!coin || coin === "USDT" || !Number.isFinite(quantity) || quantity <= 0) return null;
       const price = tickerMap.get(coin) ?? null;
+      const entryPrice = Number(
+        row?.avgCost ??
+        row?.averageCost ??
+        row?.costPrice ??
+        row?.average_cost ??
+        row?.avg_cost
+      );
+      const reportedPnl = Number(
+        row?.cmlPnl ??
+        row?.cumulativePnl ??
+        row?.unrealizedPnl
+      );
       return {
         id: "spot-" + coin,
         source: "PIONEX_SPOT",
@@ -350,10 +362,16 @@ function normalizeSpotHoldings(accountPayload, tickerPayload) {
         frozen: Number.isFinite(frozen) ? frozen : 0,
         currentPrice: price,
         currentValueUsdt: Number.isFinite(price) ? quantity * price : null,
-        entryPrice: null,
-        costBasis: null,
-        unrealizedPnl: null,
-        unrealizedPercent: null,
+        entryPrice: Number.isFinite(entryPrice) && entryPrice > 0 ? entryPrice : null,
+        costBasis: Number.isFinite(entryPrice) && entryPrice > 0 ? entryPrice * quantity : null,
+        unrealizedPnl: Number.isFinite(reportedPnl)
+          ? reportedPnl
+          : Number.isFinite(entryPrice) && Number.isFinite(price)
+            ? (price - entryPrice) * quantity
+            : null,
+        unrealizedPercent: Number.isFinite(entryPrice) && entryPrice > 0 && Number.isFinite(price)
+          ? ((price - entryPrice) / entryPrice) * 100
+          : null,
         side: "LONG",
         direction: "SELL",
         status: "HELD",
