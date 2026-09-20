@@ -185,8 +185,8 @@ async function publicRequest(path, query = {}, { cacheTtlMs = 0 } = {}) {
 export const getAccountInfo = () => privateRequest("/api/v1/account/balances", {}, { cacheTtlMs: 5000 });
 export const getWalletBalancesFull = () => privateRequest("/api/v1/wallet/balancesFull", {}, { cacheTtlMs: 5000 });
 export const getOpenPositions = () => privateRequest("/uapi/v1/account/positions", {}, { cacheTtlMs: 5000 });
-export const getMarketTickers = () => publicRequest("/api/v1/market/tickers", {}, { cacheTtlMs: 5000 });
-export const getMarketSymbols = () => publicRequest("/api/v1/common/symbols", {}, { cacheTtlMs: 60000 });
+export const getMarketTickers = ({ type = "SPOT" } = {}) => publicRequest("/api/v1/market/tickers", { type }, { cacheTtlMs: 5000 });
+export const getMarketSymbols = ({ type = "SPOT" } = {}) => publicRequest("/api/v1/common/symbols", { type }, { cacheTtlMs: 60000 });
 export function getMarketKlines({ symbol, interval = "1D", limit = 100 } = {}) {
   if (!symbol) throw new Error("Symbol is required for market klines.");
   return publicRequest("/api/v1/market/klines", { symbol, interval, limit: String(limit) }, { cacheTtlMs: 30000 });
