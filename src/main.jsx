@@ -5240,7 +5240,7 @@ function Positions(){
 
             try {
               const marketResponse = await fetch(
-                `/api/pionex/market-scan?limit=100&maxMarkets=25`
+                `/api/pionex/market-scan?limit=100&maxMarkets=25&interval=15M&marketType=PERP&leverage=2`
               );
 
               if (marketResponse.ok) {
@@ -5326,7 +5326,7 @@ function Positions(){
     const timer = setInterval(() => {
       setAi({});
       loadPositions();
-    }, 30000);
+    }, 7 * 60 * 1000);
 
     return () => clearInterval(timer);
   }, []);
@@ -5604,12 +5604,26 @@ function Positions(){
                       </b>
                     </div>
 
+                    <div className="metric">
+                      <span>
+                        Estimated hold time
+                      </span>
+                      <b>
+                        {Number(analysis.holdTimeMinMinutes) > 0
+                          ? Number(analysis.holdTimeMinMinutes) + "–" + Number(analysis.holdTimeMaxMinutes) + " min"
+                          : "—"}
+                      </b>
+                    </div>
+
                     <p>
                       {analysis.reasoning}
                     </p>
 
                     <small className="note">
                       {analysis.action}
+                      {analysis.holdTimeReason
+                        ? " " + analysis.holdTimeReason
+                        : ""}
                     </small>
                   </>
                 ) : (
