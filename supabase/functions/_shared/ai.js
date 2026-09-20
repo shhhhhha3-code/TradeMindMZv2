@@ -137,7 +137,7 @@ function hardBlocks(candidate, { marketType = "PERP" } = {}) {
   return reasons;
 }
 
-async function runDecision(candidates = [], preferredProvider = "groq", options = {})
+async function runDecision(candidates = [], preferredProvider = "groq", options = {}) {
   const top = Array.isArray(candidates) ? candidates.slice(0, 5) : [];
   const marketType = String(options?.marketType || "PERP").toUpperCase() === "SPOT" ? "SPOT" : "PERP";
   if (!top.length) return { success: false, decision: "NO_TRADE", symbol: null, confidence: 0, risk: "HIGH", reason: "No candidates supplied.", provider: null, blockedByEngine: true, marketType };
