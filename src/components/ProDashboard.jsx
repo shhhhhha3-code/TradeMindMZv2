@@ -172,149 +172,59 @@ export default function ProDashboard() {
   const [walletRefreshing, setWalletRefreshing] = useState(false);
   const [walletError, setWalletError] = useState("");
 
-  const load = useCallback(
-    async () => {
-      setRefreshing(true);
+  const syncLiveAiData = useCallback((result) => {
+    if (!result) return;
 
-      try {
-        const pionexResponse =
-          await fetch(apiUrl("/api/pionex/market-scan?limit=100&maxMarkets=25&interval=15M&marketType=PERP&leverage=2"),
-            {
-              method: "GET",
-              headers: {
-                Accept:
-                  "application/json",
-              },
-              cache: "no-store",
-            }
-          );
+    const rawCandidates = Array.isArray(result?.candidates)
+      ? result.candidates
+      : Array.isArray(result?.engineTop5)
+        ? result.engineTop5
+        : [];
 
-        const pionex =
-          await pionexResponse.json();
+    setData({
+      mode: "PIONEX",
+      source: result?.contractType || "PIONEX USDT-M PERPETUAL",
+      delayed: false,
+      updatedAt: result?.updatedAt || new Date().toISOString(),
+      candidates: normalizePionexCandidates(rawCandidates),
+      aiDecision: result?.aiDecision || null,
+      finalDecision: result?.finalDecision || "NO_TRADE",
+    });
+  }, []);
 
-        if (
-          pionexResponse.ok &&
-          pionex?.success !== false &&
-          Array.isArray(
-            pionex?.engineTop5
-          ) &&
-          pionex.engineTop5.length
-        ) {
-          setData({
-            mode: "PIONEX",
-            source:
-              "PIONEX LIVE",
-            delayed: false,
-            updatedAt:
-              new Date().toISOString(),
-            candidates:
-              normalizePionexCandidates(
-                pionex.engineTop5
-              ),
-            aiDecision:
-              pionex.aiDecision ||
-              null,
-            finalDecision:
-              pionex.finalDecision ||
-              "NO_TRADE",
-          });
+  const load = useCallback(async () => {
+    setRefreshing(true);
+    setError("");
 
-          setError("");
-          setLoading(false);
-          return;
-        }
+    try {
+      const result = await liveAi.refresh();
 
-        /* Pionex can be temporarily rate limited.
-         * Never render the dashboard as broken.
-         */
-
-        const fallbackResponse =
-          await fetch(apiUrl("/api/market/overview"),
-            {
-              method: "GET",
-              headers: {
-                Accept:
-                  "application/json",
-              },
-              cache: "no-store",
-            }
-          );
-
-        const fallback =
-          await fallbackResponse.json();
-
-        if (
-          Array.isArray(
-            fallback?.candidates
-          ) &&
-          fallback.candidates.length
-        ) {
-          setData({
-            mode: "FALLBACK",
-            source:
-              "FALLBACK MARKET DATA",
-            delayed:
-              fallback.delayed === true,
-            updatedAt:
-              fallback.updatedAt,
-            candidates:
-              normalizePionexCandidates(
-                fallback.candidates
-              ),
-            aiDecision: null,
-            finalDecision:
-              "NO_TRADE",
-          });
-
-          setError("");
-          setLoading(false);
-          return;
-        }
-
-        setData({
-          mode: "OFFLINE",
-          source:
-            "MARKET DATA UNAVAILABLE",
-          delayed: true,
-          updatedAt:
-            new Date().toISOString(),
-          candidates: [],
-          aiDecision: null,
-          finalDecision:
-            "NO_TRADE",
-        });
-
-        setError(
-          pionex?.error ||
-          fallback?.error ||
-          "Market data is temporarily unavailable."
-        );
-      } catch (err) {
-        setData({
-          mode: "OFFLINE",
-          source:
-            "MARKET DATA UNAVAILABLE",
-          delayed: true,
-          updatedAt:
-            new Date().toISOString(),
-          candidates: [],
-          aiDecision: null,
-          finalDecision:
-            "NO_TRADE",
-        });
-
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Market data unavailable."
-        );
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
+      if (result) {
+        syncLiveAiData(result);
       }
-    },
-    []
-  );
+
+      if (liveAi.error) {
+        setError(liveAi.error);
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Market data unavailable."
+      );
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [liveAi.refresh, liveAi.error, syncLiveAiData]);
+
+  useEffect(() => {
+    if (liveAi.data) {
+      syncLiveAiData(liveAi.data);
+      setError(liveAi.error || "");
+      setLoading(false);
+    }
+  }, [liveAi.data, liveAi.error, syncLiveAiData]);
 
   const loadWallet = useCallback(async () => {
     setWalletRefreshing(true);
