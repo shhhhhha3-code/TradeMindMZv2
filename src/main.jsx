@@ -13,6 +13,7 @@ import { fetchLivePositions } from "./services/livePositionService.js";
 import { analyzePositionWithAI } from "./services/positionAiService.js";
 import { fetchLearningStats } from "./services/learningStatsService.js";
 import { fetchSignalHistory } from "./services/signalHistoryService.js";
+import { fetchLatestAiSignal } from "./services/liveAiSignalService.js";
 import { fetchDashboardData } from "./services/dashboardService.js";
 import "./ui/trademind-v3.css";
 import "./ui/trademind-v4.css";
@@ -2812,6 +2813,7 @@ function Dashboard(){
 
 function MarketOverview(){
   const [markets,setMarkets] = useState([]);
+  const [updatedAt,setUpdatedAt] = useState(null);
   const [loading,setLoading] = useState(true);
   const [refreshing,setRefreshing] = useState(false);
   const [error,setError] = useState("");
@@ -2823,44 +2825,46 @@ function MarketOverview(){
     setError("");
 
     try {
-      const response = await fetch(apiUrl("/api/pionex/market-scan?limit=100&maxMarkets=25&interval=15M&marketType=PERP&leverage=2")
-      );
+      /*
+       * Market Overview is a viewer. It must never trigger its own
+       * Pionex scan because the server already scans every 7 minutes.
+       * Reading the persisted snapshot also means the data exists
+       * when the Android app was closed.
+       */
+      const data = await fetchLatestAiSignal({
+        interval: "15M",
+        maxMarkets: 25,
+        preferredProvider: "groq",
+      });
 
-      const text = await response.text();
-
-      if (!response.ok) {
+      if (!data) {
         throw new Error(
-          `Market API returned HTTP ${response.status}`
+          "No persisted server market snapshot is available yet."
         );
       }
 
-      let data;
-
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(
-          "Market API returned invalid JSON."
-        );
-      }
-
-      if (!data?.success) {
-        throw new Error(
-          data?.error ||
-          "Market data could not be loaded."
-        );
-      }
-
-      setMarkets(
+      const candidates =
         Array.isArray(data.candidates)
           ? data.candidates
-          : []
+          : Array.isArray(data.engineTop5)
+            ? data.engineTop5
+            : [];
+
+      setMarkets(candidates.slice(0, 5));
+      setUpdatedAt(
+        data.updatedAt ||
+        data.persistedAt ||
+        null
       );
     } catch (err) {
+      /*
+       * Keep the previous successful market table visible on
+       * transient errors instead of replacing it with blanks.
+       */
       setError(
         err instanceof Error
           ? err.message
-          : "Unable to load market data."
+          : "Unable to load persisted market data."
       );
     } finally {
       setLoading(false);
@@ -3077,8 +3081,11 @@ function MarketOverview(){
               opacity:0.55
             }}
           >
-            Showing {markets.length} live Pionex markets ·
-            auto-refresh every 60 seconds
+            Showing {markets.length} latest server-scanned Pionex USDT-M markets ·
+            server analysis every 7 minutes
+            {updatedAt
+              ? ` · Updated ${new Date(updatedAt).toLocaleTimeString("nb-NO")}`
+              : ""}
           </div>
         </div>
       )}
@@ -3101,10 +3108,37 @@ function SignalHistory(){
       const result =
         await fetchSignalHistory(50);
 
-      setHistory(
+      const signalHistory =
         Array.isArray(result?.history)
           ? result.history
-          : []
+          : [];
+
+      /*
+       * Signal History is reserved for actionable market signals.
+       * Position AI has its own Live Positions view and must not
+       * appear as HOLD/WATCH trading signals here.
+       */
+      setHistory(
+        signalHistory.filter(item => {
+          const recommendation = String(
+            item?.recommendation ||
+            item?.signal ||
+            item?.action ||
+            ""
+          ).toUpperCase();
+
+          const isSignal =
+            String(item?.type || "SIGNAL").toUpperCase() !==
+            "POSITION";
+
+          return (
+            isSignal &&
+            (recommendation === "BUY" ||
+             recommendation === "SELL" ||
+             recommendation === "LONG" ||
+             recommendation === "SHORT")
+          );
+        })
       );
     } catch (err) {
       setError(
@@ -3184,8 +3218,9 @@ function SignalHistory(){
         </h1>
 
         <p>
-          TradeMindMZ stores AI signal and
-          position-analysis results in Supabase.
+          TradeMindMZ stores actionable BUY/SELL
+          signal results in Supabase. Position risk
+          analysis is shown under Live Positions.
         </p>
       </div>
 
@@ -3260,11 +3295,22 @@ function SignalHistory(){
           const recommendation =
             String(
               item.recommendation ||
-              "WATCH"
-            ).replace(
-              /_/g,
-              " "
-            );
+              item.signal ||
+              item.action ||
+              ""
+            ).toUpperCase()
+              .replace(
+                /LONG/g,
+                "BUY"
+              )
+              .replace(
+                /SHORT/g,
+                "SELL"
+              )
+              .replace(
+                /_/g,
+                " "
+              );
 
           const symbol =
             item.symbol
