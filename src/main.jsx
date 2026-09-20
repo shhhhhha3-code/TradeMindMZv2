@@ -3531,6 +3531,10 @@ function DiagnosticsPanel() {
       return "status on";
     }
 
+    if (status === "STALE") {
+      return "status warning";
+    }
+
     return "status";
   };
 
@@ -3707,8 +3711,24 @@ function DiagnosticsPanel() {
                   )}
 
                 {check.name ===
+                  "Market AI" &&
+                  `Server snapshot: ${
+                    check.details?.snapshotAgeSeconds != null
+                      ? check.details.snapshotAgeSeconds + "s old"
+                      : "—"
+                  } • Scanned: ${
+                    check.details?.scanned ?? 0
+                  } • TOP 5: ${
+                    check.details?.candidates ?? 0
+                  } • Decision: ${
+                    check.details?.finalDecision ?? "NO_TRADE"
+                  } • Cadence: ${
+                    check.details?.cadenceMinutes ?? 7
+                  } min`}
+
+                {check.name ===
                   "Backend" &&
-                  "Express API responding normally."}
+                  "Supabase Edge API responding normally."}
               </small>
             )}
 
