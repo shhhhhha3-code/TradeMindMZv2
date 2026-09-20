@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { scanPionexMarket } from "../_shared/marketScanner.js";
-import { getAccountInfo, getOpenPositions, getWalletBalancesFull } from "../_shared/pionex.js";
+import { getAccountInfo, getOpenPositions, getWalletBalancesFull, getMarketTickers } from "../_shared/pionex.js";
 import { runDecision } from "../_shared/ai.js";
 import {
   getLatestLiveAiSnapshot,
@@ -272,6 +272,71 @@ async function runLiveAiAnalysis({
   }
 
   return analysisPromise;
+}
+
+
+
+function normalizeSpotSymbol(value) {
+  return String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[_-]?USDT.*$/, "");
+}
+
+function normalizeSpotHoldings(accountPayload, tickerPayload) {
+  const rows = Array.isArray(accountPayload?.data?.balances)
+    ? accountPayload.data.balances
+    : Array.isArray(accountPayload?.balances)
+      ? accountPayload.balances
+      : [];
+
+  const tickers = Array.isArray(tickerPayload?.data?.tickers)
+    ? tickerPayload.data.tickers
+    : Array.isArray(tickerPayload?.tickers)
+      ? tickerPayload.tickers
+      : Array.isArray(tickerPayload?.data)
+        ? tickerPayload.data
+        : [];
+
+  const tickerMap = new Map();
+  for (const ticker of tickers) {
+    const symbol = normalizeSpotSymbol(ticker?.symbol ?? ticker?.market);
+    if (!symbol) continue;
+    const price = Number(ticker?.close ?? ticker?.price ?? ticker?.lastPrice);
+    if (Number.isFinite(price) && price > 0) tickerMap.set(symbol, price);
+  }
+
+  return rows
+    .map((row) => {
+      const coin = String(row?.coin ?? row?.asset ?? row?.currency ?? "").trim().toUpperCase();
+      const free = Number(row?.free ?? row?.available ?? row?.balance ?? 0);
+      const frozen = Number(row?.frozen ?? row?.locked ?? 0);
+      const quantity = free + frozen;
+      if (!coin || coin === "USDT" || !Number.isFinite(quantity) || quantity <= 0) return null;
+      const price = tickerMap.get(coin) ?? null;
+      return {
+        id: "spot-" + coin,
+        source: "PIONEX_SPOT",
+        marketType: "SPOT",
+        symbol: coin + "_USDT",
+        coin,
+        quantity,
+        free: Number.isFinite(free) ? free : 0,
+        frozen: Number.isFinite(frozen) ? frozen : 0,
+        currentPrice: price,
+        currentValueUsdt: Number.isFinite(price) ? quantity * price : null,
+        entryPrice: null,
+        costBasis: null,
+        unrealizedPnl: null,
+        unrealizedPercent: null,
+        side: "LONG",
+        direction: "SELL",
+        status: "HELD",
+        readOnly: true,
+      };
+    })
+    .filter(Boolean)
+    .sort((a,b) => Number(b.currentValueUsdt || 0) - Number(a.currentValueUsdt || 0));
 }
 
 function normalizePositions(payload) {
@@ -1160,6 +1225,37 @@ async function handle(req) {
   if (path === "/api/pionex/positions" && method === "GET") {
     try { return response({success:true,connected:true,positions:normalizePositions(await getOpenPositions()),updatedAt:new Date().toISOString()}); }
     catch(error){ return response({success:false,positions:[],error:error?.message||"Pionex request failed."},502); }
+  }
+
+
+
+  if (path === "/api/pionex/spot-holdings" && method === "GET") {
+    try {
+      const [account, tickers] = await Promise.all([
+        getAccountInfo(),
+        getMarketTickers({ type: "SPOT" }),
+      ]);
+      const holdings = normalizeSpotHoldings(account, tickers);
+      return response({
+        success: true,
+        source: "PIONEX",
+        marketType: "SPOT",
+        holdings,
+        count: holdings.length,
+        readOnly: true,
+        updatedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      return response({
+        success: false,
+        source: "PIONEX",
+        marketType: "SPOT",
+        holdings: [],
+        count: 0,
+        readOnly: true,
+        error: error?.message || "Unable to fetch Pionex Spot holdings.",
+      }, 502);
+    }
   }
 
   if (path === "/api/pionex/wallet-balances" && method === "GET") {
