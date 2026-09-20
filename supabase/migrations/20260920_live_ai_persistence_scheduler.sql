@@ -202,3 +202,19 @@ revoke all on public.trade_journal from anon, authenticated, public;
 grant select, insert, update, delete on table public.trade_journal to service_role;
 
 notify pgrst, 'reload schema';
+
+
+-- Position AI metadata used by server-side monitoring.
+alter table public.position_ai_analysis
+  add column if not exists risk_level text,
+  add column if not exists action text,
+  add column if not exists hold_time_min_minutes integer,
+  add column if not exists hold_time_max_minutes integer,
+  add column if not exists hold_time_reason text;
+
+create index if not exists idx_position_ai_analysis_symbol_direction_created
+  on public.position_ai_analysis(symbol, direction, created_at desc);
+
+grant select, insert, update, delete on table public.position_ai_analysis to service_role;
+
+notify pgrst, 'reload schema';
