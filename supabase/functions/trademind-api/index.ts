@@ -1291,7 +1291,7 @@ function calculateRiskSizing(body = {}) {
   };
 }
 
-function handle(req) {
+async function handle(req) {
   const url = new URL(req.url);
   const path = url.pathname.replace(/^\/functions\/v1\/trademind-api/, "").replace(/^\/trademind-api/, "") || "/";
   const method = req.method.toUpperCase();
