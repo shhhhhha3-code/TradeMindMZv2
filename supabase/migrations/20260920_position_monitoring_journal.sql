@@ -54,3 +54,5 @@ create index if not exists idx_position_ai_analysis_symbol_direction_created
 
 grant select, insert, update, delete on table public.trade_journal to service_role;
 grant select, insert, update, delete on table public.position_ai_analysis to service_role;
+
+notify pgrst, 'reload schema';
