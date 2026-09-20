@@ -47,7 +47,7 @@ export function useLiveAiSignal(
     useRef(false);
 
   const refresh = useCallback(
-    async () => {
+    async (force = false) => {
 
       if (
         !mountedRef.current
@@ -75,9 +75,10 @@ export function useLiveAiSignal(
       try {
 
         const result =
-          await fetchLiveAiSignal(
-            options
-          );
+          await fetchLiveAiSignal({
+            ...options,
+            force
+          });
 
         if (
           !mountedRef.current
@@ -88,6 +89,8 @@ export function useLiveAiSignal(
         setData(
           result
         );
+
+        return result;
 
       } catch (err) {
 
