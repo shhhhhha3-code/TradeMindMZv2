@@ -1095,6 +1095,17 @@ export default function ProDashboard({ onSelectTrade = null }) {
                     </strong>
                   </div>
 
+                  {marketType === "PERP" ? (
+                    <div>
+                      <small>FUNDING</small>
+                      <strong>
+                        {candidate.fundingRate != null
+                          ? Number(candidate.fundingRate).toFixed(5)
+                          : "—"}
+                      </strong>
+                    </div>
+                  ) : null}
+
                   <div>
                     <small>SOURCE</small>
                     <strong>
