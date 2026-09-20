@@ -50,7 +50,7 @@ function Logo(){
 function Ring({score}){return <div className="ring" style={{'--p':score*3.6+'deg'}}><div><b>{score}</b><small>ENGINE SCORE</small></div></div>}
 
 function App(){
-const[tab,setTab]=useState('dashboard'),[bought,setBought]=useState(false),[manualPurchaseOpen,setManualPurchaseOpen]=useState(false),[trackedPositions,setTrackedPositions]=useState(()=>loadTrackedPositions()),[open,setOpen]=useState(false),[purchaseDefaults,setPurchaseDefaults]=useState({symbol:"BTCUSDT",side:"LONG",entryPrice:0,stopLoss:0,takeProfit:0}),[aiSettings,setAiSettings]=useState(()=>{try{return JSON.parse(localStorage.getItem('trademindmz-ai-settings'))||{ai:true,openai:true,groq:true,learning:true}}catch{return{ai:true,openai:true,groq:true,learning:true}}});const handleManualPurchase=(purchase)=>{
+const[tab,setTab]=useState('dashboard'),[bought,setBought]=useState(false),[manualPurchaseOpen,setManualPurchaseOpen]=useState(false),[trackedPositions,setTrackedPositions]=useState(()=>loadTrackedPositions()),[open,setOpen]=useState(false),[purchaseDefaults,setPurchaseDefaults]=useState({symbol:"BTCUSDT",side:"LONG",entryPrice:0,stopLoss:0,takeProfit:0,holdTimeMinMinutes:0,holdTimeMaxMinutes:0,holdTimeReason:""}),[aiSettings,setAiSettings]=useState(()=>{try{return JSON.parse(localStorage.getItem('trademindmz-ai-settings'))||{ai:true,openai:true,groq:true,learning:true}}catch{return{ai:true,openai:true,groq:true,learning:true}}});const handleManualPurchase=(purchase)=>{
   const result=registerManualPurchase(purchase);
 
   if(!result?.success){
@@ -4637,7 +4637,13 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
       side: direction,
       entryPrice: entry,
       stopLoss: stop,
-      takeProfit: tp
+      takeProfit: tp,
+      holdTimeMinMinutes:
+        Number(recommended?.holdTimeMinMinutes) || 0,
+      holdTimeMaxMinutes:
+        Number(recommended?.holdTimeMaxMinutes) || 0,
+      holdTimeReason:
+        recommended?.holdTimeReason || ""
     });
 
     setManualPurchaseOpen(true);
@@ -4744,6 +4750,17 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
           <span>
             Risk <b>{risk}</b>
           </span>
+
+          {direction && (
+            <span>
+              <History/>
+              Hold time <b>
+                {Number(recommended?.holdTimeMinMinutes) > 0
+                  ? recommended.holdTimeMinMinutes + "–" + recommended.holdTimeMaxMinutes + " min"
+                  : "—"}
+              </b>
+            </span>
+          )}
         </div>
 
         <button
