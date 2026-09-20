@@ -238,5 +238,91 @@ export async function fetchLatestAiSignal(
     return null;
   }
 
-  return data.snapshot;
+  const snapshot = data.snapshot;
+  const candidates = Array.isArray(snapshot?.candidates)
+    ? snapshot.candidates.slice(0, 5)
+    : Array.isArray(snapshot?.engineTop5)
+      ? snapshot.engineTop5.slice(0, 5)
+      : [];
+
+  const ai = snapshot?.aiDecision || null;
+
+  const selectedCandidate =
+    ai?.decision === "TRADE"
+      ? candidates.find(candidate =>
+          candidate?.symbol === ai?.symbol ||
+          String(candidate?.symbol || "")
+            .toUpperCase()
+            .replace(/[_-]?USDT.*$/, "") ===
+          String(ai?.symbol || "")
+            .toUpperCase()
+            .replace(/[_-]?USDT.*$/, "")
+        ) || null
+      : null;
+
+  const recommended = selectedCandidate
+    ? {
+        ...selectedCandidate,
+        direction:
+          String(selectedCandidate?.direction || "").toUpperCase() === "LONG"
+            ? "BUY"
+            : String(selectedCandidate?.direction || "").toUpperCase() === "SHORT"
+              ? "SELL"
+              : String(selectedCandidate?.direction || "").toUpperCase(),
+        aiConfidence:
+          Number.isFinite(Number(ai?.confidence))
+            ? Number(ai.confidence)
+            : null,
+        aiDecision: ai?.decision || null,
+        aiProvider: ai?.provider || null,
+        holdTimeMinMinutes:
+          Number.isFinite(Number(ai?.holdTimeMinMinutes))
+            ? Number(ai.holdTimeMinMinutes)
+            : 0,
+        holdTimeMaxMinutes:
+          Number.isFinite(Number(ai?.holdTimeMaxMinutes))
+            ? Number(ai.holdTimeMaxMinutes)
+            : 0,
+        holdTimeReason:
+          ai?.holdTimeReason || "",
+      }
+    : null;
+
+  return {
+    ...snapshot,
+    success: true,
+    provider:
+      ai?.provider ||
+      snapshot?.provider ||
+      "groq",
+    candidates,
+    recommended,
+    verdict:
+      ai?.decision === "TRADE"
+        ? "RECOMMENDED"
+        : "NO_TRADE",
+    summary:
+      ai?.reason ||
+      "Latest server market analysis loaded.",
+    recommendation: {
+      verdict:
+        ai?.decision === "TRADE"
+          ? "RECOMMENDED"
+          : "NO_TRADE",
+      recommended,
+      summary:
+        ai?.reason ||
+        "Latest server market analysis loaded."
+    },
+    updatedAt:
+      snapshot?.updatedAt ||
+      snapshot?.persistedAt ||
+      data?.snapshot?.persistedAt ||
+      null,
+    persistedAt:
+      snapshot?.persistedAt ||
+      null,
+    cached: true,
+    serverSide: true,
+  };
 }
