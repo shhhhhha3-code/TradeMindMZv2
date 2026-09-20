@@ -29,15 +29,19 @@ export async function fetchLiveAiSignal(
   options = {}
 ) {
   const maxMarkets =
-    Number(
-      options.maxMarkets
-    ) > 0
+    Number(options.maxMarkets) > 0
       ? Number(options.maxMarkets)
       : 25;
 
+  const interval =
+    options.interval || "15M";
+
+  const force =
+    options.force === true ? "&force=1" : "";
+
   const scannerResponse =
     await fetch(
-      apiUrl(`/api/pionex/market-scan?limit=100&maxMarkets=${maxMarkets}`),
+      apiUrl(`/api/ai/live-scan?limit=100&maxMarkets=${maxMarkets}&interval=${encodeURIComponent(interval)}&marketType=PERP&leverage=2${force}`),
       {
         method: "GET",
         headers: {
@@ -146,6 +150,21 @@ export async function fetchLiveAiSignal(
 
     comparison:
       [],
+
+    marketType:
+      scanner?.marketType || "PERP",
+
+    contractType:
+      scanner?.contractType || "USDT-M PERPETUAL",
+
+    leverage:
+      Number(scanner?.leverage) || 2,
+
+    cached:
+      scanner?.cached === true,
+
+    nextAnalysisAt:
+      scanner?.nextAnalysisAt || null,
 
     verdict:
       recommendation.verdict,
