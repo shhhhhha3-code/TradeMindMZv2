@@ -88,6 +88,27 @@ function liveAiOptionsFromUrl(url) {
   };
 }
 
+function deriveMarketRegime(candidates = []) {
+  const rows = Array.isArray(candidates) ? candidates : [];
+  const btc = rows.find(row => /^(BTC|BTC_USDT)/i.test(String(row?.symbol || "")));
+  const source = btc || rows[0] || {};
+  const change = Number(source?.change24h ?? source?.indicators?.change24h);
+  const ema9 = Number(source?.ema9 ?? source?.indicators?.ema9);
+  const ema21 = Number(source?.ema21 ?? source?.indicators?.ema21);
+  const score = Number(source?.score ?? source?.engineScore);
+  const aligned = Number.isFinite(ema9) && Number.isFinite(ema21) ? ema9 > ema21 : null;
+  let regime = "SIDEWAYS";
+  if ((aligned === true && Number.isFinite(change) && change > 0.5) || (Number.isFinite(score) && score >= 82 && change > 0)) regime = "BULLISH";
+  else if ((aligned === false && Number.isFinite(change) && change < -0.5) || (Number.isFinite(score) && score < 60 && change < 0)) regime = "BEARISH";
+  return {
+    regime,
+    referenceSymbol: source?.symbol || null,
+    change24h: Number.isFinite(change) ? change : null,
+    emaAligned: aligned,
+    score: Number.isFinite(score) ? score : null,
+  };
+}
+
 async function runLiveAiAnalysis({
   interval = "15M",
   candleLimit = 100,
@@ -158,6 +179,8 @@ async function runLiveAiAnalysis({
         ? evaluateCandidate(selectedCandidate, { marketType })
         : null;
 
+      const marketRegime = deriveMarketRegime(result.engineTop5);
+
       const finalDecision =
         aiDecision?.success &&
         aiDecision.decision === "TRADE" &&
@@ -189,6 +212,7 @@ async function runLiveAiAnalysis({
         aiDecision,
         tradeQuality,
         whyNoTrade,
+        marketRegime,
         finalDecision,
         decisionPipeline: {
           marketSource:
@@ -204,6 +228,7 @@ async function runLiveAiAnalysis({
           readOnly: true,
           persistedServerSide: true,
           riskFilter: "ENGINE SCORE + AI CONFIDENCE + R/R + RSI + VOLUME + NET EDGE",
+          marketRegime: marketRegime.regime,
           actionableOnlyWhen: marketType === "SPOT"
             ? "AI TRADE + BUY ONLY + RISK FILTER PASS"
             : "AI TRADE AND RISK FILTER PASS",
