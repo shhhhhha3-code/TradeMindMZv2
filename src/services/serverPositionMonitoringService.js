@@ -1,1 +1,39 @@
-import { apiUrl } from "./apiBase.js";\n\nexport async function fetchServerPositionMonitoring() {\n  const response = await fetch(\n    apiUrl("/api/ai/position-monitoring"),\n    {\n      method: "GET",\n      headers: { Accept: "application/json" },\n      cache: "no-store",\n    }\n  );\n\n  let data = null;\n  try {\n    data = await response.json();\n  } catch {\n    throw new Error("Position monitoring returned invalid JSON (" + response.status + ").");\n  }\n\n  if (!response.ok || data?.success !== true) {\n    throw new Error(\n      data?.error || "Server position monitoring failed (" + response.status + ")."\n    );\n  }\n\n  return data;\n}\n\nexport async function fetchTradeJournal(limit = 50) {\n  const monitoring = await fetchServerPositionMonitoring();\n  return {\n    success: true,\n    journal: Array.isArray(monitoring?.journal)\n      ? monitoring.journal.slice(0, Math.max(1, Number(limit) || 50))\n      : [],\n    stats: monitoring?.journalStats || null,\n    updatedAt: monitoring?.updatedAt || null,\n  };\n}\n
+import { apiUrl } from "./apiBase.js";
+
+export async function fetchServerPositionMonitoring() {
+  const response = await fetch(
+    apiUrl("/api/ai/position-monitoring"),
+    {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    }
+  );
+
+  let data = null;
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error("Position monitoring returned invalid JSON (" + response.status + ").");
+  }
+
+  if (!response.ok || data?.success !== true) {
+    throw new Error(
+      data?.error || "Server position monitoring failed (" + response.status + ")."
+    );
+  }
+
+  return data;
+}
+
+export async function fetchTradeJournal(limit = 50) {
+  const monitoring = await fetchServerPositionMonitoring();
+  return {
+    success: true,
+    journal: Array.isArray(monitoring?.journal)
+      ? monitoring.journal.slice(0, Math.max(1, Number(limit) || 50))
+      : [],
+    stats: monitoring?.journalStats || null,
+    updatedAt: monitoring?.updatedAt || null,
+  };
+}
