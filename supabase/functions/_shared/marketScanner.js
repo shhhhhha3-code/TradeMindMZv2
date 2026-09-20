@@ -255,7 +255,7 @@ function scoreCandidate({
       ? recentVolume / historicalVolume
       : 1;
 
-  // Pionex 1D candles are daily candles.
+  // The scanner uses intraday Pionex futures candles (15M by default).
   // Use the ticker's actual 24h open/close for 24h momentum.
   const tickerOpen = number(ticker.open, 0);
   const tickerClose = number(
