@@ -51,3 +51,6 @@ alter table public.position_ai_analysis
 create index if not exists idx_position_ai_analysis_symbol_direction_created
   on public.position_ai_analysis(symbol, direction, created_at desc);
 
+
+grant select, insert, update, delete on table public.trade_journal to service_role;
+grant select, insert, update, delete on table public.position_ai_analysis to service_role;
