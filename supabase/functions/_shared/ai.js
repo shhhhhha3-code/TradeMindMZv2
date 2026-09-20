@@ -15,6 +15,8 @@ async function callGroq(payload) {
       model: Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b",
       temperature: 0.1,
       response_format: { type: "json_object" },
+      reasoning_effort: "low",
+      max_completion_tokens: 700,
       messages: [{ role: "system", content: payload.systemPrompt }, { role: "user", content: payload.userPrompt }],
     }),
   });
@@ -93,9 +95,34 @@ async function runDecision(candidates = [], preferredProvider = "groq") {
   const ordered = [preferredProvider, Deno.env.get("AI_DEFAULT_PROVIDER") || "groq", ...available]
     .filter((p, i, list) => p && available.includes(p) && list.indexOf(p) === i);
 
+  // Keep the Decision Layer prompt compact. The Engine candidates contain
+  // chart/sparkline arrays and other diagnostic payloads that are useful to
+  // the app but unnecessary for the AI decision. Sending those large arrays
+  // can consume the provider token budget and make an otherwise healthy
+  // Groq/OpenAI request fail.
+  const aiCandidates = top.map((candidate) => ({
+    symbol: candidate?.symbol || null,
+    direction: candidate?.direction || null,
+    price: candidate?.price ?? null,
+    entry: candidate?.entry ?? null,
+    stopLoss: candidate?.stopLoss ?? null,
+    takeProfit: candidate?.takeProfit ?? null,
+    engineScore: candidate?.engineScore ?? candidate?.score ?? null,
+    confidence: candidate?.confidence ?? null,
+    riskReward: candidate?.riskReward ?? null,
+    change24h: candidate?.change24h ?? candidate?.indicators?.change24h ?? null,
+    timeframe: candidate?.timeframe ?? null,
+    rsi: candidate?.rsi ?? candidate?.indicators?.rsi14 ?? null,
+    volumeRatio: candidate?.volumeRatio ?? candidate?.indicators?.volumeRatio ?? null,
+    ema9: candidate?.ema9 ?? candidate?.indicators?.ema9 ?? null,
+    ema21: candidate?.ema21 ?? candidate?.indicators?.ema21 ?? null,
+    macd: candidate?.macd ?? candidate?.indicators?.macd ?? null,
+    riskLevel: candidate?.risk?.level ?? candidate?.riskLevel ?? null,
+  }));
+
   const payload = {
     systemPrompt: `You are the TradeMindMZ AI Decision Layer. A deterministic TradeMindMZ Engine has already evaluated the market candidates. Evaluate ONLY the supplied candidates. Never invent market data. Engine rules are hard: score >= 75, confidence >= 80, risk/reward >= 2, RSI 35-70, volume ratio >= 0.8, and HIGH risk cannot be selected. Return JSON only: {"decision":"TRADE|WATCH|NO_TRADE","symbol":"SYMBOL","confidence":0,"risk":"LOW|MEDIUM|HIGH","reason":"short explanation","holdTimeMinMinutes":0,"holdTimeMaxMinutes":0,"holdTimeReason":"brief reason based only on supplied timeframe, volatility, entry/TP distance and momentum"}. Only provide a meaningful hold-time range when decision is TRADE; otherwise use 0/0 and an empty reason. Hold time is an estimate, not a guarantee.`,
-    userPrompt: `TradeMindMZ Engine TOP 5:\n\n${JSON.stringify(top, null, 2)}`,
+    userPrompt: `TradeMindMZ Engine TOP 5:\n\n${JSON.stringify(aiCandidates)}`,
   };
 
   const errors = [];
