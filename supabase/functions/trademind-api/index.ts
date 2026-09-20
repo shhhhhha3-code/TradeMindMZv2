@@ -145,15 +145,30 @@ async function runLiveAiAnalysis({
         provider
       );
 
+      const selectedCandidate = result.engineTop5.find(
+        (candidate) =>
+          String(candidate?.symbol || "").toUpperCase() ===
+          String(aiDecision?.symbol || "").toUpperCase()
+      ) || null;
+
+      const tradeQuality = selectedCandidate
+        ? evaluateCandidate(selectedCandidate)
+        : null;
+
+      const finalDecision =
+        aiDecision?.success &&
+        aiDecision.decision === "TRADE" &&
+        tradeQuality?.passed === true
+          ? "TRADE"
+          : "NO_TRADE";
+
       const createdAt = Date.now();
 
       const payload = {
         ...result,
         aiDecision,
-        finalDecision:
-          aiDecision?.success
-            ? aiDecision.decision
-            : "NO_TRADE",
+        tradeQuality,
+        finalDecision,
         decisionPipeline: {
           marketSource:
             result.contractType ||
@@ -167,6 +182,8 @@ async function runLiveAiAnalysis({
           automaticTrading: false,
           readOnly: true,
           persistedServerSide: true,
+          riskFilter: "ENGINE SCORE + AI CONFIDENCE + R/R + RSI + VOLUME",
+          actionableOnlyWhen: "AI TRADE AND RISK FILTER PASS",
         },
       };
 
