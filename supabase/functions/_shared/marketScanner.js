@@ -207,6 +207,8 @@ function scoreCandidate({
   symbol,
   candles,
   ticker = {},
+  marketType = "PERP",
+  leverage = 2,
 }) {
   if (candles.length < 40) {
     return null;
@@ -495,6 +497,10 @@ function scoreCandidate({
     },
 
     ticker,
+    marketType: normalizedMarketType,
+    contractType: normalizedMarketType === "PERP" ? "USDT-M PERPETUAL" : "SPOT",
+    leverage: normalizedMarketType === "PERP" ? Number(leverage) || 2 : 1,
+    marginAsset: normalizedMarketType === "PERP" ? "USDT" : null,
 
     reasoning:
       direction === "BUY"
@@ -551,14 +557,21 @@ function getSymbolValue(row, keys) {
 }
 
 export async function scanPionexMarket({
-  interval = "1D",
+  interval = "15M",
   candleLimit = 100,
   maxMarkets = 25,
+  marketType = "PERP",
+  leverage = 2,
 } = {}) {
+  const normalizedMarketType =
+    String(marketType || "PERP").toUpperCase() === "SPOT"
+      ? "SPOT"
+      : "PERP";
+
   const [tickerPayload, symbolPayload] =
     await Promise.all([
-      getMarketTickers(),
-      getMarketSymbols(),
+      getMarketTickers({ type: normalizedMarketType }),
+      getMarketSymbols({ type: normalizedMarketType }),
     ]);
 
   const tickers =
@@ -657,6 +670,8 @@ export async function scanPionexMarket({
           symbol: item.symbol,
           candles,
           ticker: item.ticker,
+          marketType: normalizedMarketType,
+          leverage,
         });
 
       if (candidate) {
@@ -693,5 +708,16 @@ export async function scanPionexMarket({
 
     engineTop5:
       engineResult.top5,
+
+    marketType: normalizedMarketType,
+    contractType:
+      normalizedMarketType === "PERP"
+        ? "USDT-M PERPETUAL"
+        : "SPOT",
+    leverage:
+      normalizedMarketType === "PERP"
+        ? Number(leverage) || 2
+        : 1,
+    scanInterval: interval,
   };
 }
