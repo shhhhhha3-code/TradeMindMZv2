@@ -661,7 +661,7 @@ export default function ProDashboard({ onSelectTrade = null }) {
                   {refreshing
                     ? "Analyzing fresh BUY/SELL…"
                     : data?.finalDecision === "TRADE"
-                      ? `SELECT ${String(liveAiDecision?.direction || "").toUpperCase() === "SELL" ? "SELL" : "BUY"}`
+                      ? `SELECT ${String(liveAi?.data?.recommended?.direction || "").toUpperCase() === "SELL" ? "SELL" : "BUY"}`
                       : "WAITING FOR TRADE SIGNAL"}
                 </button>
               ) : null}
