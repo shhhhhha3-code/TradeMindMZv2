@@ -545,6 +545,12 @@ async function upsertTradeJournalForPosition(supabase, position, analysis = null
   const direction = positionDirection(position);
   if (!key || !position?.symbol || !["BUY", "SELL"].includes(direction)) return null;
 
+  const { data: existingJournal } = await supabase
+    .from("trade_journal")
+    .select("position_key")
+    .eq("position_key", key)
+    .maybeSingle();
+
   const row = {
     position_key: key,
     symbol: String(position.symbol).trim().toUpperCase(),
@@ -553,16 +559,18 @@ async function upsertTradeJournalForPosition(supabase, position, analysis = null
     quantity: Number.isFinite(Number(position.quantity)) ? Number(position.quantity) : null,
     stop_loss: Number.isFinite(Number(position.stopLoss)) ? Number(position.stopLoss) : null,
     take_profit: Number.isFinite(Number(position.takeProfit)) ? Number(position.takeProfit) : null,
-    ai_confidence_at_entry: analysis?.confidence != null
-      ? Number(analysis.confidence)
-      : null,
-    ai_hold_time_min_minutes: analysis?.holdTimeMinMinutes != null
-      ? Number(analysis.holdTimeMinMinutes)
-      : null,
-    ai_hold_time_max_minutes: analysis?.holdTimeMaxMinutes != null
-      ? Number(analysis.holdTimeMaxMinutes)
-      : null,
-    ai_hold_time_reason: analysis?.holdTimeReason || null,
+    ...(existingJournal ? {} : {
+      ai_confidence_at_entry: analysis?.confidence != null
+        ? Number(analysis.confidence)
+        : null,
+      ai_hold_time_min_minutes: analysis?.holdTimeMinMinutes != null
+        ? Number(analysis.holdTimeMinMinutes)
+        : null,
+      ai_hold_time_max_minutes: analysis?.holdTimeMaxMinutes != null
+        ? Number(analysis.holdTimeMaxMinutes)
+        : null,
+      ai_hold_time_reason: analysis?.holdTimeReason || null,
+    }),
     last_price: Number.isFinite(Number(position.currentPrice ?? position.markPrice))
       ? Number(position.currentPrice ?? position.markPrice)
       : null,
