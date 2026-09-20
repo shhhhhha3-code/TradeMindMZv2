@@ -117,13 +117,15 @@ function buildTradeExplanation(candidate, aiDecision) {
   };
 }
 
-function hardBlocks(candidate) {
+function hardBlocks(candidate, { marketType = "PERP" } = {}) {
   const score = Number(candidate?.engineScore ?? candidate?.score);
   const confidence = Number(candidate?.confidence);
   const rr = Number(candidate?.riskReward);
   const rsi = Number(candidate?.rsi ?? candidate?.indicators?.rsi14);
   const volume = Number(candidate?.volumeRatio ?? candidate?.indicators?.volumeRatio);
   const risk = String(candidate?.risk?.level ?? candidate?.riskLevel ?? "").toUpperCase();
+  const direction = String(candidate?.direction || "").toUpperCase();
+  const normalizedMarketType = String(marketType || "PERP").toUpperCase();
   const reasons = [];
   if (Number.isFinite(score) && score < 75) reasons.push("ENGINE_SCORE_BELOW_MINIMUM");
   if (Number.isFinite(confidence) && confidence < 80) reasons.push("CONFIDENCE_BELOW_MINIMUM");
@@ -131,14 +133,16 @@ function hardBlocks(candidate) {
   if (Number.isFinite(rsi) && (rsi < 35 || rsi > 70)) reasons.push("RSI_OUTSIDE_RANGE");
   if (Number.isFinite(volume) && volume < 0.8) reasons.push("VOLUME_BELOW_MINIMUM");
   if (risk === "HIGH") reasons.push("ENGINE_HIGH_RISK");
+  if (normalizedMarketType === "SPOT" && direction !== "BUY") reasons.push("SPOT_BUY_ONLY");
   return reasons;
 }
 
-async function runDecision(candidates = [], preferredProvider = "groq") {
+async function runDecision(candidates = [], preferredProvider = "groq", options = {})
   const top = Array.isArray(candidates) ? candidates.slice(0, 5) : [];
-  if (!top.length) return { success: false, decision: "NO_TRADE", symbol: null, confidence: 0, risk: "HIGH", reason: "No candidates supplied.", provider: null, blockedByEngine: true };
+  const marketType = String(options?.marketType || "PERP").toUpperCase() === "SPOT" ? "SPOT" : "PERP";
+  if (!top.length) return { success: false, decision: "NO_TRADE", symbol: null, confidence: 0, risk: "HIGH", reason: "No candidates supplied.", provider: null, blockedByEngine: true, marketType };
 
-  const eligible = top.filter((candidate) => hardBlocks(candidate).length === 0);
+  const eligible = top.filter((candidate) => hardBlocks(candidate, { marketType }).length === 0);
   if (!eligible.length) {
     return {
       success: true,
@@ -187,8 +191,8 @@ async function runDecision(candidates = [], preferredProvider = "groq") {
   }));
 
   const payload = {
-    systemPrompt: `You are the TradeMindMZ AI Decision Layer. A deterministic TradeMindMZ Engine has already evaluated the market candidates. Evaluate ONLY the supplied candidates. Never invent market data. Engine rules are hard: score >= 75, confidence >= 80, risk/reward >= 2, RSI 35-70, volume ratio >= 0.8, and HIGH risk cannot be selected. Return JSON only: {"decision":"TRADE|WATCH|NO_TRADE","symbol":"SYMBOL","confidence":0,"risk":"LOW|MEDIUM|HIGH","reason":"short explanation","holdTimeMinMinutes":0,"holdTimeMaxMinutes":0,"holdTimeReason":"brief reason based only on supplied timeframe, volatility, entry/TP distance and momentum"}. Only provide a meaningful hold-time range when decision is TRADE; otherwise use 0/0 and an empty reason. Hold time is an estimate, not a guarantee.`,
-    userPrompt: `TradeMindMZ Engine TOP 5:\n\n${JSON.stringify(aiCandidates)}`,
+    systemPrompt: `You are the TradeMindMZ AI Decision Layer. A deterministic TradeMindMZ Engine has already evaluated the market candidates. Evaluate ONLY the supplied candidates. Never invent market data. Engine rules are hard: score >= 75, confidence >= 80, risk/reward >= 2, RSI 35-70, volume ratio >= 0.8, and HIGH risk cannot be selected. For SPOT, only BUY is actionable because Spot does not create a short position. Return JSON only: {"decision":"TRADE|WATCH|NO_TRADE","symbol":"SYMBOL","confidence":0,"risk":"LOW|MEDIUM|HIGH","reason":"short explanation","holdTimeMinMinutes":0,"holdTimeMaxMinutes":0,"holdTimeReason":"brief reason based only on supplied timeframe, volatility, entry/TP distance and momentum"}. Only provide a meaningful hold-time range when decision is TRADE; otherwise use 0/0 and an empty reason. Hold time is an estimate, not a guarantee.`,
+    userPrompt: `Market type: ${marketType}. TradeMindMZ Engine TOP 5:\n\n${JSON.stringify(aiCandidates)}`,
   };
 
   const errors = [];
@@ -197,7 +201,7 @@ async function runDecision(candidates = [], preferredProvider = "groq") {
       const raw = await callProvider(provider, payload);
       const symbol = String(raw?.symbol || "").toUpperCase();
       const selected = eligible.find((candidate) => String(candidate?.symbol || "").toUpperCase() === symbol) || eligible[0];
-      const blocks = hardBlocks(selected);
+      const blocks = hardBlocks(selected, { marketType });
       if (blocks.length) {
         errors.push({ provider, error: "AI selected a blocked candidate." });
         continue;
@@ -241,7 +245,7 @@ async function runDecision(candidates = [], preferredProvider = "groq") {
     }
   }
 
-  return { success: false, decision: "NO_TRADE", symbol: eligible[0]?.symbol || null, confidence: 0, risk: "HIGH", reason: "All configured AI providers failed during the Decision Layer.", provider: null, blockedByEngine: false, providers: available, providerErrors: errors };
+  return { success: false, decision: "NO_TRADE", symbol: eligible[0]?.symbol || null, confidence: 0, risk: "HIGH", reason: "All configured AI providers failed during the Decision Layer.", provider: null, blockedByEngine: false, providers: available, providerErrors: errors, marketType };
 }
 
 export { runDecision, hardBlocks };
