@@ -3830,6 +3830,10 @@ function DiagnosticsPanel() {
                   )}
 
                 {check.name ===
+                  "Scheduler" &&
+                  `Last run: ${check.details?.lastRun ? formatTime(check.details.lastRun) : "—"} • Age: ${check.details?.ageSeconds != null ? check.details.ageSeconds + "s" : "—"} • Spot: ${check.details?.spotMonitored ?? 0} • Futures: ${check.details?.futuresMonitored ?? 0}`}
+
+                {check.name ===
                   "Market AI" &&
                   `Server snapshot: ${
                     check.details?.snapshotAgeSeconds != null
