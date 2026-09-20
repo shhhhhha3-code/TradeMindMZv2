@@ -198,6 +198,7 @@ export default function ProDashboard({ onSelectTrade = null }) {
       finalDecision: result?.finalDecision || "NO_TRADE",
       marketRegime: result?.marketRegime || null,
       tradeQuality: result?.tradeQuality || null,
+      whyNoTrade: result?.whyNoTrade || null,
       tradeExplanation: result?.tradeExplanation || result?.aiDecision?.tradeExplanation || null,
     });
   }, []);
