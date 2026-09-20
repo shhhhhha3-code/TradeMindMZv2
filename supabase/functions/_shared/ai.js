@@ -94,7 +94,7 @@ async function runDecision(candidates = [], preferredProvider = "groq") {
     .filter((p, i, list) => p && available.includes(p) && list.indexOf(p) === i);
 
   const payload = {
-    systemPrompt: `You are the TradeMindMZ AI Decision Layer. A deterministic TradeMindMZ Engine has already evaluated the market candidates. Evaluate ONLY the supplied candidates. Never invent market data. Engine rules are hard: score >= 75, confidence >= 80, risk/reward >= 2, RSI 35-70, volume ratio >= 0.8, and HIGH risk cannot be selected. Return JSON only: {"decision":"TRADE|WATCH|NO_TRADE","symbol":"SYMBOL","confidence":0,"risk":"LOW|MEDIUM|HIGH","reason":"short explanation"}`,
+    systemPrompt: `You are the TradeMindMZ AI Decision Layer. A deterministic TradeMindMZ Engine has already evaluated the market candidates. Evaluate ONLY the supplied candidates. Never invent market data. Engine rules are hard: score >= 75, confidence >= 80, risk/reward >= 2, RSI 35-70, volume ratio >= 0.8, and HIGH risk cannot be selected. Return JSON only: {"decision":"TRADE|WATCH|NO_TRADE","symbol":"SYMBOL","confidence":0,"risk":"LOW|MEDIUM|HIGH","reason":"short explanation","holdTimeMinMinutes":0,"holdTimeMaxMinutes":0,"holdTimeReason":"brief reason based only on supplied timeframe, volatility, entry/TP distance and momentum"}. Only provide a meaningful hold-time range when decision is TRADE; otherwise use 0/0 and an empty reason. Hold time is an estimate, not a guarantee.`,
     userPrompt: `TradeMindMZ Engine TOP 5:\n\n${JSON.stringify(top, null, 2)}`,
   };
 
@@ -127,6 +127,21 @@ async function runDecision(candidates = [], preferredProvider = "groq") {
         blockedByEngine: false,
         providers: available,
         providerErrors: errors,
+        holdTimeMinMinutes:
+          decision === "TRADE"
+            ? Math.max(1, Math.round(Number(raw?.holdTimeMinMinutes) || 0))
+            : 0,
+        holdTimeMaxMinutes:
+          decision === "TRADE"
+            ? Math.max(
+                Math.round(Number(raw?.holdTimeMinMinutes) || 0),
+                Math.round(Number(raw?.holdTimeMaxMinutes) || 0)
+              )
+            : 0,
+        holdTimeReason:
+          decision === "TRADE"
+            ? String(raw?.holdTimeReason || "")
+            : "",
       };
     } catch (error) {
       errors.push({ provider, error: error?.message || String(error) });
