@@ -197,3 +197,37 @@ export async function fetchLiveAiTop5(
     options
   );
 }
+
+export async function fetchLatestAiSignal(
+  options = {}
+) {
+  const interval = options.interval || "15M";
+  const maxMarkets =
+    Number(options.maxMarkets) > 0
+      ? Number(options.maxMarkets)
+      : 25;
+
+  const response = await fetch(
+    apiUrl(
+      `/api/ai/latest?interval=${encodeURIComponent(interval)}&marketType=PERP&leverage=2&maxMarkets=${maxMarkets}`
+    ),
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json"
+      },
+      cache: "no-store"
+    }
+  );
+
+  const data = await readJson(
+    response,
+    "Latest AI snapshot"
+  );
+
+  if (!data?.available || !data?.snapshot) {
+    return null;
+  }
+
+  return data.snapshot;
+}
