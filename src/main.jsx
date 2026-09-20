@@ -4651,7 +4651,7 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
 
     setPurchaseDefaults({
       symbol: String(freshRecommendation.symbol || "").replace("_",""),
-      side: freshDirection,
+      side: freshDirection === "SELL" ? "SHORT" : "LONG",
       entryPrice: Number(freshRecommendation.entry) || 0,
       stopLoss: Number(freshRecommendation.stopLoss) || 0,
       takeProfit: Number(freshRecommendation.takeProfit) || 0,
@@ -5243,7 +5243,7 @@ function Positions(){
 
             try {
               const marketResponse = await fetch(
-                `/api/pionex/market-scan?limit=100&maxMarkets=25&interval=15M&marketType=PERP&leverage=2`
+                apiUrl("/api/pionex/market-scan?limit=100&maxMarkets=25&interval=15M&marketType=PERP&leverage=2")
               );
 
               if (marketResponse.ok) {
