@@ -303,6 +303,8 @@ export async function fetchLatestAiSignal(
             : 0,
         holdTimeReason:
           ai?.holdTimeReason || "",
+        tradeExplanation:
+          ai?.tradeExplanation || null,
       }
     : null;
 
@@ -325,6 +327,8 @@ export async function fetchLatestAiSignal(
 
     tradeQuality:
       snapshot?.tradeQuality || null,
+    tradeExplanation:
+      ai?.tradeExplanation || null,
     recommendation: {
       verdict:
         actionableDecision === "TRADE"
