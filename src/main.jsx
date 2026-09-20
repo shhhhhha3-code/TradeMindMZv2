@@ -15,6 +15,7 @@ import { analyzePositionWithAI } from "./services/positionAiService.js";
 import { fetchLearningStats } from "./services/learningStatsService.js";
 import { fetchSignalHistory } from "./services/signalHistoryService.js";
 import { fetchLatestAiSignal } from "./services/liveAiSignalService.js";
+import { calculateRiskSizing } from "./services/riskSizingService.js";
 import { fetchDashboardData } from "./services/dashboardService.js";
 import { fetchServerPositionMonitoring } from "./services/serverPositionMonitoringService.js";
 import "./ui/trademind-v3.css";
@@ -4588,6 +4589,7 @@ function SettingsPage({settings,updateSetting}){const Row=({id,title,desc})=><di
 function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
 
   const [marketType, setMarketType] = useState("PERP");
+  const [riskSizing, setRiskSizing] = useState(null);
   const [learningStats,setLearningStats] = useState(null);
   const [learningError,setLearningError] = useState("");
 
@@ -4686,6 +4688,31 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
     recommended?.reasoning ||
     data?.summary ||
     "Awaiting live Pionex market analysis.";
+
+  useEffect(() => {
+    let active = true;
+    setRiskSizing(null);
+    if (!recommended || !entry || !stop) return undefined;
+
+    const balance = marketType === "SPOT"
+      ? Number(data?.spotUsdtBalance ?? 0)
+      : 0;
+
+    if (!(balance > 0)) return undefined;
+
+    calculateRiskSizing({
+      balanceUsdt: balance,
+      entryPrice: entry,
+      stopLoss: stop,
+      marketType,
+    }).then(result => {
+      if (active) setRiskSizing(result);
+    }).catch(() => {
+      if (active) setRiskSizing(null);
+    });
+
+    return () => { active = false; };
+  }, [recommended?.symbol, entry, stop, marketType, data?.spotUsdtBalance]);
 
   const technicalSource =
     data?.candidates?.find(
@@ -4983,6 +5010,11 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
           <span>
             Risk <b>{risk}</b>
           </span>
+          {data?.tradeQuality?.costs ? (
+            <span>
+              Net edge <b>{Number(data.tradeQuality.costs.netTargetRate * 100).toFixed(2)}%</b>
+            </span>
+          ) : null}
 
           {direction && (
             <span>
@@ -4995,6 +5027,13 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
             </span>
           )}
         </div>
+
+        {riskSizing ? (
+          <div className="meta" style={{marginTop:"10px"}}>
+            <span>Suggested size <b>{Number(riskSizing.suggestedNotionalUsdt).toFixed(2)} USDT</b></span>
+            <span>Max loss <b>{Number(riskSizing.maxLossUsdt).toFixed(2)} USDT</b></span>
+          </div>
+        ) : null}
 
         <button
           className={bought?"buy done":"buy"}
@@ -5174,6 +5213,12 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
               </div>
             </div>
           )}
+
+          {data?.whyNoTrade?.aiReasons?.length ? (
+            <div style={{marginTop:"12px",fontSize:"12px",color:"rgba(255,255,255,.55)"}}>
+              AI filter: {data.whyNoTrade.aiReasons.join(" • ")}
+            </div>
+          ) : null}
 
           {signalFailedChecks.length === 1 && (
             <div
