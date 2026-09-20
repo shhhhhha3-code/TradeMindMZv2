@@ -35,5 +35,15 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
         run: |
-          supabase link --project-ref "$SUPABASE_PROJECT_ID"
-          supabase db push
+          python - <<'PY'
+          import json
+          with open("supabase/migrations/20260920_live_ai_persistence_scheduler.sql", "r", encoding="utf-8") as f:
+              sql = f.read()
+          with open("/tmp/trademind-migration.json", "w", encoding="utf-8") as f:
+              json.dump({"query": sql}, f)
+          PY
+          curl --fail-with-body -sS \
+            -X POST "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data-binary @/tmp/trademind-migration.json
