@@ -151,7 +151,7 @@ function atr(closes, highs, lows, period = 14) {
   );
 }
 
-function parseKlines(payload) {
+export function parsePionexKlines(payload) {
   const rows =
     payload?.data?.klines ??
     payload?.data ??
@@ -203,7 +203,7 @@ function parseKlines(payload) {
   return parsed.sort((a, b) => a.time - b.time);
 }
 
-function scoreCandidate({
+export function scorePionexCandidate({
   symbol,
   candles,
   ticker = {},
@@ -673,10 +673,10 @@ export async function scanPionexMarket({
         });
 
       const candles =
-        parseKlines(payload);
+        parsePionexKlines(payload);
 
       const candidate =
-        scoreCandidate({
+        scorePionexCandidate({
           symbol: item.symbol,
           candles,
           ticker: item.ticker,
