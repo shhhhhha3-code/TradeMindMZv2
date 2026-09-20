@@ -36,6 +36,17 @@ function sanitizeLimit(value, fallback = 50) {
   return Math.max(1, Math.min(100, Number(value) || fallback));
 }
 
+const LIVE_AI_INTERVAL_MS = 7 * 60 * 1000;
+
+function getLiveAiCacheKey(url) {
+  return [
+    url.searchParams.get("interval") || "15M",
+    url.searchParams.get("maxMarkets") || "25",
+    url.searchParams.get("leverage") || "2",
+    url.searchParams.get("provider") || "groq",
+  ].join(":");
+}
+
 function normalizePositions(payload) {
   const rows = Array.isArray(payload) ? payload
     : Array.isArray(payload?.positions) ? payload.positions
@@ -241,20 +252,95 @@ async function handle(req) {
   if (path === "/api/pionex/market-scan" && method === "GET") {
     try {
       const result = await scanPionexMarket({
-        interval: url.searchParams.get("interval") || "1D",
+        interval: url.searchParams.get("interval") || "15M",
         candleLimit: Number(url.searchParams.get("limit") || 100),
         maxMarkets: Number(url.searchParams.get("maxMarkets") || 25),
+        marketType: url.searchParams.get("marketType") || "PERP",
+        leverage: Number(url.searchParams.get("leverage") || 2),
       });
-      const aiDecision = await runDecision(result.engineTop5, url.searchParams.get("provider") || "groq");
       return response({
         ...result,
-        aiDecision,
-        finalDecision: aiDecision?.success ? aiDecision.decision : "NO_TRADE",
-        decisionPipeline: { marketSource:"PIONEX", engine:"TradeMindMZ Engine V2", ai:"TradeMindMZ AI Decision Layer V1", automaticTrading:false, readOnly:true },
+        aiDecision: null,
+        finalDecision: "ENGINE_ONLY",
+        decisionPipeline: {
+          marketSource: result.contractType || "PIONEX USDT-M PERPETUAL",
+          engine: "TradeMindMZ Engine V2",
+          ai: "WAITING FOR TOP 5",
+          automaticTrading: false,
+          readOnly: true,
+        },
       });
     } catch (error) {
       const rateLimited = error?.status === 429 || error?.code === "PIONEX_RATE_LIMITED";
       return response({ success:false, scanned:0, candidates:[], status:rateLimited?"PIONEX_RATE_LIMITED":"PIONEX_MARKET_ERROR", retryable:true, error:error?.message||"Pionex market scan failed." }, rateLimited?429:502);
+    }
+  }
+
+  if (path === "/api/ai/live-scan" && method === "GET") {
+    try {
+      const cacheKey = getLiveAiCacheKey(url);
+      const force = url.searchParams.get("force") === "1";
+      const now = Date.now();
+      const cached = globalThis.__tradeMindLiveAiCache?.[cacheKey];
+
+      if (!force && cached && now - cached.createdAt < LIVE_AI_INTERVAL_MS) {
+        return response({
+          ...cached.payload,
+          cached: true,
+          nextAnalysisAt: new Date(cached.createdAt + LIVE_AI_INTERVAL_MS).toISOString(),
+        });
+      }
+
+      const result = await scanPionexMarket({
+        interval: url.searchParams.get("interval") || "15M",
+        candleLimit: Number(url.searchParams.get("limit") || 100),
+        maxMarkets: Number(url.searchParams.get("maxMarkets") || 25),
+        marketType: url.searchParams.get("marketType") || "PERP",
+        leverage: Number(url.searchParams.get("leverage") || 2),
+      });
+
+      const aiDecision = await runDecision(
+        result.engineTop5,
+        url.searchParams.get("provider") || "groq"
+      );
+
+      const payload = {
+        ...result,
+        aiDecision,
+        finalDecision: aiDecision?.success ? aiDecision.decision : "NO_TRADE",
+        decisionPipeline: {
+          marketSource: result.contractType || "PIONEX USDT-M PERPETUAL",
+          universe: result.scanned,
+          engine: "TradeMindMZ Engine V2",
+          ai: "TradeMindMZ AI Decision Layer V1",
+          aiInput: "ENGINE TOP 5 ONLY",
+          aiCadence: "7 MINUTES",
+          leverage: result.leverage || 2,
+          automaticTrading: false,
+          readOnly: true,
+        },
+      };
+
+      globalThis.__tradeMindLiveAiCache = {
+        ...(globalThis.__tradeMindLiveAiCache || {}),
+        [cacheKey]: { createdAt: now, payload },
+      };
+
+      return response({
+        ...payload,
+        cached: false,
+        nextAnalysisAt: new Date(now + LIVE_AI_INTERVAL_MS).toISOString(),
+      });
+    } catch (error) {
+      const rateLimited = error?.status === 429 || error?.code === "PIONEX_RATE_LIMITED";
+      return response({
+        success:false,
+        scanned:0,
+        candidates:[],
+        status:rateLimited?"PIONEX_RATE_LIMITED":"LIVE_AI_SCAN_ERROR",
+        retryable:true,
+        error:error?.message||"Live AI scan failed."
+      }, rateLimited?429:502);
     }
   }
 
