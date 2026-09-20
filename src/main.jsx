@@ -5283,125 +5283,172 @@ function pnlClass(value) {
 }
 
 function Positions(){
-
   const [positions,setPositions] = useState([]);
   const [loading,setLoading] = useState(true);
   const [refreshing,setRefreshing] = useState(false);
   const [error,setError] = useState("");
   const [ai,setAi] = useState({});
   const [aiLoading,setAiLoading] = useState({});
+  const [marketSnapshot,setMarketSnapshot] = useState(null);
 
   const loadPositions = async () => {
     setRefreshing(true);
     setError("");
 
     try {
-      const result = await fetchLivePositions();
+      // Manual purchases must be monitored even before Pionex reports
+      // an open position. The old screen only rendered Pionex positions,
+      // which made the navigation badge show 1 while the monitor was empty.
+      const tracked = loadTrackedPositions().filter(
+        position => String(position?.status || "LIVE").toUpperCase() === "LIVE"
+      );
 
-      const nextPositions =
-        Array.isArray(result.positions)
+      let pionexPositions = [];
+      let pionexError = "";
+
+      try {
+        const result = await fetchLivePositions();
+        pionexPositions = Array.isArray(result?.positions)
           ? result.positions
           : [];
+      } catch (err) {
+        pionexError = err instanceof Error
+          ? err.message
+          : "Pionex live positions unavailable.";
+      }
 
-      setPositions(nextPositions);
+      let snapshot = marketSnapshot;
+      try {
+        snapshot = await fetchLatestAiSignal({
+          interval: "15M",
+          maxMarkets: 25,
+          preferredProvider: "groq",
+        });
+        setMarketSnapshot(snapshot);
+      } catch (snapshotError) {
+        console.warn(
+          "Persisted market snapshot unavailable for position AI:",
+          snapshotError
+        );
+      }
 
-      if (nextPositions.length) {
-        for (const position of nextPositions) {
-          const key = String(
-            position.id ||
-            position.symbol
-          );
+      const marketCandidates =
+        Array.isArray(snapshot?.candidates)
+          ? snapshot.candidates
+          : Array.isArray(snapshot?.engineTop5)
+            ? snapshot.engineTop5
+            : [];
 
-          if (ai[key]) {
-            continue;
-          }
+      const samePosition = (a,b) => {
+        const symbolA = String(a?.symbol || "").toUpperCase();
+        const symbolB = String(b?.symbol || "").toUpperCase();
+        const sideA = String(a?.side || a?.direction || "").toUpperCase();
+        const sideB = String(b?.side || b?.direction || "").toUpperCase();
+        return symbolA === symbolB && (
+          sideA === sideB ||
+          (sideA === "LONG" && sideB === "BUY") ||
+          (sideA === "SHORT" && sideB === "SELL") ||
+          !sideA || !sideB
+        );
+      };
 
-          try {
-            setAiLoading(prev => ({
+      const merged = [...pionexPositions];
+
+      for (const trackedPosition of tracked) {
+        const liveIndex = merged.findIndex(
+          position => samePosition(position, trackedPosition)
+        );
+
+        const market = marketCandidates.find(candidate =>
+          String(candidate?.symbol || "").toUpperCase() ===
+          String(trackedPosition?.symbol || "").toUpperCase()
+        ) || null;
+
+        const enrichedTracked = {
+          ...trackedPosition,
+          source: "MANUAL_PIONEX",
+          status: "LIVE",
+          readOnly: true,
+          currentPrice:
+            Number.isFinite(Number(trackedPosition.currentPrice))
+              ? Number(trackedPosition.currentPrice)
+              : Number.isFinite(Number(market?.price))
+                ? Number(market.price)
+                : null,
+          markPrice:
+            Number.isFinite(Number(trackedPosition.markPrice))
+              ? Number(trackedPosition.markPrice)
+              : Number.isFinite(Number(market?.price))
+                ? Number(market.price)
+                : null,
+        };
+
+        if (liveIndex >= 0) {
+          merged[liveIndex] = {
+            ...enrichedTracked,
+            ...merged[liveIndex],
+            source: "PIONEX + MANUAL TRACKING",
+            trackedPositionId: trackedPosition.id,
+            stopLoss: trackedPosition.stopLoss,
+            takeProfit: trackedPosition.takeProfit,
+            holdTimeMinMinutes: trackedPosition.holdTimeMinMinutes,
+            holdTimeMaxMinutes: trackedPosition.holdTimeMaxMinutes,
+            holdTimeReason: trackedPosition.holdTimeReason,
+          };
+        } else {
+          merged.push(enrichedTracked);
+        }
+      }
+
+      setPositions(merged);
+
+      if (pionexError && !merged.length) {
+        setError(pionexError);
+      } else if (pionexError) {
+        console.warn("Pionex live positions unavailable:", pionexError);
+      }
+
+      for (const position of merged) {
+        const key = String(
+          position.trackedPositionId ||
+          position.id ||
+          position.symbol
+        );
+
+        if (ai[key]) continue;
+
+        try {
+          setAiLoading(prev => ({ ...prev, [key]: true }));
+
+          const symbolForMarket =
+            String(position.symbol || "").trim().toUpperCase();
+
+          const market = marketCandidates.find(candidate =>
+            String(candidate?.symbol || "").toUpperCase() === symbolForMarket
+          ) || {};
+
+          const result = await analyzePositionWithAI(position, market);
+
+          if (result?.success && result?.analysis) {
+            setAi(prev => ({
               ...prev,
-              [key]: true
-            }));
-
-            const symbolForMarket =
-              String(position.symbol || "")
-                .trim();
-
-            let market = {};
-
-            try {
-              const marketResponse = await fetch(
-                apiUrl("/api/pionex/market-scan?limit=100&maxMarkets=25&interval=15M&marketType=PERP&leverage=2")
-              );
-
-              if (marketResponse.ok) {
-                const marketData =
-                  await marketResponse.json();
-
-                const candidates =
-                  Array.isArray(
-                    marketData?.candidates
-                  )
-                    ? marketData.candidates
-                    : [];
-
-                const matching =
-                  candidates.find(
-                    candidate =>
-                      candidate?.symbol ===
-                      symbolForMarket
-                  );
-
-                if (matching) {
-                  market = matching;
-                }
+              [key]: {
+                ...result.analysis,
+                provider: result.provider || "groq",
+                historySaved: result.historySaved === true,
+                historyId: result.historyId || null
               }
-            } catch (marketError) {
-              console.warn(
-                "Market data unavailable for position AI:",
-                marketError
-              );
-            }
-
-            const result =
-              await analyzePositionWithAI(
-                position,
-                market
-              );
-
-            if (result?.success && result?.analysis) {
-              setAi(prev => ({
-                ...prev,
-                [key]: {
-                  ...result.analysis,
-                  provider:
-                    result.provider ||
-                    "groq",
-                  historySaved:
-                    result.historySaved === true,
-                  historyId:
-                    result.historyId ||
-                    null
-                }
-              }));
-            }
-          } catch (analysisError) {
-            console.error(
-              "Position AI analysis failed:",
-              analysisError
-            );
-          } finally {
-            setAiLoading(prev => ({
-              ...prev,
-              [key]: false
             }));
           }
+        } catch (analysisError) {
+          console.error("Position AI analysis failed:", analysisError);
+        } finally {
+          setAiLoading(prev => ({ ...prev, [key]: false }));
         }
       }
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to load Pionex positions."
+        err instanceof Error ? err.message : "Unable to load positions."
       );
       setPositions([]);
     } finally {
@@ -5413,82 +5460,71 @@ function Positions(){
   useEffect(() => {
     loadPositions();
 
+    const onPositionUpdated = () => {
+      setAi({});
+      loadPositions();
+    };
+
+    window.addEventListener(
+      "trademindmz-position-updated",
+      onPositionUpdated
+    );
+
     const timer = setInterval(() => {
       setAi({});
       loadPositions();
     }, 7 * 60 * 1000);
 
-    return () => clearInterval(timer);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener(
+        "trademindmz-position-updated",
+        onPositionUpdated
+      );
+    };
   }, []);
 
   const formatPrice = value => {
     const number = Number(value);
-
-    if (
-      !Number.isFinite(number) ||
-      number <= 0
-    ) {
-      return "—";
-    }
-
+    if (!Number.isFinite(number) || number <= 0) return "—";
     return new Intl.NumberFormat("en-US", {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 6
     }).format(number);
   };
 
   const formatPnl = value => {
     const number = Number(value);
-
-    if (!Number.isFinite(number)) {
-      return "—";
-    }
-
+    if (!Number.isFinite(number)) return "—";
     return `${number >= 0 ? "+" : ""}${number.toFixed(2)}`;
   };
 
   return <>
     <div className="hero">
       <div>
-        <label>
-          <Radio/> PIONEX LIVE POSITIONS
-        </label>
-
-        <h1>
-          AI watches what you actually bought.
-        </h1>
-
+        <label><Radio/> PIONEX LIVE POSITIONS</label>
+        <h1>AI watches what you actually bought.</h1>
         <p>
-          Live positions are read directly from
-          your Pionex account. AI provides risk
-          guidance only and never executes trades.
+          Manual purchases are tracked locally and merged with read-only
+          Pionex positions. AI monitors both without placing orders.
         </p>
       </div>
 
       <button
         className="refresh"
-        onClick={() => {
-          setAi({});
-          loadPositions();
-        }}
+        onClick={() => { setAi({}); loadPositions(); }}
         disabled={refreshing}
       >
-        <RefreshCw
-          className={refreshing ? "spin" : ""}
-        />
-        {refreshing
-          ? " Refreshing..."
-          : " Refresh positions"}
+        <RefreshCw className={refreshing ? "spin" : ""}/>
+        {refreshing ? " Refreshing..." : " Refresh positions"}
       </button>
     </div>
 
-    {error ? (
+    {error && !positions.length ? (
       <div className="panel" style={{padding:"24px"}}>
         <div className="live-position-empty">
           <ShieldCheck size={28}/>
-          <h3>
-            Unable to load Pionex positions
-          </h3>
+          <h3>Unable to load positions</h3>
           <p>{error}</p>
         </div>
       </div>
@@ -5496,94 +5532,77 @@ function Positions(){
       <div className="panel" style={{padding:"30px"}}>
         <div className="live-position-empty">
           <Radio size={28}/>
-          <h3>
-            Loading Pionex positions...
-          </h3>
-          <p>
-            Reading your account in read-only mode.
-          </p>
+          <h3>Loading AI monitoring...</h3>
+          <p>Reading tracked purchases and Pionex positions.</p>
         </div>
       </div>
     ) : !positions.length ? (
       <div className="panel" style={{padding:"30px"}}>
         <div className="live-position-empty">
           <ShieldCheck size={28}/>
-          <h3>No live positions detected</h3>
+          <h3>No positions being monitored</h3>
           <p>
-            Pionex currently reports no open
-            positions.
+            Press "I BOUGHT THIS — START AI MONITORING" after a manual
+            Pionex purchase.
           </p>
         </div>
       </div>
     ) : (
       <div className="positions">
-
         {positions.map(position => {
+          const symbol = String(position.symbol || "")
+            .replace("_USDT"," / USDT")
+            .replace("USDT"," / USDT");
 
-          const symbol =
-            String(position.symbol || "")
-              .replace("_USDT"," / USDT")
-              .replace("USDT"," / USDT");
-
-          const entry =
-            Number(position.entryPrice);
-
-          const current =
-            Number(position.currentPrice);
-
+          const entry = Number(position.entryPrice);
+          const current = Number(position.currentPrice ?? position.markPrice);
           let pnlPercent = 0;
 
-          if (
-            Number.isFinite(entry) &&
-            Number.isFinite(current) &&
-            entry > 0
-          ) {
+          if (Number.isFinite(entry) && Number.isFinite(current) && entry > 0) {
             pnlPercent =
-              position.side === "SHORT"
+              String(position.side || "").toUpperCase() === "SHORT"
                 ? ((entry-current)/entry)*100
                 : ((current-entry)/entry)*100;
           }
 
-          const pnl =
-            Number(position.unrealizedPnl);
-
+          const pnl = Number(position.unrealizedPnl);
           const key = String(
-            position.id ||
-            position.symbol
+            position.trackedPositionId || position.id || position.symbol
+          );
+          const analysis = ai[key];
+          const analysisLoading = Boolean(aiLoading[key]);
+          const isTracked = String(position.source || "").includes("MANUAL");
+          const holdMin = Number(
+            analysis?.holdTimeMinMinutes ?? position.holdTimeMinMinutes
+          );
+          const holdMax = Number(
+            analysis?.holdTimeMaxMinutes ?? position.holdTimeMaxMinutes
           );
 
-          const analysis = ai[key];
-          const analysisLoading =
-            Boolean(aiLoading[key]);
-
           return (
-            <div
-              className="panel pos"
-              key={key}
-            >
-
+            <div className="panel pos" key={key}>
               <div className="head">
                 <div className="pair">
                   <div className="coin">
-                    {String(
-                      position.symbol || "?"
-                    ).charAt(0)}
+                    {String(position.symbol || "?").charAt(0)}
                   </div>
-
                   <div>
-                    <b>
-                      {symbol || "Unknown"}
-                    </b>
-
+                    <b>{symbol || "Unknown"}</b>
                     <small>
-                      Pionex live position
+                      {isTracked
+                        ? "Manual Pionex purchase · AI monitoring"
+                        : "Pionex live position · AI monitoring"}
                     </small>
                   </div>
                 </div>
 
-                <span className="long">
+                <span className={
+                  String(position.side || "").toUpperCase() === "SHORT"
+                    ? "short"
+                    : "long"
+                }>
                   <TrendingUp/>
-                  {position.side}
+                  {String(position.side || position.direction || "LIVE").toUpperCase()}
                 </span>
               </div>
 
@@ -5591,21 +5610,11 @@ function Positions(){
                 {[
                   ["ENTRY",formatPrice(entry)],
                   ["CURRENT",formatPrice(current)],
-                  [
-                    "UNREALIZED PNL",
-                    formatPnl(pnl)
-                  ],
-                  [
-                    "PNL %",
-                    `${pnlPercent >= 0 ? "+" : ""}${pnlPercent.toFixed(2)}%`
-                  ]
-                ].map((x,i)=>
+                  ["UNREALIZED PNL",formatPnl(pnl)],
+                  ["PNL %",`${pnlPercent >= 0 ? "+" : ""}${pnlPercent.toFixed(2)}%`]
+                ].map((x,i) =>
                   <div
-                    className={
-                      i >= 2 && pnl < 0
-                        ? "danger"
-                        : ""
-                    }
+                    className={i >= 2 && pnl < 0 ? "danger" : ""}
                     key={x[0]}
                   >
                     <small>{x[0]}</small>
@@ -5619,118 +5628,71 @@ function Positions(){
                   <Radio/>
                   Quantity
                   <b>
-                    {Number.isFinite(
-                      Number(position.quantity)
-                    )
+                    {Number.isFinite(Number(position.quantity))
                       ? position.quantity
                       : "—"}
                   </b>
                 </span>
-
                 <span>
                   Source
-                  <b>PIONEX</b>
+                  <b>{isTracked ? "TRACKED" : "PIONEX"}</b>
                 </span>
-
-                <span>
-                  Mode
-                  <b>READ ONLY</b>
-                </span>
+                <span>Mode <b>READ ONLY</b></span>
               </div>
 
-              <div
-                className="panel"
-                style={{
-                  marginTop:"18px",
-                  padding:"18px"
-                }}
-              >
-                <h3>
-                  <BrainCircuit/>
-                  AI POSITION RISK
-                </h3>
+              <div className="panel" style={{marginTop:"18px",padding:"18px"}}>
+                <h3><BrainCircuit/> AI POSITION MONITORING</h3>
 
                 {analysisLoading ? (
                   <div className="metric">
-                    <span>
-                      AI analysis
-                    </span>
-                    <b>
-                      ANALYZING...
-                    </b>
+                    <span>AI analysis</span>
+                    <b>ANALYZING...</b>
                   </div>
                 ) : analysis ? (
                   <>
                     <div className="metric">
-                      <span>
-                        Recommendation
-                      </span>
-                      <b>
-                        {String(
-                          analysis.recommendation ||
-                          "WATCH"
-                        ).replace(
-                          /_/g,
-                          " "
-                        )}
-                      </b>
+                      <span>Recommendation</span>
+                      <b>{String(analysis.recommendation || "WATCH").replace(/_/g," ")}</b>
                     </div>
-
                     <div className="metric">
-                      <span>
-                        Risk
-                      </span>
-                      <b>
-                        {analysis.riskLevel}
-                      </b>
+                      <span>Risk</span>
+                      <b>{analysis.riskLevel || "—"}</b>
                     </div>
-
                     <div className="metric">
-                      <span>
-                        AI Confidence
-                      </span>
-                      <b>
-                        {analysis.confidence}%
-                      </b>
+                      <span>AI Confidence</span>
+                      <b>{analysis.confidence ?? "—"}%</b>
                     </div>
-
                     <div className="metric">
-                      <span>
-                        Estimated hold time
-                      </span>
+                      <span>Estimated hold time</span>
                       <b>
-                        {Number(analysis.holdTimeMinMinutes) > 0
-                          ? Number(analysis.holdTimeMinMinutes) + "–" + Number(analysis.holdTimeMaxMinutes) + " min"
+                        {Number.isFinite(holdMin) && holdMin > 0
+                          ? holdMin + "–" + (Number.isFinite(holdMax) ? holdMax : holdMin) + " min"
                           : "—"}
                       </b>
                     </div>
-
-                    <p>
-                      {analysis.reasoning}
-                    </p>
-
+                    <p>{analysis.reasoning || "No reasoning returned."}</p>
                     <small className="note">
-                      {analysis.action}
-                      {analysis.holdTimeReason
-                        ? " " + analysis.holdTimeReason
-                        : ""}
+                      {analysis.action || ""}
+                      {analysis.holdTimeReason ? " " + analysis.holdTimeReason : ""}
                     </small>
                   </>
                 ) : (
                   <p>
-                    Waiting for AI position
-                    analysis.
+                    AI analysis has not returned yet.
+                    {isTracked
+                      ? " The tracked manual purchase is already in the monitoring queue."
+                      : ""}
                   </p>
                 )}
               </div>
-
             </div>
           );
         })}
       </div>
     )}
-  </>
+  </>;
 }
+
 
 createRoot(
   document.getElementById("root")
