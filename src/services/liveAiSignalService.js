@@ -87,8 +87,13 @@ export async function fetchLiveAiSignal(
    * This prevents engine confidence/score values from being
    * mistaken for an AI-approved trade.
    */
+  const actionableDecision =
+    scanner?.finalDecision ||
+    ai?.decision ||
+    "NO_TRADE";
+
   const selectedCandidate =
-    ai?.decision === "TRADE"
+    actionableDecision === "TRADE"
       ? topCandidates.find(
           candidate =>
             candidate?.symbol === ai?.symbol ||
@@ -133,7 +138,7 @@ export async function fetchLiveAiSignal(
 
   const recommendation = {
     verdict:
-      ai?.decision === "TRADE"
+      actionableDecision === "TRADE"
         ? "RECOMMENDED"
         : "NO_TRADE",
 
@@ -181,6 +186,9 @@ export async function fetchLiveAiSignal(
 
     recommended:
       recommendation.recommended,
+
+    tradeQuality:
+      scanner?.tradeQuality || null,
 
     summary:
       recommendation.summary,
@@ -247,8 +255,13 @@ export async function fetchLatestAiSignal(
 
   const ai = snapshot?.aiDecision || null;
 
+  const actionableDecision =
+    snapshot?.finalDecision ||
+    ai?.decision ||
+    "NO_TRADE";
+
   const selectedCandidate =
-    ai?.decision === "TRADE"
+    actionableDecision === "TRADE"
       ? candidates.find(candidate =>
           candidate?.symbol === ai?.symbol ||
           String(candidate?.symbol || "")
@@ -298,15 +311,18 @@ export async function fetchLatestAiSignal(
     candidates,
     recommended,
     verdict:
-      ai?.decision === "TRADE"
+      actionableDecision === "TRADE"
         ? "RECOMMENDED"
         : "NO_TRADE",
     summary:
       ai?.reason ||
       "Latest server market analysis loaded.",
+
+    tradeQuality:
+      snapshot?.tradeQuality || null,
     recommendation: {
       verdict:
-        ai?.decision === "TRADE"
+        actionableDecision === "TRADE"
           ? "RECOMMENDED"
           : "NO_TRADE",
       recommended,
