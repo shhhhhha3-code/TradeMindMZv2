@@ -293,7 +293,7 @@ export default function ProDashboard({ onSelectTrade = null }) {
     let active = true;
     const loadSpotHoldings = async () => {
       try {
-        const response = await fetch(apiUrl("/api/pionex/spot-holdings"), {
+        const response = await fetch(apiUrl("/api/ai/spot-monitoring"), {
           headers: { Accept: "application/json" },
           cache: "no-store",
         });
@@ -905,7 +905,7 @@ export default function ProDashboard({ onSelectTrade = null }) {
               <span className="tmz-section-label">PIONEX SPOT ACCOUNT</span>
               <h2>HOLDINGS</h2>
             </div>
-            <small>Read-only balances • AI exit monitoring</small>
+            <small>Read-only balances • server-side AI exit monitoring</small>
           </div>
 
           {spotHoldingsError ? (
@@ -922,7 +922,9 @@ export default function ProDashboard({ onSelectTrade = null }) {
                         <small>SPOT HOLDING</small>
                       </div>
                     </div>
-                    <span className="tmz-move positive">HELD</span>
+                    <span className={holding.monitor?.recommendation === "EXIT_CONSIDERATION" ? "tmz-move negative" : "tmz-move positive"}>
+                      {holding.monitor?.recommendation || "HELD"}
+                    </span>
                   </div>
                   <div className="tmz-card-price">
                     {formatPrice(holding.currentPrice)}
@@ -932,6 +934,7 @@ export default function ProDashboard({ onSelectTrade = null }) {
                     <div><small>QTY</small><strong>{formatPrice(holding.quantity)}</strong></div>
                     <div><small>VALUE</small><strong>{formatUsdt(holding.currentValueUsdt)}</strong></div>
                     <div><small>ENTRY</small><strong>{holding.entryPrice ? formatPrice(holding.entryPrice) : "—"}</strong></div>
+                    <div><small>AI CONF</small><strong>{holding.monitor?.confidence != null ? holding.monitor.confidence + "%" : "—"}</strong></div>
                   </div>
                 </article>
               ))}
