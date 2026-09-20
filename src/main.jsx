@@ -4715,6 +4715,10 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
     recommended?.riskLevel || "—"
   ).toUpperCase();
 
+  const marketRegime =
+    data?.marketRegime?.regime ||
+    "—";
+
   const reasoning =
     recommended?.reasoning ||
     data?.summary ||
@@ -5038,6 +5042,9 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
 
           <span>
             Risk <b>{risk}</b>
+          </span>
+          <span>
+            Regime <b>{marketRegime}</b>
           </span>
           {data?.tradeQuality?.costs ? (
             <span>
