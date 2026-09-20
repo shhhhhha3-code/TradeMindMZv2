@@ -70,6 +70,27 @@ const[tab,setTab]=useState('dashboard'),[bought,setBought]=useState(false),[manu
   return result;
 };
 
+const handleDashboardTradeSelect=(recommendation)=>{
+  if(!recommendation) return;
+  const directionRaw=String(recommendation.direction || "").toUpperCase();
+  const direction=
+    directionRaw==="BUY" || directionRaw==="LONG" ? "BUY" :
+    directionRaw==="SELL" || directionRaw==="SHORT" ? "SELL" : "";
+  if(!direction) return;
+  setBought(false);
+  setPurchaseDefaults({
+    symbol:String(recommendation.symbol || "").replace(/_/g,""),
+    side:direction==="SELL" ? "SHORT" : "LONG",
+    entryPrice:Number(recommendation.entry) || 0,
+    stopLoss:Number(recommendation.stopLoss) || 0,
+    takeProfit:Number(recommendation.takeProfit) || 0,
+    holdTimeMinMinutes:Number(recommendation.holdTimeMinMinutes) || 0,
+    holdTimeMaxMinutes:Number(recommendation.holdTimeMaxMinutes) || 0,
+    holdTimeReason:recommendation.holdTimeReason || ""
+  });
+  setManualPurchaseOpen(true);
+};
+
 const updateAiSetting=(key,value)=>{const next={...aiSettings,[key]:value};setAiSettings(next);localStorage.setItem('trademindmz-ai-settings',JSON.stringify(next));};const nav=[['dashboard','Dashboard',LayoutDashboard],['signals','AI Signals',BrainCircuit],['positions','Live Positions',Activity],['market','Market Overview',LineChart],['history','Signal History',History]];return <div className="app"><aside className={open?'side open':'side'}><div className="sidehead"><Logo/><button onClick={()=>setOpen(false)}><X/></button></div><div className="online"><i/> <div><b>AI ENGINE ONLINE</b><small>Learning from market history</small></div></div><nav>{nav.map(([id,label,I])=><button className={tab===id?'active':''} onClick={()=>{setTab(id);setOpen(false)}} key={id}><I/><span>{label}</span>{id==='positions'&&<em>{trackedPositions.filter(p=>p.status==='LIVE').length}</em>}</button>)}</nav><div className="bottom"><button><ShieldCheck/><span>Pionex Connection</span><i/></button><button onClick={()=>{setTab('settings');setOpen(false)}}><Settings/><span>Settings</span></button></div></aside>{open&&<div className="back" onClick={()=>setOpen(false)}/>}
 <main><header><button className="hamb" onClick={()=>setOpen(true)}><Menu/></button><div className="mobilelogo"><Logo/></div><div className="title"><small>TRADEMINDMZ</small><b>{tab==='signals'?'AI Signals':tab==='positions'?'Live Positions':tab==='market'?'Market Overview':tab==='history'?'Signal History':tab==='settings'?'Settings':'Dashboard'}</b></div><div className="actions"><span className="live"><i/> AI LIVE</span><button className="bell"><Bell/></button><button className="avatar">MZ</button></div></header><section>
 {tab==='signals'
@@ -79,7 +100,7 @@ const updateAiSetting=(key,value)=>{const next={...aiSettings,[key]:value};setAi
     : tab==='settings'
       ? <SettingsPage settings={aiSettings} updateSetting={updateAiSetting}/>
       : tab==='dashboard'
-        ? <ProDashboard/>
+        ? <ProDashboard onSelectTrade={handleDashboardTradeSelect}/>
         : tab==='market'
           ? <MarketOverview/>
           : tab==='history'
