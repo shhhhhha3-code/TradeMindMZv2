@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { Wallet } from "lucide-react";
 import TradingModeToggle from "./TradingModeToggle.jsx";
+import ServerPerformancePanel from "./ServerPerformancePanel.jsx";
 
 import CoinLogo from "./CoinLogo.jsx";
 import MarketSparkline from "./MarketSparkline.jsx";
@@ -949,6 +950,8 @@ export default function ProDashboard({ onSelectTrade = null }) {
           )}
         </section>
       ) : null}
+
+      <ServerPerformancePanel />
 
       {/* =====================================================
           TOP 5
