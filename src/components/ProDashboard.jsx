@@ -6,6 +6,7 @@ import React, {
   useState,
 } from "react";
 import { Wallet } from "lucide-react";
+import TradingModeToggle from "./TradingModeToggle.jsx";
 
 import CoinLogo from "./CoinLogo.jsx";
 import MarketSparkline from "./MarketSparkline.jsx";
@@ -141,10 +142,15 @@ function normalizePionexCandidates(
 }
 
 export default function ProDashboard({ onSelectTrade = null }) {
+  const [marketType, setMarketType] = useState("PERP");
+  const [spotHoldings, setSpotHoldings] = useState([]);
+  const [spotHoldingsError, setSpotHoldingsError] = useState("");
+
   const liveAi = useLiveAiSignal({
     interval: "15M",
     maxMarkets: 25,
     preferredProvider: "groq",
+    marketType,
   });
 
   const [
@@ -183,7 +189,7 @@ export default function ProDashboard({ onSelectTrade = null }) {
 
     setData({
       mode: "PIONEX",
-      source: result?.contractType || "PIONEX USDT-M PERPETUAL",
+      source: result?.contractType || (marketType === "SPOT" ? "PIONEX SPOT" : "PIONEX USDT-M PERPETUAL"),
       delayed: false,
       updatedAt: result?.updatedAt || new Date().toISOString(),
       candidates: normalizePionexCandidates(rawCandidates),
@@ -276,6 +282,43 @@ export default function ProDashboard({ onSelectTrade = null }) {
     return () =>
       clearInterval(timer);
   }, [load]);
+
+  useEffect(() => {
+    if (marketType !== "SPOT") {
+      setSpotHoldings([]);
+      setSpotHoldingsError("");
+      return undefined;
+    }
+
+    let active = true;
+    const loadSpotHoldings = async () => {
+      try {
+        const response = await fetch(apiUrl("/api/pionex/spot-holdings"), {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+        });
+        const result = await response.json();
+        if (!response.ok || result?.success !== true) {
+          throw new Error(result?.error || "Spot holdings unavailable.");
+        }
+        if (active) {
+          setSpotHoldings(Array.isArray(result.holdings) ? result.holdings : []);
+          setSpotHoldingsError("");
+        }
+      } catch (error) {
+        if (active) {
+          setSpotHoldingsError(error instanceof Error ? error.message : "Spot holdings unavailable.");
+        }
+      }
+    };
+
+    loadSpotHoldings();
+    const timer = setInterval(loadSpotHoldings, 60000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [marketType]);
 
   useEffect(() => {
     loadWallet();
@@ -415,12 +458,14 @@ export default function ProDashboard({ onSelectTrade = null }) {
           </p>
         </div>
 
-        <button
-          type="button"
-          className="tmz-refresh"
-          onClick={load}
-          disabled={refreshing}
-        >
+        <div style={{display:"flex",alignItems:"center",gap:"10px",flexWrap:"wrap",justifyContent:"flex-end"}}>
+          <TradingModeToggle value={marketType} onChange={setMarketType} />
+          <button
+            type="button"
+            className="tmz-refresh"
+            onClick={load}
+            disabled={refreshing}
+          >
           <span
             className={
               refreshing
@@ -430,10 +475,11 @@ export default function ProDashboard({ onSelectTrade = null }) {
           >
             ↻
           </span>
-          {refreshing
-            ? "Updating"
-            : "Refresh"}
-        </button>
+            {refreshing
+              ? "Updating"
+              : "Refresh"}
+          </button>
+        </div>
 
       </div>
 
@@ -851,6 +897,53 @@ export default function ProDashboard({ onSelectTrade = null }) {
         </section>
 
       </div>
+
+      {marketType === "SPOT" ? (
+        <section className="tmz-section" style={{marginBottom:"22px"}}>
+          <div className="tmz-section-heading">
+            <div>
+              <span className="tmz-section-label">PIONEX SPOT ACCOUNT</span>
+              <h2>HOLDINGS</h2>
+            </div>
+            <small>Read-only balances • AI exit monitoring</small>
+          </div>
+
+          {spotHoldingsError ? (
+            <div className="tmz-soft-error">{spotHoldingsError}</div>
+          ) : spotHoldings.length ? (
+            <div className="tmz-market-grid">
+              {spotHoldings.slice(0, 5).map((holding) => (
+                <article className="tmz-market-card" key={holding.id || holding.symbol}>
+                  <div className="tmz-card-top">
+                    <div className="tmz-coin-identity">
+                      <CoinLogo symbol={holding.coin} size={42} />
+                      <div>
+                        <strong>{holding.coin}</strong>
+                        <small>SPOT HOLDING</small>
+                      </div>
+                    </div>
+                    <span className="tmz-move positive">HELD</span>
+                  </div>
+                  <div className="tmz-card-price">
+                    {formatPrice(holding.currentPrice)}
+                    <small>USDT</small>
+                  </div>
+                  <div className="tmz-card-footer">
+                    <div><small>QTY</small><strong>{formatPrice(holding.quantity)}</strong></div>
+                    <div><small>VALUE</small><strong>{formatUsdt(holding.currentValueUsdt)}</strong></div>
+                    <div><small>ENTRY</small><strong>{holding.entryPrice ? formatPrice(holding.entryPrice) : "—"}</strong></div>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="tmz-market-empty">
+              <strong>NO NON-USDT SPOT HOLDINGS</strong>
+              <span>Spot BUY signals remain read-only. Manual execution stays in Pionex.</span>
+            </div>
+          )}
+        </section>
+      ) : null}
 
       {/* =====================================================
           TOP 5
