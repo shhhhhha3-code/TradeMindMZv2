@@ -195,6 +195,7 @@ export default function ProDashboard({ onSelectTrade = null }) {
       candidates: normalizePionexCandidates(rawCandidates),
       aiDecision: result?.aiDecision || null,
       finalDecision: result?.finalDecision || "NO_TRADE",
+      marketRegime: result?.marketRegime || null,
       tradeQuality: result?.tradeQuality || null,
       tradeExplanation: result?.tradeExplanation || result?.aiDecision?.tradeExplanation || null,
     });
@@ -507,6 +508,7 @@ export default function ProDashboard({ onSelectTrade = null }) {
             </strong>
 
             <small>
+              {data?.marketRegime?.regime ? "Market regime: " + data.marketRegime.regime + " • " : ""}
               {data?.mode === "PIONEX"
                 ? "Live Pionex feed"
                 : data?.mode === "FALLBACK"
