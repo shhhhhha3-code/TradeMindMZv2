@@ -501,6 +501,7 @@ function scoreCandidate({
     contractType: marketType === "PERP" ? "USDT-M PERPETUAL" : "SPOT",
     leverage: marketType === "PERP" ? Number(leverage) || 2 : 1,
     marginAsset: marketType === "PERP" ? "USDT" : null,
+    timeframe: interval,
 
     reasoning:
       direction === "BUY"
