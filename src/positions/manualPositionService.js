@@ -6,6 +6,7 @@ import {
 export function addManualPionexPosition({
   symbol,
   side = "LONG",
+  marketType = "PERP",
   entryPrice,
   quantity,
   stopLoss = null,
@@ -30,6 +31,11 @@ export function addManualPionexPosition({
         .toUpperCase(),
 
     side,
+
+    marketType:
+      String(marketType || "PERP").toUpperCase() === "SPOT"
+        ? "SPOT"
+        : "PERP",
 
     entryPrice:
       Number(entryPrice),
