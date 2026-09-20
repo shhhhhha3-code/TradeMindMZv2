@@ -153,7 +153,7 @@ async function runDecision(candidates = [], preferredProvider = "groq", options 
       reason: "No Engine TOP 5 candidate passed all deterministic trade criteria.",
       provider: null,
       blockedByEngine: true,
-      engineReasons: [...new Set(top.flatMap(hardBlocks))],
+      engineReasons: [...new Set(top.flatMap((candidate) => hardBlocks(candidate, { marketType })))] ,
     };
   }
 
