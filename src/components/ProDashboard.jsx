@@ -140,7 +140,7 @@ function normalizePionexCandidates(
     });
 }
 
-export default function ProDashboard() {
+export default function ProDashboard({ onSelectTrade = null }) {
   const liveAi = useLiveAiSignal({
     interval: "15M",
     maxMarkets: 25,
@@ -287,6 +287,22 @@ export default function ProDashboard() {
     return () =>
       clearInterval(timer);
   }, [loadWallet]);
+
+  const selectBestTrade = useCallback(async () => {
+    if (!onSelectTrade || refreshing) return;
+    try {
+      const fresh = await liveAi.refresh(true);
+      const recommendation = fresh?.recommended || null;
+      const directionRaw = String(recommendation?.direction || "").toUpperCase();
+      const direction =
+        directionRaw === "BUY" || directionRaw === "LONG" ? "BUY" :
+        directionRaw === "SELL" || directionRaw === "SHORT" ? "SELL" : "";
+      if (!recommendation || !direction) return;
+      onSelectTrade({ ...recommendation, direction });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Fresh trade analysis unavailable.");
+    }
+  }, [liveAi.refresh, onSelectTrade, refreshing]);
 
   const candidates =
     useMemo(
@@ -626,6 +642,29 @@ export default function ProDashboard() {
                 </div>
 
               </div>
+
+              {onSelectTrade ? (
+                <button
+                  type="button"
+                  className="tmz-refresh"
+                  style={{
+                    width: "100%",
+                    marginTop: "14px",
+                    justifyContent: "center",
+                  }}
+                  onClick={selectBestTrade}
+                  disabled={
+                    refreshing ||
+                    data?.finalDecision !== "TRADE"
+                  }
+                >
+                  {refreshing
+                    ? "Analyzing fresh BUY/SELL…"
+                    : data?.finalDecision === "TRADE"
+                      ? `SELECT ${String(liveAiDecision?.direction || "").toUpperCase() === "SELL" ? "SELL" : "BUY"}`
+                      : "WAITING FOR TRADE SIGNAL"}
+                </button>
+              ) : null}
 
             </div>
           ) : (
