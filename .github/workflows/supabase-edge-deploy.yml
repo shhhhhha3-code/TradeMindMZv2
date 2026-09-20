@@ -85,3 +85,21 @@ jobs:
               raise SystemExit("Latest snapshot has no candidates")
           print("Persisted snapshot OK:", snapshot.get("persistedAt"))
           PY
+
+      - name: Verify server position monitoring and trade journal API
+        run: |
+          curl --fail-with-body -sS \
+            "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/position-monitoring" \
+            -o /tmp/trademind-position-monitoring.json
+          python - <<'PY'
+          import json
+          with open("/tmp/trademind-position-monitoring.json", "r", encoding="utf-8") as f:
+              data = json.load(f)
+          if not data.get("success"):
+              raise SystemExit("Position monitoring verification failed: " + str(data))
+          if data.get("readOnly") is not True or data.get("serverSide") is not True:
+              raise SystemExit("Position monitoring safety flags are incorrect: " + str(data))
+          stats = data.get("journalStats") or {}
+          print("Position monitoring API OK:", len(data.get("positions") or []), "open positions")
+          print("Trade journal:", stats.get("total"), "rows")
+          PY
