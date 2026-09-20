@@ -101,6 +101,11 @@ export default function ManualPurchaseModal({
 
       side,
 
+      marketType:
+        String(initialValues.marketType || "PERP").toUpperCase() === "SPOT"
+          ? "SPOT"
+          : "PERP",
+
       entryPrice: price,
 
       quantity: qty,
