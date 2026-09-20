@@ -2823,7 +2823,7 @@ function MarketOverview(){
     setError("");
 
     try {
-      const response = await fetch(apiUrl("/api/pionex/market-scan?scanLimit=15&maxMarkets=15")
+      const response = await fetch(apiUrl("/api/pionex/market-scan?limit=100&maxMarkets=25&interval=15M&marketType=PERP&leverage=2")
       );
 
       const text = await response.text();
