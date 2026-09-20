@@ -4,6 +4,7 @@ import './ui/trademind-design.css';
 import React,{useEffect,useState}from'react';import{createRoot}from'react-dom/client';import{Activity,BrainCircuit,ChevronRight,History,LayoutDashboard,LineChart,Menu,Bell,RefreshCw,Settings,ShieldCheck,Target,TrendingUp,Wallet,X,Zap,Radio}from'lucide-react';import'./styles.css';
 import { useLiveAiSignal } from "./services/useLiveAiSignal.js";
 import ManualPurchaseModal from "./components/ManualPurchaseModal";
+import TradingModeToggle from "./components/TradingModeToggle.jsx";
 import PaperPerformancePanel from "./components/PaperPerformancePanel.jsx";
 import LearningDashboardPanel from "./components/LearningDashboardPanel.jsx";
 import LearningJournalPanel from "./components/LearningJournalPanel.jsx";
@@ -4586,6 +4587,7 @@ function SettingsPage({settings,updateSetting}){const Row=({id,title,desc})=><di
 
 function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
 
+  const [marketType, setMarketType] = useState("PERP");
   const [learningStats,setLearningStats] = useState(null);
   const [learningError,setLearningError] = useState("");
 
@@ -4622,7 +4624,8 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
   } = useLiveAiSignal({
     scanLimit: 100,
     maxMarkets: 25,
-    preferredProvider: "groq"
+    preferredProvider: "groq",
+    marketType
   });
 
   const recommended = data?.recommended || null;
