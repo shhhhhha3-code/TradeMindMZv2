@@ -506,6 +506,8 @@ export function scorePionexCandidate({
     },
 
     ticker,
+    fundingRate: number(ticker?.fundingRate ?? ticker?.funding_rate ?? ticker?.fundingRate8h),
+    openInterest: number(ticker?.openInterest ?? ticker?.open_interest),
     marketType,
     contractType: marketType === "PERP" ? "USDT-M PERPETUAL" : "SPOT",
     leverage: marketType === "PERP" ? Number(leverage) || 2 : 1,
