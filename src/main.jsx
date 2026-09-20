@@ -61,6 +61,12 @@ const[tab,setTab]=useState('dashboard'),[bought,setBought]=useState(false),[manu
     throw new Error(result?.error||"Unable to register Pionex purchase.");
   }
 
+  fetch(apiUrl("/api/positions/register-manual"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(purchase),
+  }).catch(() => {});
+
   setTrackedPositions(loadTrackedPositions());
   setBought(true);
   setManualPurchaseOpen(false);
@@ -89,7 +95,8 @@ const handleDashboardTradeSelect=(recommendation)=>{
     takeProfit:Number(recommendation.takeProfit) || 0,
     holdTimeMinMinutes:Number(recommendation.holdTimeMinMinutes) || 0,
     holdTimeMaxMinutes:Number(recommendation.holdTimeMaxMinutes) || 0,
-    holdTimeReason:recommendation.holdTimeReason || ""
+    holdTimeReason:recommendation.holdTimeReason || "",
+    marketType: recommendation.marketType || "PERP"
   });
   setManualPurchaseOpen(true);
 };
