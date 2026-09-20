@@ -9,6 +9,7 @@ import { Wallet } from "lucide-react";
 
 import CoinLogo from "./CoinLogo.jsx";
 import MarketSparkline from "./MarketSparkline.jsx";
+import { useLiveAiSignal } from "../services/useLiveAiSignal.js";
 
 function number(value, fallback = null) {
   const n = Number(value);
@@ -140,6 +141,12 @@ function normalizePionexCandidates(
 }
 
 export default function ProDashboard() {
+  const liveAi = useLiveAiSignal({
+    interval: "15M",
+    maxMarkets: 25,
+    preferredProvider: "groq",
+  });
+
   const [
     data,
     setData
@@ -394,6 +401,9 @@ export default function ProDashboard() {
         ) >= 0
     ).length;
 
+  const liveAiDecision = liveAi?.data?.aiDecision || null;
+  const liveAiFinalDecision = liveAi?.data?.finalDecision || null;
+
   const walletData = wallet?.data || {};
   const walletTotal = number(walletData?.totalInUsdt);
   const walletSpot = number(walletData?.botAccount?.totalInUsdt);
@@ -517,7 +527,7 @@ export default function ProDashboard() {
                 : "tmz-positive"
             }
           >
-            {data?.finalDecision ||
+            {liveAiFinalDecision || data?.finalDecision ||
               "—"}
           </strong>
         </div>
@@ -742,7 +752,7 @@ export default function ProDashboard() {
           <div className="tmz-decision-box">
 
             <div className="tmz-decision-icon">
-              {data?.finalDecision ===
+              {(liveAiFinalDecision || data?.finalDecision) ===
               "NO_TRADE"
                 ? "!"
                 : "✓"}
@@ -750,7 +760,7 @@ export default function ProDashboard() {
 
             <div>
               <strong>
-                {data?.finalDecision ===
+                {(liveAiFinalDecision || data?.finalDecision) ===
                 "NO_TRADE"
                   ? "NO TRADE"
                   : "TRADE SIGNAL"}
@@ -759,7 +769,9 @@ export default function ProDashboard() {
               <p>
                 {data?.mode === "FALLBACK"
                   ? "Pionex is temporarily rate limited. Fallback market data is shown for visual monitoring only."
-                  : data?.aiDecision?.reason ||
+                  : liveAiDecision?.reason ||
+                    liveAiDecision?.reasoning ||
+                    data?.aiDecision?.reason ||
                     data?.aiDecision?.reasoning ||
                     "TradeMindMZ risk criteria remain enforced."}
               </p>
@@ -771,15 +783,15 @@ export default function ProDashboard() {
             <div>
               <small>AI CONFIDENCE</small>
               <strong>
-                {Number.isFinite(Number(data?.aiDecision?.confidence))
-                  ? `${Number(data.aiDecision.confidence)}%`
+                {Number.isFinite(Number(liveAiDecision?.confidence ?? data?.aiDecision?.confidence))
+                  ? `${Number(liveAiDecision?.confidence ?? data.aiDecision.confidence)}%`
                   : "—"}
               </strong>
             </div>
             <div>
               <small>AI PROVIDER</small>
               <strong>
-                {data?.aiDecision?.provider || "—"}
+                {liveAiDecision?.provider || data?.aiDecision?.provider || "—"}
               </strong>
             </div>
             <div>
