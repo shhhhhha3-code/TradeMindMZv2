@@ -3,6 +3,10 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { scanPionexMarket } from "../_shared/marketScanner.js";
 import { getAccountInfo, getOpenPositions, getWalletBalancesFull } from "../_shared/pionex.js";
 import { runDecision } from "../_shared/ai.js";
+import {
+  getLatestLiveAiSnapshot,
+  saveLiveAiSnapshot,
+} from "../_shared/liveAiSnapshot.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -46,6 +50,188 @@ function getLiveAiCacheKey(url) {
     url.searchParams.get("leverage") || "2",
     url.searchParams.get("provider") || "groq",
   ].join(":");
+}
+
+async function authorizeSchedulerRequest(req, supabase) {
+  const provided = String(
+    req.headers.get("x-trademind-scheduler") || ""
+  ).trim();
+
+  if (!provided) {
+    return false;
+  }
+
+  const { data, error } = await supabase
+    .from("trademind_scheduler_secrets")
+    .select("secret")
+    .eq("id", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data?.secret) {
+    console.error("Scheduler authorization lookup failed:", error);
+    return false;
+  }
+
+  return provided === String(data.secret);
+}
+
+function liveAiOptionsFromUrl(url) {
+  return {
+    interval: url.searchParams.get("interval") || "15M",
+    candleLimit: Number(url.searchParams.get("limit") || 100),
+    maxMarkets: Number(url.searchParams.get("maxMarkets") || 25),
+    marketType: url.searchParams.get("marketType") || "PERP",
+    leverage: Number(url.searchParams.get("leverage") || 2),
+    provider: url.searchParams.get("provider") || "groq",
+  };
+}
+
+async function runLiveAiAnalysis({
+  interval = "15M",
+  candleLimit = 100,
+  maxMarkets = 25,
+  marketType = "PERP",
+  leverage = 2,
+  provider = "groq",
+  force = false,
+  persist = true,
+} = {}) {
+  const cacheKey = [
+    interval,
+    maxMarkets,
+    leverage,
+    provider,
+  ].join(":");
+
+  const now = Date.now();
+  const cached = globalThis.__tradeMindLiveAiCache?.[cacheKey];
+
+  if (
+    !force &&
+    cached &&
+    now - cached.createdAt < LIVE_AI_INTERVAL_MS
+  ) {
+    return {
+      ...cached.payload,
+      cached: true,
+      nextAnalysisAt: new Date(
+        cached.createdAt + LIVE_AI_INTERVAL_MS
+      ).toISOString(),
+    };
+  }
+
+  let analysisPromise = liveAiInFlight.get(cacheKey);
+
+  if (!analysisPromise) {
+    analysisPromise = (async () => {
+      const result = await scanPionexMarket({
+        interval,
+        candleLimit,
+        maxMarkets,
+        marketType,
+        leverage,
+      });
+
+      if (
+        !Array.isArray(result?.engineTop5) ||
+        result.engineTop5.length === 0
+      ) {
+        throw new Error("Pionex scanner returned no Engine TOP 5 candidates.");
+      }
+
+      const aiDecision = await runDecision(
+        result.engineTop5,
+        provider
+      );
+
+      const createdAt = Date.now();
+
+      const payload = {
+        ...result,
+        aiDecision,
+        finalDecision:
+          aiDecision?.success
+            ? aiDecision.decision
+            : "NO_TRADE",
+        decisionPipeline: {
+          marketSource:
+            result.contractType ||
+            "PIONEX USDT-M PERPETUAL",
+          universe: result.scanned,
+          engine: "TradeMindMZ Engine V2",
+          ai: "TradeMindMZ AI Decision Layer V1",
+          aiInput: "ENGINE TOP 5 ONLY",
+          aiCadence: "7 MINUTES",
+          leverage: result.leverage || 2,
+          automaticTrading: false,
+          readOnly: true,
+          persistedServerSide: true,
+        },
+      };
+
+      const nextAnalysisAt = new Date(
+        createdAt + LIVE_AI_INTERVAL_MS
+      ).toISOString();
+
+      payload.nextAnalysisAt = nextAnalysisAt;
+
+      let persistenceError = null;
+
+      if (persist) {
+        try {
+          await saveLiveAiSnapshot(
+            supabaseAdmin(),
+            payload,
+            {
+              marketType,
+              interval,
+              leverage,
+            }
+          );
+        } catch (error) {
+          persistenceError =
+            error?.message || String(error);
+
+          console.error(
+            "Live AI snapshot persistence failed:",
+            error
+          );
+        }
+      }
+
+      const finalPayload = {
+        ...payload,
+        persistenceError,
+      };
+
+      globalThis.__tradeMindLiveAiCache = {
+        ...(globalThis.__tradeMindLiveAiCache || {}),
+        [cacheKey]: {
+          createdAt,
+          payload: finalPayload,
+        },
+      };
+
+      return finalPayload;
+    })();
+
+    liveAiInFlight.set(
+      cacheKey,
+      analysisPromise
+    );
+
+    analysisPromise.finally(() => {
+      if (
+        liveAiInFlight.get(cacheKey) ===
+        analysisPromise
+      ) {
+        liveAiInFlight.delete(cacheKey);
+      }
+    });
+  }
+
+  return analysisPromise;
 }
 
 function normalizePositions(payload) {
@@ -434,90 +620,148 @@ async function handle(req) {
     }
   }
 
-  if (path === "/api/ai/live-scan" && method === "GET") {
+  if (path === "/api/ai/latest" && method === "GET") {
     try {
-      const cacheKey = getLiveAiCacheKey(url);
-      const force = url.searchParams.get("force") === "1";
-      const now = Date.now();
-      const cached = globalThis.__tradeMindLiveAiCache?.[cacheKey];
-
-      if (!force && cached && now - cached.createdAt < LIVE_AI_INTERVAL_MS) {
-        return response({
-          ...cached.payload,
-          cached: true,
-          nextAnalysisAt: new Date(cached.createdAt + LIVE_AI_INTERVAL_MS).toISOString(),
-        });
-      }
-
-      let analysisPromise = liveAiInFlight.get(cacheKey);
-
-      if (!analysisPromise) {
-        analysisPromise = (async () => {
-          const result = await scanPionexMarket({
-            interval: url.searchParams.get("interval") || "15M",
-            candleLimit: Number(url.searchParams.get("limit") || 100),
-            maxMarkets: Number(url.searchParams.get("maxMarkets") || 25),
-            marketType: url.searchParams.get("marketType") || "PERP",
-            leverage: Number(url.searchParams.get("leverage") || 2),
-          });
-
-          const aiDecision = await runDecision(
-            result.engineTop5,
-            url.searchParams.get("provider") || "groq"
-          );
-
-          const payload = {
-            ...result,
-            aiDecision,
-            finalDecision: aiDecision?.success ? aiDecision.decision : "NO_TRADE",
-            decisionPipeline: {
-              marketSource: result.contractType || "PIONEX USDT-M PERPETUAL",
-              universe: result.scanned,
-              engine: "TradeMindMZ Engine V2",
-              ai: "TradeMindMZ AI Decision Layer V1",
-              aiInput: "ENGINE TOP 5 ONLY",
-              aiCadence: "7 MINUTES",
-              leverage: result.leverage || 2,
-              automaticTrading: false,
-              readOnly: true,
-            },
-          };
-
-          globalThis.__tradeMindLiveAiCache = {
-            ...(globalThis.__tradeMindLiveAiCache || {}),
-            [cacheKey]: { createdAt: Date.now(), payload },
-          };
-
-          return payload;
-        })();
-
-        liveAiInFlight.set(cacheKey, analysisPromise);
-        analysisPromise.finally(() => {
-          if (liveAiInFlight.get(cacheKey) === analysisPromise) {
-            liveAiInFlight.delete(cacheKey);
-          }
-        });
-      }
-
-      const payload = await analysisPromise;
-      const latestCache = globalThis.__tradeMindLiveAiCache?.[cacheKey];
-      const createdAt = latestCache?.createdAt || now;
+      const latest = await getLatestLiveAiSnapshot(
+        supabaseAdmin(),
+        {
+          marketType:
+            url.searchParams.get("marketType") || "PERP",
+          interval:
+            url.searchParams.get("interval") || "15M",
+          leverage:
+            Number(url.searchParams.get("leverage") || 2),
+        }
+      );
 
       return response({
-        ...payload,
-        cached: Boolean(cached) && !force,
-        nextAnalysisAt: new Date(createdAt + LIVE_AI_INTERVAL_MS).toISOString(),
+        success: true,
+        ...latest,
+        serverSide: true,
+        cadenceMinutes: 7,
       });
     } catch (error) {
-      const rateLimited = error?.status === 429 || error?.code === "PIONEX_RATE_LIMITED";
       return response({
-        success:false,
-        scanned:0,
-        candidates:[],
-        status:rateLimited?"PIONEX_RATE_LIMITED":"LIVE_AI_SCAN_ERROR",
-        retryable:true,
-        error:error?.message||"Live AI scan failed."
-      }, rateLimited?429:502);
+        success: false,
+        available: false,
+        snapshot: null,
+        error:
+          error?.message ||
+          "Latest AI snapshot unavailable.",
+      }, 500);
+    }
+  }
+
+  if (path === "/api/ai/live-scan" && method === "GET") {
+    try {
+      const options = liveAiOptionsFromUrl(url);
+      const force = url.searchParams.get("force") === "1";
+      const payload = await runLiveAiAnalysis({
+        ...options,
+        force,
+        persist: true,
+      });
+
+      const status =
+        payload?.persistenceError
+          ? 207
+          : 200;
+
+      return response(
+        {
+          ...payload,
+          serverSide: true,
+        },
+        status
+      );
+    } catch (error) {
+      const rateLimited =
+        error?.status === 429 ||
+        error?.code === "PIONEX_RATE_LIMITED";
+
+      return response({
+        success: false,
+        scanned: 0,
+        candidates: [],
+        status:
+          rateLimited
+            ? "PIONEX_RATE_LIMITED"
+            : "LIVE_AI_SCAN_ERROR",
+        retryable: true,
+        error:
+          error?.message ||
+          "Live AI scan failed.",
+      }, rateLimited ? 429 : 502);
+    }
+  }
+
+  if (
+    path === "/api/ai/scheduled-scan" &&
+    method === "POST"
+  ) {
+    try {
+      const admin = supabaseAdmin();
+
+      if (
+        !(await authorizeSchedulerRequest(
+          req,
+          admin
+        ))
+      ) {
+        return response({
+          success: false,
+          error: "Unauthorized scheduler request.",
+        }, 401);
+      }
+
+      const payload = await runLiveAiAnalysis({
+        interval: "15M",
+        candleLimit: 100,
+        maxMarkets: 25,
+        marketType: "PERP",
+        leverage: 2,
+        provider: "groq",
+        force: true,
+        persist: true,
+      });
+
+      if (payload?.persistenceError) {
+        return response({
+          success: false,
+          status: "AI_SNAPSHOT_PERSISTENCE_ERROR",
+          error: payload.persistenceError,
+          latestAnalysis: payload,
+        }, 500);
+      }
+
+      return response({
+        success: true,
+        status: "SCHEDULED_AI_SCAN_COMPLETE",
+        serverSide: true,
+        cadenceMinutes: 7,
+        snapshot: payload,
+      });
+    } catch (error) {
+      const rateLimited =
+        error?.status === 429 ||
+        error?.code === "PIONEX_RATE_LIMITED";
+
+      console.error(
+        "Scheduled Live AI scan failed:",
+        error
+      );
+
+      return response({
+        success: false,
+        status:
+          rateLimited
+            ? "PIONEX_RATE_LIMITED"
+            : "SCHEDULED_AI_SCAN_ERROR",
+        retryable: true,
+        error:
+          error?.message ||
+          "Scheduled AI scan failed.",
+      }, rateLimited ? 429 : 502);
     }
   }
 
