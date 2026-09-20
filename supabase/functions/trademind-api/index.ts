@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { scanPionexMarket } from "../_shared/marketScanner.js";
-import { getAccountInfo, getOpenPositions, getWalletBalancesFull, getMarketTickers } from "../_shared/pionex.js";
+import { scanPionexMarket, scorePionexCandidate, parsePionexKlines } from "../_shared/marketScanner.js";
+import { getAccountInfo, getOpenPositions, getWalletBalancesFull, getMarketTickers, getMarketKlines } from "../_shared/pionex.js";
 import { runDecision } from "../_shared/ai.js";
 import {
   getLatestLiveAiSnapshot,
@@ -685,6 +685,179 @@ async function upsertTradeJournalForPosition(supabase, position, analysis = null
   return data;
 }
 
+
+async function analyzeSpotHoldingWithAI(supabase, holding, market) {
+  const available = [];
+  if (Deno.env.get("GROQ_API_KEY")) available.push("groq");
+  if (Deno.env.get("OPENAI_API_KEY")) available.push("openai");
+  if (!available.length) throw new Error("No AI provider is configured.");
+
+  const systemPrompt = "You are the TradeMindMZ Spot exit-monitoring analyst. Analyze only the supplied Spot holding and market data. Do not place orders. Spot holdings are long-only. Return JSON only: {\\"recommendation\\":\\"HOLD|EXIT_CONSIDERATION|REDUCE_RISK\\",\\"confidence\\":0,\\"reasoning\\":\\"brief reason\\",\\"action\\":\\"brief practical guidance\\",\\"holdTimeMinMinutes\\":0,\\"holdTimeMaxMinutes\\":0,\\"holdTimeReason\\":\\"brief estimate\\"}. Never invent an entry price or P&L.";
+  const userPrompt = "SPOT HOLDING:\\n" + JSON.stringify(holding) + "\\n\\nMARKET:\\n" + JSON.stringify(market);
+
+  const errors = [];
+  for (const provider of ["groq", "openai"]) {
+    if (!available.includes(provider)) continue;
+    try {
+      const key = provider === "openai" ? Deno.env.get("OPENAI_API_KEY") : Deno.env.get("GROQ_API_KEY");
+      const endpoint = provider === "openai"
+        ? "https://api.openai.com/v1/chat/completions"
+        : "https://api.groq.com/openai/v1/chat/completions";
+      const model = provider === "openai"
+        ? Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini"
+        : Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: "Bearer " + key },
+        body: JSON.stringify({
+          model,
+          temperature: 0.1,
+          response_format: { type: "json_object" },
+          messages: [{ role:"system", content:systemPrompt }, { role:"user", content:userPrompt }],
+        }),
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(provider + " request failed: " + res.status + " " + text.slice(0, 300));
+      const raw = JSON.parse(JSON.parse(text).choices?.[0]?.message?.content || "{}");
+      const allowed = ["HOLD","EXIT_CONSIDERATION","REDUCE_RISK"];
+      const recommendation = allowed.includes(String(raw?.recommendation || "").toUpperCase())
+        ? String(raw.recommendation).toUpperCase()
+        : "HOLD";
+      const confidence = Math.max(0, Math.min(100, Math.round(Number(raw?.confidence) || 0)));
+      const analysis = {
+        recommendation,
+        riskLevel: recommendation === "EXIT_CONSIDERATION" ? "HIGH" : recommendation === "REDUCE_RISK" ? "MEDIUM" : "LOW",
+        confidence,
+        reasoning: String(raw?.reasoning || "Spot holding analyzed."),
+        action: String(raw?.action || "Continue monitoring."),
+        holdTimeMinMinutes: Math.max(0, Math.round(Number(raw?.holdTimeMinMinutes) || 0)),
+        holdTimeMaxMinutes: Math.max(0, Math.round(Number(raw?.holdTimeMaxMinutes) || 0)),
+        holdTimeReason: String(raw?.holdTimeReason || ""),
+      };
+      const row = {
+        position_id: null,
+        user_id: null,
+        recommendation,
+        confidence,
+        reasoning: analysis.reasoning,
+        provider,
+        market_price: Number.isFinite(Number(holding.currentPrice)) ? Number(holding.currentPrice) : null,
+        symbol: holding.symbol,
+        direction: "SELL",
+        entry_price: Number.isFinite(Number(holding.entryPrice)) ? Number(holding.entryPrice) : null,
+        source: "PIONEX_SPOT",
+        risk_level: analysis.riskLevel,
+        action: analysis.action,
+        hold_time_min_minutes: analysis.holdTimeMinMinutes,
+        hold_time_max_minutes: analysis.holdTimeMaxMinutes,
+        hold_time_reason: analysis.holdTimeReason,
+      };
+      const { error } = await supabase.from("position_ai_analysis").insert(row);
+      if (error) console.error("Spot AI history save failed:", error);
+      return { success:true, provider, analysis };
+    } catch (error) {
+      errors.push({ provider, error:error?.message || String(error) });
+    }
+  }
+  throw new Error("All Spot AI providers failed: " + errors.map(x => x.provider).join(", "));
+}
+
+async function runServerSpotMonitoring(supabase) {
+  const [account, tickers] = await Promise.all([
+    getAccountInfo(),
+    getMarketTickers({ type:"SPOT" }),
+  ]);
+  const holdings = normalizeSpotHoldings(account, tickers);
+  const currentKeys = new Set();
+  const monitored = [];
+
+  for (const holding of holdings.slice(0, 10)) {
+    const key = "SPOT:" + holding.coin;
+    currentKeys.add(key);
+    let market = null;
+    try {
+      const symbol = holding.symbol;
+      const tickerRows = Array.isArray(tickers?.data?.tickers) ? tickers.data.tickers : Array.isArray(tickers?.tickers) ? tickers.tickers : [];
+      const ticker = tickerRows.find(row => String(row?.symbol ?? row?.market ?? "").toUpperCase() === symbol.toUpperCase()) || {};
+      const klinePayload = await getMarketKlines({ symbol, interval:"15M", limit:100 });
+      const candles = parsePionexKlines(klinePayload);
+      market = scorePionexCandidate({
+        symbol,
+        candles,
+        ticker,
+        marketType:"SPOT",
+        leverage:1,
+        interval:"15M",
+      }) || { symbol, price: holding.currentPrice, marketType:"SPOT" };
+
+      const result = await analyzeSpotHoldingWithAI(supabase, holding, market);
+      const analysis = result.analysis;
+      await supabase.from("trade_journal").upsert({
+        position_key:key,
+        symbol,
+        side:"LONG",
+        entry_price: Number.isFinite(Number(holding.entryPrice)) ? Number(holding.entryPrice) : null,
+        quantity: Number(holding.quantity),
+        last_price: Number.isFinite(Number(holding.currentPrice)) ? Number(holding.currentPrice) : null,
+        last_pnl: null,
+        last_pnl_percent: null,
+        current_value: Number.isFinite(Number(holding.currentValueUsdt)) ? Number(holding.currentValueUsdt) : null,
+        cost_basis: null,
+        market_type:"SPOT",
+        source:"PIONEX_SPOT",
+        ai_exit_recommendation: analysis.recommendation,
+        ai_exit_confidence: analysis.confidence,
+        ai_exit_reason: analysis.reasoning,
+        updated_at:new Date().toISOString(),
+        status:"OPEN",
+      }, { onConflict:"position_key" });
+      monitored.push({ key, symbol, holding, market, analysis, provider:result.provider });
+    } catch (error) {
+      monitored.push({ key, symbol:holding.symbol, holding, market, analysis:null, error:error?.message || String(error) });
+    }
+  }
+
+  const { data: openRows } = await supabase.from("trade_journal").select("position_key,last_price,entry_price,quantity,market_type,status").eq("market_type","SPOT").eq("status","OPEN").limit(100);
+  for (const row of openRows || []) {
+    if (currentKeys.has(row.position_key)) continue;
+    await supabase.from("trade_journal").update({
+      status:"CLOSED",
+      exit_price:Number.isFinite(Number(row.last_price)) ? Number(row.last_price) : null,
+      closed_at:new Date().toISOString(),
+      close_reason:"Spot balance no longer returned by Pionex account endpoint.",
+      updated_at:new Date().toISOString(),
+    }).eq("position_key",row.position_key).eq("status","OPEN");
+  }
+
+  return { success:true, marketType:"SPOT", holdings, monitoredCount:monitored.length, holdings:holdings, positions:monitored, checkedAt:new Date().toISOString(), readOnly:true };
+}
+
+async function getServerSpotMonitoring(supabase) {
+  const [account, tickers] = await Promise.all([getAccountInfo(), getMarketTickers({ type:"SPOT" })]);
+  const holdings = normalizeSpotHoldings(account, tickers);
+  const { data: analyses } = await supabase.from("position_ai_analysis")
+    .select("symbol,recommendation,risk_level,confidence,reasoning,action,hold_time_min_minutes,hold_time_max_minutes,hold_time_reason,provider,created_at")
+    .eq("source","PIONEX_SPOT")
+    .order("created_at",{ascending:false})
+    .limit(200);
+  const latest = new Map();
+  for (const row of analyses || []) {
+    const key = String(row.symbol || "").toUpperCase();
+    if (!latest.has(key)) latest.set(key,row);
+  }
+  return {
+    success:true,
+    serverSide:true,
+    readOnly:true,
+    marketType:"SPOT",
+    updatedAt:new Date().toISOString(),
+    holdings:holdings.map(h => ({
+      ...h,
+      monitor: latest.has(String(h.symbol).toUpperCase()) ? latest.get(String(h.symbol).toUpperCase()) : null,
+    })),
+  };
+}
+
 async function runServerPositionMonitoring(supabase, { marketSnapshot = null } = {}) {
   const raw = await getOpenPositions();
   const positions = normalizePositions(raw);
@@ -1205,6 +1378,25 @@ function handle(req) {
         }, 500);
       }
 
+      let spotSnapshot = null;
+      let spotMonitoring = null;
+      try {
+        spotSnapshot = await runLiveAiAnalysis({
+          interval:"15M",
+          candleLimit:100,
+          maxMarkets:25,
+          marketType:"SPOT",
+          leverage:1,
+          provider:"groq",
+          force:true,
+          persist:true,
+        });
+        spotMonitoring = await runServerSpotMonitoring(admin);
+      } catch (spotError) {
+        console.error("Scheduled Spot monitoring failed:", spotError);
+        spotMonitoring = { success:false, error:spotError?.message || String(spotError), readOnly:true };
+      }
+
       let positionMonitoring = null;
       try {
         positionMonitoring = await runServerPositionMonitoring(admin, {
@@ -1225,6 +1417,8 @@ function handle(req) {
         serverSide: true,
         cadenceMinutes: 7,
         snapshot: payload,
+        spotSnapshot,
+        spotMonitoring,
         positionMonitoring,
       });
     } catch (error) {
@@ -1346,6 +1540,15 @@ function handle(req) {
       const r=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${key}`},body:JSON.stringify({model:Deno.env.get("GROQ_MODEL")||"llama-3.3-70b-versatile",temperature:.1,response_format:{type:"json_object"},messages:[{role:"system",content:"You are TradeMindMZ market analyst. Do not invent data. Return JSON only."},{role:"user",content:marketPrompt}]})});
       const t=await r.text(); if(!r.ok) throw new Error(`Groq request failed: ${r.status} ${t.slice(0,300)}`); return response({success:true,status:"AI_ANALYZED",provider:"groq",providers:["groq"],signal:JSON.parse(JSON.parse(t).choices?.[0]?.message?.content||"{}"),error:null});
     }catch(error){return response({success:false,status:"AI_FAILED",signal:null,error:error?.message||"AI analysis failed."},500);}
+  }
+
+
+  if (path === "/api/ai/spot-monitoring" && method === "GET") {
+    try {
+      return response(await getServerSpotMonitoring(supabaseAdmin()));
+    } catch (error) {
+      return response({ success:false, serverSide:true, readOnly:true, marketType:"SPOT", holdings:[], error:error?.message||"Spot monitoring unavailable." },502);
+    }
   }
 
   if (path === "/api/ai/position-monitoring" && method === "GET") {
