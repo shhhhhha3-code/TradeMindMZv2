@@ -101,7 +101,7 @@ begin
   perform cron.schedule(
     'trademind-ai-every-7-minutes',
     '*/7 * * * *',
-    $$select public.trademind_run_ai_scheduler();$$
+    $job$select public.trademind_run_ai_scheduler();$job$
   );
 end;
 $$;
@@ -123,7 +123,7 @@ begin
   perform cron.schedule(
     'trademind-ai-snapshot-cleanup',
     '17 3 * * *',
-    $$delete from public.market_ai_snapshots where created_at < now() - interval '14 days';$$
+    $job$delete from public.market_ai_snapshots where created_at < now() - interval '14 days';$job$
   );
 end;
 $$;
