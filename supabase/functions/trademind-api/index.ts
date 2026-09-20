@@ -291,6 +291,11 @@ async function savePositionAIAnalysis(supabase, position, analysis, provider) {
     direction,
     entry_price: entryPrice,
     source: position?.source || "PIONEX",
+    risk_level: analysis?.riskLevel || null,
+    action: analysis?.action || null,
+    hold_time_min_minutes: Number.isFinite(Number(analysis?.holdTimeMinMinutes)) ? Number(analysis.holdTimeMinMinutes) : null,
+    hold_time_max_minutes: Number.isFinite(Number(analysis?.holdTimeMaxMinutes)) ? Number(analysis.holdTimeMaxMinutes) : null,
+    hold_time_reason: analysis?.holdTimeReason || null,
   };
   const { data, error } = await supabase.from("position_ai_analysis").insert(row).select("*").single();
   if (error) throw new Error(`Failed to save position AI analysis: ${error.message}`);
