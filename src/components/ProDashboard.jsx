@@ -171,7 +171,7 @@ export default function ProDashboard() {
 
       try {
         const pionexResponse =
-          await fetch(apiUrl("/api/pionex/market-scan?limit=60&maxMarkets=5"),
+          await fetch(apiUrl("/api/pionex/market-scan?limit=100&maxMarkets=25&interval=15M&marketType=PERP&leverage=2"),
             {
               method: "GET",
               headers: {
