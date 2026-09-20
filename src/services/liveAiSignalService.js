@@ -133,6 +133,8 @@ export async function fetchLiveAiSignal(
             : 0,
         holdTimeReason:
           ai?.holdTimeReason || "",
+        tradeExplanation:
+          ai?.tradeExplanation || null,
       }
     : null;
 
@@ -189,6 +191,9 @@ export async function fetchLiveAiSignal(
 
     tradeQuality:
       scanner?.tradeQuality || null,
+
+    tradeExplanation:
+      ai?.tradeExplanation || null,
 
     summary:
       recommendation.summary,
