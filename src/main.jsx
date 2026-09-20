@@ -4929,6 +4929,43 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
           )}
         </div>
 
+        {direction && recommended?.tradeExplanation ? (
+          <div
+            className="panel"
+            style={{
+              marginTop: "14px",
+              padding: "16px",
+              border: "1px solid rgba(191,255,0,.14)",
+              background: "rgba(191,255,0,.025)",
+            }}
+          >
+            <strong style={{display:"block",fontSize:"13px",letterSpacing:".08em"}}>
+              WHY {direction}
+            </strong>
+            <p style={{margin:"8px 0 12px",lineHeight:"1.5",opacity:.72}}>
+              {recommended.tradeExplanation.decisionSummary}
+            </p>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:"12px"}}>
+              <div>
+                <small style={{display:"block",opacity:.45,marginBottom:"6px"}}>SUPPORTING FACTORS</small>
+                {(recommended.tradeExplanation.supportingFactors || []).map((item,index)=>(
+                  <div key={index} style={{fontSize:"12px",lineHeight:"1.45",marginBottom:"5px"}}>
+                    <span style={{color:"#bfff00",marginRight:"6px"}}>✓</span>{item}
+                  </div>
+                ))}
+              </div>
+              <div>
+                <small style={{display:"block",opacity:.45,marginBottom:"6px"}}>INVALIDATION</small>
+                {(recommended.tradeExplanation.invalidationFactors || []).map((item,index)=>(
+                  <div key={index} style={{fontSize:"12px",lineHeight:"1.45",marginBottom:"5px"}}>
+                    <span style={{color:"#ff7777",marginRight:"6px"}}>•</span>{item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         <div className="meta">
           <span>
             <Target/>
