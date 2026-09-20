@@ -4516,16 +4516,16 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
     ) || {};
 
   const ema9 =
-    Number(technicalSource?.ema9);
+    Number(technicalSource?.ema9 ?? technicalSource?.indicators?.ema9);
 
   const ema21 =
-    Number(technicalSource?.ema21);
+    Number(technicalSource?.ema21 ?? technicalSource?.indicators?.ema21);
 
   const rsi =
-    Number(technicalSource?.rsi);
+    Number(technicalSource?.rsi ?? technicalSource?.indicators?.rsi14);
 
   const macd =
-    Number(technicalSource?.macd);
+    Number(technicalSource?.macd ?? technicalSource?.indicators?.macd);
 
   const atrPercent =
     Number(
@@ -4535,12 +4535,12 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
 
   const volumeRatio =
     Number(
-      technicalSource?.volumeRatio
+      technicalSource?.volumeRatio ?? technicalSource?.indicators?.volumeRatio
     );
 
   const change24h =
     Number(
-      technicalSource?.change24h
+      technicalSource?.change24h ?? technicalSource?.indicators?.change24h
     );
 
   const technicalMetrics = [
