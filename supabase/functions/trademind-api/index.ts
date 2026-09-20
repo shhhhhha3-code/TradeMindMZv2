@@ -1789,11 +1789,22 @@ async function handle(req) {
           ? "STALE"
           : "ERROR";
 
+    const schedulerFinishedAt = schedulerHeartbeat?.finished_at || null;
+    const schedulerAgeMs = schedulerFinishedAt
+      ? Math.max(0, Date.now() - new Date(schedulerFinishedAt).getTime())
+      : null;
+    const schedulerFresh = Boolean(
+      schedulerHeartbeat?.status === "SUCCESS" &&
+      Number.isFinite(schedulerAgeMs) &&
+      schedulerAgeMs <= 15 * 60 * 1000
+    );
+
     const diagnosticsOk =
       supabaseOk &&
       pionexConfigured &&
       groqOk &&
-      snapshotFresh;
+      snapshotFresh &&
+      schedulerFresh;
 
     return response({
       success: diagnosticsOk,
@@ -1859,6 +1870,19 @@ async function handle(req) {
                 ? null
                 : "Pionex credentials are configured, but the latest server market snapshot is stale or unavailable."
               : "Pionex credentials are not configured.",
+        },
+        {
+          name: "Scheduler",
+          status: schedulerFresh ? "OK" : schedulerHeartbeat?.status === "ERROR" ? "ERROR" : "STALE",
+          httpStatus: schedulerFresh ? 200 : 503,
+          details: {
+            lastRun: schedulerFinishedAt,
+            ageSeconds: Number.isFinite(schedulerAgeMs) ? Math.round(schedulerAgeMs / 1000) : null,
+            spotMonitored: Number(schedulerHeartbeat?.spot_monitoring_count || 0),
+            futuresMonitored: Number(schedulerHeartbeat?.position_monitoring_count || 0),
+            cadenceMinutes: 7,
+          },
+          error: schedulerFresh ? null : "Server scheduler heartbeat is missing, stale, or failed.",
         },
         {
           name: "Market AI",
