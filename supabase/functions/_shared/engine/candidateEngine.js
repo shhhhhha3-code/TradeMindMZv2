@@ -58,6 +58,29 @@ export function buildCandidates(
       price:
         market.price,
 
+      change24h:
+        market.change24h,
+
+      sparkline:
+        Array.isArray(market.sparkline)
+          ? market.sparkline
+          : [],
+
+      indicators:
+        market.indicators || null,
+
+      timeframe:
+        market.timeframe || null,
+
+      marketType:
+        market.marketType || null,
+
+      contractType:
+        market.contractType || null,
+
+      leverage:
+        market.leverage ?? null,
+
       entry:
         market.entry,
 
