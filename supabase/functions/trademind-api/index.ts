@@ -115,38 +115,195 @@ async function analyzePosition(supabase, body) {
   const position = body?.position;
   if (!position?.symbol) throw new Error("Position symbol is required.");
   const market = body?.market || body?.marketData || {};
-  const provider = "groq";
-  const key = Deno.env.get("GROQ_API_KEY");
-  if (!key) throw new Error("Groq API key is not configured.");
+
   const prompt = {
-    systemPrompt: `You are TradeMindMZ position risk analyst. Analyze ONLY the supplied Pionex position and supplied market data. Do not place trades and do not invent missing information. Return ONLY JSON: {"recommendation":"HOLD|WATCH|REDUCE_RISK|EXIT_CONSIDERATION","riskLevel":"LOW|MEDIUM|HIGH|CRITICAL","confidence":0,"reasoning":"brief explanation","action":"brief practical guidance"}`,
-    userPrompt: `OPEN POSITION:\n${JSON.stringify(position, null, 2)}\n\nCURRENT MARKET DATA:\n${JSON.stringify(market, null, 2)}`,
+    systemPrompt: `You are TradeMindMZ position risk analyst. Analyze ONLY the supplied Pionex position and supplied market data. Do not place trades and do not invent missing information. The position is USDT-M perpetual and read-only. Return ONLY JSON: {"recommendation":"HOLD|WATCH|REDUCE_RISK|EXIT_CONSIDERATION","riskLevel":"LOW|MEDIUM|HIGH|CRITICAL","confidence":0,"reasoning":"brief explanation","action":"brief practical guidance","holdTimeMinMinutes":0,"holdTimeMaxMinutes":0,"holdTimeReason":"brief explanation of expected remaining hold time"}. Hold time is an estimate, not a guarantee. Base it only on the supplied timeframe, volatility, distance to TP/SL, momentum, and position age when available.`,
+    userPrompt: `OPEN POSITION:
+${JSON.stringify(position, null, 2)}
+
+CURRENT MARKET DATA:
+${JSON.stringify(market, null, 2)}`,
   };
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-    body: JSON.stringify({
-      model: Deno.env.get("GROQ_MODEL") || "llama-3.3-70b-versatile",
-      temperature: 0.1,
-      response_format: { type: "json_object" },
-      messages: [{ role: "system", content: prompt.systemPrompt }, { role: "user", content: prompt.userPrompt }],
-    }),
-  });
-  const text = await res.text();
-  if (!res.ok) throw new Error(`Groq request failed: ${res.status} ${text.slice(0, 300)}`);
-  const raw = JSON.parse(JSON.parse(text).choices?.[0]?.message?.content || "{}");
-  const recommendations = ["HOLD","WATCH","REDUCE_RISK","EXIT_CONSIDERATION"];
-  const risks = ["LOW","MEDIUM","HIGH","CRITICAL"];
+
+  const available = [];
+  if (Deno.env.get("GROQ_API_KEY")) available.push("groq");
+  if (Deno.env.get("OPENAI_API_KEY")) available.push("openai");
+
+  if (!available.length) {
+    throw new Error("No AI provider is configured.");
+  }
+
+  const preferred = String(body?.preferredProvider || "groq").toLowerCase();
+  const ordered = [preferred, "groq", "openai"]
+    .filter((provider, index, list) =>
+      available.includes(provider) &&
+      list.indexOf(provider) === index
+    );
+
+  const errors = [];
+  let raw = null;
+  let provider = null;
+
+  for (const candidateProvider of ordered) {
+    try {
+      const key = Deno.env.get(
+        candidateProvider === "openai"
+          ? "OPENAI_API_KEY"
+          : "GROQ_API_KEY"
+      );
+
+      const endpoint =
+        candidateProvider === "openai"
+          ? "https://api.openai.com/v1/chat/completions"
+          : "https://api.groq.com/openai/v1/chat/completions";
+
+      const model =
+        candidateProvider === "openai"
+          ? Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini"
+          : Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${key}`,
+        },
+        body: JSON.stringify({
+          model,
+          temperature: 0.1,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: prompt.systemPrompt },
+            { role: "user", content: prompt.userPrompt },
+          ],
+        }),
+      });
+
+      const text = await res.text();
+      if (!res.ok) {
+        throw new Error(
+          `${candidateProvider} request failed: ${res.status} ${text.slice(0, 300)}`
+        );
+      }
+
+      const parsed = JSON.parse(text);
+      raw = JSON.parse(
+        parsed.choices?.[0]?.message?.content || "{}"
+      );
+      provider = candidateProvider;
+      break;
+    } catch (error) {
+      errors.push({
+        provider: candidateProvider,
+        error: error?.message || String(error),
+      });
+    }
+  }
+
+  if (!raw) {
+    throw new Error(
+      `All configured position AI providers failed: ${errors.map(x => x.provider).join(", ")}`
+    );
+  }
+
+  const recommendations = [
+    "HOLD",
+    "WATCH",
+    "REDUCE_RISK",
+    "EXIT_CONSIDERATION",
+  ];
+
+  const risks = [
+    "LOW",
+    "MEDIUM",
+    "HIGH",
+    "CRITICAL",
+  ];
+
+  const holdMin = Math.max(
+    0,
+    Math.round(Number(raw?.holdTimeMinMinutes) || 0)
+  );
+
+  const holdMax = Math.max(
+    holdMin,
+    Math.round(Number(raw?.holdTimeMaxMinutes) || 0)
+  );
+
   const analysis = {
-    recommendation: recommendations.includes(String(raw?.recommendation || "").toUpperCase()) ? String(raw.recommendation).toUpperCase() : "WATCH",
-    riskLevel: risks.includes(String(raw?.riskLevel || "").toUpperCase()) ? String(raw.riskLevel).toUpperCase() : "MEDIUM",
-    confidence: Math.max(0, Math.min(100, Math.round(Number(raw?.confidence) || 0))),
-    reasoning: String(raw?.reasoning || "AI did not provide reasoning."),
-    action: String(raw?.action || "Continue monitoring."),
+    recommendation:
+      recommendations.includes(
+        String(raw?.recommendation || "").toUpperCase()
+      )
+        ? String(raw.recommendation).toUpperCase()
+        : "WATCH",
+
+    riskLevel:
+      risks.includes(
+        String(raw?.riskLevel || "").toUpperCase()
+      )
+        ? String(raw.riskLevel).toUpperCase()
+        : "MEDIUM",
+
+    confidence: Math.max(
+      0,
+      Math.min(
+        100,
+        Math.round(Number(raw?.confidence) || 0)
+      )
+    ),
+
+    reasoning:
+      String(
+        raw?.reasoning ||
+        "AI did not provide reasoning."
+      ),
+
+    action:
+      String(
+        raw?.action ||
+        "Continue monitoring."
+      ),
+
+    holdTimeMinMinutes:
+      holdMin,
+
+    holdTimeMaxMinutes:
+      holdMax,
+
+    holdTimeReason:
+      String(
+        raw?.holdTimeReason ||
+        ""
+      ),
   };
+
   let history = null;
-  try { history = await savePositionAIAnalysis(supabase, position, analysis, provider); } catch (e) { console.error("Position AI history save failed:", e); }
-  return { success: true, status: "POSITION_AI_ANALYZED", provider, analysis, historySaved: Boolean(history), historyId: history?.id || null, error: null };
+  try {
+    history = await savePositionAIAnalysis(
+      supabase,
+      position,
+      analysis,
+      provider
+    );
+  } catch (e) {
+    console.error(
+      "Position AI history save failed:",
+      e
+    );
+  }
+
+  return {
+    success: true,
+    status: "POSITION_AI_ANALYZED",
+    provider,
+    providers: available,
+    providerErrors: errors,
+    analysis,
+    historySaved: Boolean(history),
+    historyId: history?.id || null,
+    error: null,
+  };
 }
 
 async function getLearningStats(supabase) {
