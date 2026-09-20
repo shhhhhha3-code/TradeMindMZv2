@@ -10,6 +10,9 @@ export function addManualPionexPosition({
   quantity,
   stopLoss = null,
   takeProfit = null,
+  holdTimeMinMinutes = 0,
+  holdTimeMaxMinutes = 0,
+  holdTimeReason = "",
 }) {
   const positions =
     loadTrackedPositions();
@@ -47,6 +50,19 @@ export function addManualPionexPosition({
       )
         ? Number(takeProfit)
         : null,
+
+    holdTimeMinMinutes:
+      Number.isFinite(Number(holdTimeMinMinutes))
+        ? Number(holdTimeMinMinutes)
+        : 0,
+
+    holdTimeMaxMinutes:
+      Number.isFinite(Number(holdTimeMaxMinutes))
+        ? Number(holdTimeMaxMinutes)
+        : 0,
+
+    holdTimeReason:
+      String(holdTimeReason || ""),
 
     source:
       "MANUAL_PIONEX",
