@@ -25,6 +25,15 @@ export default function ManualPurchaseModal({
   const [takeProfit, setTakeProfit] =
     useState(initialValues.takeProfit ?? "");
 
+  const [holdTimeMinMinutes, setHoldTimeMinMinutes] =
+    useState(initialValues.holdTimeMinMinutes ?? 0);
+
+  const [holdTimeMaxMinutes, setHoldTimeMaxMinutes] =
+    useState(initialValues.holdTimeMaxMinutes ?? 0);
+
+  const [holdTimeReason, setHoldTimeReason] =
+    useState(initialValues.holdTimeReason ?? "");
+
   useEffect(() => {
     if (!open) return;
 
@@ -47,6 +56,10 @@ export default function ManualPurchaseModal({
     if (initialValues.takeProfit !== undefined) {
       setTakeProfit(initialValues.takeProfit);
     }
+
+    setHoldTimeMinMinutes(initialValues.holdTimeMinMinutes ?? 0);
+    setHoldTimeMaxMinutes(initialValues.holdTimeMaxMinutes ?? 0);
+    setHoldTimeReason(initialValues.holdTimeReason ?? "");
   }, [
     open,
     initialValues.symbol,
@@ -54,6 +67,9 @@ export default function ManualPurchaseModal({
     initialValues.entryPrice,
     initialValues.stopLoss,
     initialValues.takeProfit,
+    initialValues.holdTimeMinMinutes,
+    initialValues.holdTimeMaxMinutes,
+    initialValues.holdTimeReason,
   ]);
 
   if (!open) {
@@ -102,6 +118,21 @@ export default function ManualPurchaseModal({
         )
           ? Number(takeProfit)
           : null,
+
+      
+
+      holdTimeMinMinutes:
+        Number.isFinite(Number(holdTimeMinMinutes))
+          ? Number(holdTimeMinMinutes)
+          : 0,
+
+      holdTimeMaxMinutes:
+        Number.isFinite(Number(holdTimeMaxMinutes))
+          ? Number(holdTimeMaxMinutes)
+          : 0,
+
+      holdTimeReason:
+        holdTimeReason || "",
 
       source:
         "MANUAL_PIONEX",
@@ -248,7 +279,17 @@ export default function ManualPurchaseModal({
               />
             </label>
 
-          </div>
+          </div>          {Number(holdTimeMinMinutes) > 0 && (
+            <div className="manual-purchase-warning">
+              <ShieldCheck size={16} />
+              <span>
+                AI estimated hold time: {holdTimeMinMinutes}–{holdTimeMaxMinutes} min.
+                {holdTimeReason ? " " + holdTimeReason : ""}
+              </span>
+            </div>
+          )}
+
+
 
           <div className="manual-purchase-warning">
             <ShieldCheck size={16} />
