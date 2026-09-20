@@ -51,6 +51,72 @@ async function callProvider(provider, payload) {
   throw new Error(`Unsupported AI provider: ${provider}`);
 }
 
+function buildTradeExplanation(candidate, aiDecision) {
+  const direction = String(candidate?.direction || "").toUpperCase();
+  const side = direction === "SHORT" ? "SELL" : "BUY";
+  const score = Number(candidate?.engineScore ?? candidate?.score);
+  const confidence = Number(candidate?.confidence);
+  const rr = Number(candidate?.riskReward);
+  const rsi = Number(candidate?.rsi ?? candidate?.indicators?.rsi14);
+  const volume = Number(candidate?.volumeRatio ?? candidate?.indicators?.volumeRatio);
+  const ema9 = Number(candidate?.ema9 ?? candidate?.indicators?.ema9);
+  const ema21 = Number(candidate?.ema21 ?? candidate?.indicators?.ema21);
+  const change24h = Number(candidate?.change24h ?? candidate?.indicators?.change24h);
+  const factors = [];
+  const invalidation = [];
+
+  if (Number.isFinite(score)) factors.push(`Engine score ${Math.round(score)}/100 supports the setup.`);
+  if (Number.isFinite(confidence)) factors.push(`Engine confidence is ${Math.round(confidence)}%.`);
+  if (Number.isFinite(rr)) factors.push(`Risk/reward is ${rr.toFixed(2)}:1.`);
+  if (Number.isFinite(rsi)) factors.push(`RSI is ${rsi.toFixed(1)}, inside the trade zone.`);
+  if (Number.isFinite(volume)) factors.push(`Volume is ${volume.toFixed(2)}× the reference level.`);
+
+  if (Number.isFinite(ema9) && Number.isFinite(ema21)) {
+    const emaBull = ema9 > ema21;
+    const aligned = direction === "SHORT" ? !emaBull : emaBull;
+    factors.push(aligned
+      ? `EMA structure supports ${side}: EMA9 ${ema9 > ema21 ? "above" : "below"} EMA21.`
+      : `EMA structure is not fully aligned with ${side}.`);
+    invalidation.push(direction === "SHORT"
+      ? "EMA9 moving back above EMA21 would weaken the SELL setup."
+      : "EMA9 moving back below EMA21 would weaken the BUY setup.");
+  }
+
+  if (Number.isFinite(change24h)) {
+    factors.push(`24h price change is ${change24h >= 0 ? "+" : ""}${change24h.toFixed(2)}%.`);
+    invalidation.push(direction === "SHORT"
+      ? "A sustained reversal higher would weaken the SELL thesis."
+      : "A sustained reversal lower would weaken the BUY thesis.");
+  }
+
+  if (Number.isFinite(rr)) {
+    invalidation.push(`Risk/reward falling below 2:1 removes the trade-quality edge.`);
+  }
+  if (Number.isFinite(rsi)) {
+    invalidation.push(direction === "SHORT"
+      ? "RSI moving above the permitted zone can invalidate the SELL setup."
+      : "RSI moving outside the permitted zone can invalidate the BUY setup.");
+  }
+  if (Number.isFinite(volume) && volume < 1) {
+    invalidation.push("Volume falling below the reference level would weaken confirmation.");
+  }
+  if (Number.isFinite(candidate?.stopLoss)) {
+    invalidation.push(`Price reaching the defined stop loss (${candidate.stopLoss}) invalidates the setup.`);
+  }
+
+  const unique = (items) => [...new Set(items.filter(Boolean))];
+  const supportingFactors = unique(factors).slice(0, 6);
+  const invalidationFactors = unique(invalidation).slice(0, 5);
+
+  return {
+    side,
+    decisionSummary: String(aiDecision?.reason || `${side} setup passes the deterministic trade-quality checks and AI review.`),
+    supportingFactors,
+    invalidationFactors,
+    tradeQualitySummary: `Score ${Number.isFinite(score) ? Math.round(score) : "—"} • AI confidence ${Number.isFinite(Number(aiDecision?.confidence)) ? Math.round(Number(aiDecision.confidence)) : "—"}% • R/R ${Number.isFinite(rr) ? rr.toFixed(2) : "—"}`,
+  };
+}
+
 function hardBlocks(candidate) {
   const score = Number(candidate?.engineScore ?? candidate?.score);
   const confidence = Number(candidate?.confidence);
