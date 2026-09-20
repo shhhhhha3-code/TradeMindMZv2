@@ -118,6 +118,16 @@ export async function fetchLiveAiSignal(
           ai?.decision || null,
         aiProvider:
           ai?.provider || null,
+        holdTimeMinMinutes:
+          Number.isFinite(Number(ai?.holdTimeMinMinutes))
+            ? Number(ai.holdTimeMinMinutes)
+            : 0,
+        holdTimeMaxMinutes:
+          Number.isFinite(Number(ai?.holdTimeMaxMinutes))
+            ? Number(ai.holdTimeMaxMinutes)
+            : 0,
+        holdTimeReason:
+          ai?.holdTimeReason || "",
       }
     : null;
 
