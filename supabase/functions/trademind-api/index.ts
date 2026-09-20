@@ -837,6 +837,8 @@ async function runServerSpotMonitoring(supabase) {
         current_value: Number.isFinite(Number(holding.currentValueUsdt)) ? Number(holding.currentValueUsdt) : null,
         cost_basis: existingSpotJournal?.cost_basis ?? null,
         market_type:"SPOT",
+        fee_rate: Number(Deno.env.get("PIONEX_SPOT_FEE_RATE") || 0.001),
+        estimated_slippage_rate: Number(Deno.env.get("TRADEMIND_ESTIMATED_SLIPPAGE_RATE") || 0.0005),
         source: existingSpotJournal ? "MANUAL_PIONEX_SPOT" : "PIONEX_SPOT",
         ai_confidence_at_entry: existingSpotJournal?.ai_confidence_at_entry ?? null,
         ai_hold_time_min_minutes: existingSpotJournal?.ai_hold_time_min_minutes ?? null,
