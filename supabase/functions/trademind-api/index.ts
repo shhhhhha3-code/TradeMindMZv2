@@ -725,7 +725,9 @@ async function getServerPositionMonitoring(supabase) {
     .order("created_at", { ascending: false })
     .limit(200);
 
-  if (analysisError) throw new Error(`Position monitoring analysis query failed: ${analysisError.message}`);
+  if (analysisError) {
+    console.error("Position monitoring analysis query failed:", analysisError);
+  }
 
   const latestByKey = new Map();
   const previousByKey = new Map();
@@ -784,7 +786,9 @@ async function getServerPositionMonitoring(supabase) {
     .order("updated_at", { ascending: false })
     .limit(100);
 
-  if (journalError) throw new Error(`Trade journal query failed: ${journalError.message}`);
+  if (journalError) {
+    console.error("Trade journal query failed:", journalError);
+  }
 
   const closed = (journal || []).filter((row) => row.status === "CLOSED");
   const closedPnl = closed.map((row) => Number(row.realized_pnl)).filter(Number.isFinite);
@@ -800,6 +804,8 @@ async function getServerPositionMonitoring(supabase) {
     readOnly: true,
     positionFeedStatus: positionFeedError ? "ERROR" : "OK",
     positionFeedError,
+    analysisQueryError: analysisError?.message || null,
+    journalQueryError: journalError?.message || null,
     updatedAt: new Date().toISOString(),
     positions: enriched,
     journal: journal || [],
