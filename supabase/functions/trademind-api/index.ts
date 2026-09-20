@@ -796,7 +796,7 @@ async function runServerSpotMonitoring(supabase) {
   const currentKeys = new Set();
   const monitored = [];
 
-  for (const holding of holdings.slice(0, 10)) {
+  for (const holding of holdings.slice(0, 5)) {
     const key = "SPOT:" + holding.coin;
     currentKeys.add(key);
     let market = null;
