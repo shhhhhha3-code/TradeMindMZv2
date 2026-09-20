@@ -289,20 +289,63 @@ export default function ProDashboard({ onSelectTrade = null }) {
   }, [loadWallet]);
 
   const selectBestTrade = useCallback(async () => {
-    if (!onSelectTrade || refreshing) return;
+    if (!onSelectTrade || refreshing || liveAi.refreshing) return;
+
+    setError("");
+
     try {
       const fresh = await liveAi.refresh(true);
+
+      if (!fresh) {
+        setError(
+          liveAi.error ||
+          "Fresh trade analysis failed. No BUY/SELL signal was produced."
+        );
+        return;
+      }
+
       const recommendation = fresh?.recommended || null;
-      const directionRaw = String(recommendation?.direction || "").toUpperCase();
+      const directionRaw = String(
+        recommendation?.direction || ""
+      ).toUpperCase();
+
       const direction =
-        directionRaw === "BUY" || directionRaw === "LONG" ? "BUY" :
-        directionRaw === "SELL" || directionRaw === "SHORT" ? "SELL" : "";
-      if (!recommendation || !direction) return;
-      onSelectTrade({ ...recommendation, direction });
+        directionRaw === "BUY" || directionRaw === "LONG"
+          ? "BUY"
+          : directionRaw === "SELL" || directionRaw === "SHORT"
+            ? "SELL"
+            : "";
+
+      if (!recommendation || !direction) {
+        setError(
+          fresh?.aiDecision?.reason ||
+          fresh?.summary ||
+          "AI completed the fresh analysis but did not approve a BUY or SELL trade."
+        );
+        return;
+      }
+
+      onSelectTrade({
+        ...recommendation,
+        direction,
+      });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Fresh trade analysis unavailable.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Fresh trade analysis unavailable."
+      );
     }
-  }, [liveAi.refresh, onSelectTrade, refreshing]);
+  }, [
+    liveAi.error,
+    liveAi.refresh,
+    liveAi.refreshing,
+    onSelectTrade,
+    refreshing,
+  ]);
+
+  const tradeAnalysisRefreshing =
+    refreshing || liveAi.refreshing;
 
   const candidates =
     useMemo(
@@ -653,9 +696,9 @@ export default function ProDashboard({ onSelectTrade = null }) {
                     justifyContent: "center",
                   }}
                   onClick={selectBestTrade}
-                  disabled={refreshing}
+                  disabled={tradeAnalysisRefreshing}
                 >
-                  {refreshing
+                  {tradeAnalysisRefreshing
                     ? "Analyzing fresh BUY/SELL…"
                     : data?.finalDecision === "TRADE"
                       ? `SELECT ${String(liveAi?.data?.recommended?.direction || "").toUpperCase() === "SELL" ? "SELL" : "BUY"}`
