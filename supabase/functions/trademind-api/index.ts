@@ -708,8 +708,16 @@ async function runServerPositionMonitoring(supabase, { marketSnapshot = null } =
 }
 
 async function getServerPositionMonitoring(supabase) {
-  const raw = await getOpenPositions();
-  const positions = normalizePositions(raw);
+  let positions = [];
+  let positionFeedError = null;
+
+  try {
+    const raw = await getOpenPositions();
+    positions = normalizePositions(raw);
+  } catch (error) {
+    positionFeedError = error?.message || String(error);
+    console.error("Server position feed unavailable:", error);
+  }
 
   const { data: analyses, error: analysisError } = await supabase
     .from("position_ai_analysis")
@@ -790,6 +798,8 @@ async function getServerPositionMonitoring(supabase) {
     success: true,
     serverSide: true,
     readOnly: true,
+    positionFeedStatus: positionFeedError ? "ERROR" : "OK",
+    positionFeedError,
     updatedAt: new Date().toISOString(),
     positions: enriched,
     journal: journal || [],
