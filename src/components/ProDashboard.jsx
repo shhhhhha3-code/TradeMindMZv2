@@ -653,16 +653,13 @@ export default function ProDashboard({ onSelectTrade = null }) {
                     justifyContent: "center",
                   }}
                   onClick={selectBestTrade}
-                  disabled={
-                    refreshing ||
-                    data?.finalDecision !== "TRADE"
-                  }
+                  disabled={refreshing}
                 >
                   {refreshing
                     ? "Analyzing fresh BUY/SELL…"
                     : data?.finalDecision === "TRADE"
                       ? `SELECT ${String(liveAi?.data?.recommended?.direction || "").toUpperCase() === "SELL" ? "SELL" : "BUY"}`
-                      : "WAITING FOR TRADE SIGNAL"}
+                      : "ANALYZE FRESH BUY/SELL"}
                 </button>
               ) : null}
 
