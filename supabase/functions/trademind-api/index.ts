@@ -792,19 +792,31 @@ async function runServerSpotMonitoring(supabase) {
 
       const result = await analyzeSpotHoldingWithAI(supabase, holding, market);
       const analysis = result.analysis;
+      const { data: existingSpotJournal } = await supabase
+        .from("trade_journal")
+        .select("entry_price,cost_basis,ai_confidence_at_entry,ai_hold_time_min_minutes,ai_hold_time_max_minutes,ai_hold_time_reason")
+        .eq("position_key", key)
+        .maybeSingle();
+
       await supabase.from("trade_journal").upsert({
         position_key:key,
         symbol,
         side:"LONG",
-        entry_price: Number.isFinite(Number(holding.entryPrice)) ? Number(holding.entryPrice) : null,
+        entry_price: Number.isFinite(Number(holding.entryPrice))
+          ? Number(holding.entryPrice)
+          : (existingSpotJournal?.entry_price ?? null),
         quantity: Number(holding.quantity),
         last_price: Number.isFinite(Number(holding.currentPrice)) ? Number(holding.currentPrice) : null,
         last_pnl: null,
         last_pnl_percent: null,
         current_value: Number.isFinite(Number(holding.currentValueUsdt)) ? Number(holding.currentValueUsdt) : null,
-        cost_basis: null,
+        cost_basis: existingSpotJournal?.cost_basis ?? null,
         market_type:"SPOT",
-        source:"PIONEX_SPOT",
+        source: existingSpotJournal ? "MANUAL_PIONEX_SPOT" : "PIONEX_SPOT",
+        ai_confidence_at_entry: existingSpotJournal?.ai_confidence_at_entry ?? null,
+        ai_hold_time_min_minutes: existingSpotJournal?.ai_hold_time_min_minutes ?? null,
+        ai_hold_time_max_minutes: existingSpotJournal?.ai_hold_time_max_minutes ?? null,
+        ai_hold_time_reason: existingSpotJournal?.ai_hold_time_reason ?? null,
         ai_exit_recommendation: analysis.recommendation,
         ai_exit_confidence: analysis.confidence,
         ai_exit_reason: analysis.reasoning,
