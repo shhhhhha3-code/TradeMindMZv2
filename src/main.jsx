@@ -15,6 +15,7 @@ import { fetchLearningStats } from "./services/learningStatsService.js";
 import { fetchSignalHistory } from "./services/signalHistoryService.js";
 import { fetchLatestAiSignal } from "./services/liveAiSignalService.js";
 import { fetchDashboardData } from "./services/dashboardService.js";
+import { fetchServerPositionMonitoring } from "./services/serverPositionMonitoringService.js";
 import "./ui/trademind-v3.css";
 import "./ui/trademind-v4.css";
 import "./ui/trademind-v41.css";
@@ -3441,9 +3442,96 @@ function SignalHistory(){
         })}
       </div>
     )}
+
+    <TradeJournalPanel />
   </>
 }
 
+function TradeJournalPanel() {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  const load = async () => {
+    try {
+      setError("");
+      const result = await fetchServerPositionMonitoring();
+      setData(result);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Trade journal unavailable.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const stats = data?.journalStats || {};
+  const journal = Array.isArray(data?.journal) ? data.journal.slice(0, 20) : [];
+
+  return (
+    <section className="panel" style={{marginTop:"18px"}}>
+      <div className="head">
+        <div className="pair">
+          <div className="coin">J</div>
+          <div>
+            <b>TRADE JOURNAL</b>
+            <small>Server-side position results · read only</small>
+          </div>
+        </div>
+        <span className="long">{stats.closed ?? 0} CLOSED</span>
+      </div>
+
+      {loading ? (
+        <p>Loading trade journal...</p>
+      ) : error ? (
+        <p>{error}</p>
+      ) : (
+        <>
+          <div className="levels">
+            <div><small>OPEN</small><b>{stats.open ?? 0}</b></div>
+            <div><small>CLOSED</small><b>{stats.closed ?? 0}</b></div>
+            <div><small>CLOSED P&L</small><b>{Number.isFinite(Number(stats.closedPnl)) ? Number(stats.closedPnl).toFixed(2) : "—"}</b></div>
+            <div><small>AI ENTRIES</small><b>{journal.filter(row => row.ai_confidence_at_entry != null).length}</b></div>
+          </div>
+
+          {journal.length ? (
+            <div className="tablewrap" style={{marginTop:"14px"}}>
+              <table>
+                <thead>
+                  <tr><th>MARKET</th><th>SIDE</th><th>ENTRY</th><th>LAST / EXIT</th><th>P&L</th><th>AI CONF.</th><th>STATUS</th></tr>
+                </thead>
+                <tbody>
+                  {journal.map(row => (
+                    <tr key={row.position_key}>
+                      <td><strong>{row.symbol}</strong></td>
+                      <td>{row.side === "SHORT" ? "SELL" : "BUY"}</td>
+                      <td>{row.entry_price != null ? Number(row.entry_price).toLocaleString("en-US") : "—"}</td>
+                      <td>{(row.exit_price ?? row.last_price) != null ? Number(row.exit_price ?? row.last_price).toLocaleString("en-US") : "—"}</td>
+                      <td>{row.realized_pnl != null ? Number(row.realized_pnl).toFixed(2) : row.last_pnl != null ? Number(row.last_pnl).toFixed(2) : "—"}</td>
+                      <td>{row.ai_confidence_at_entry != null ? Number(row.ai_confidence_at_entry).toFixed(0) + "%" : "—"}</td>
+                      <td>{row.status}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p style={{opacity:.55}}>Trades appear here after the server has observed a Pionex USDT-M position.</p>
+          )}
+
+          <small style={{display:"block",marginTop:"12px",opacity:.45}}>
+            Closed trades are inferred from the read-only Pionex open-position feed; the exit price is the last observed mark when Pionex no longer reports the position.
+          </small>
+        </>
+      )}
+    </section>
+  );
+}
 
 function DiagnosticsPanel() {
   const [data, setData] = useState(null);
@@ -5305,16 +5393,25 @@ function Positions(){
 
       let pionexPositions = [];
       let pionexError = "";
+      let serverMonitoring = null;
 
       try {
-        const result = await fetchLivePositions();
-        pionexPositions = Array.isArray(result?.positions)
-          ? result.positions
+        serverMonitoring = await fetchServerPositionMonitoring();
+        pionexPositions = Array.isArray(serverMonitoring?.positions)
+          ? serverMonitoring.positions
           : [];
-      } catch (err) {
-        pionexError = err instanceof Error
-          ? err.message
-          : "Pionex live positions unavailable.";
+      } catch (serverError) {
+        console.warn("Server position monitoring unavailable:", serverError);
+        try {
+          const result = await fetchLivePositions();
+          pionexPositions = Array.isArray(result?.positions)
+            ? result.positions
+            : [];
+        } catch (err) {
+          pionexError = err instanceof Error
+            ? err.message
+            : "Pionex live positions unavailable.";
+        }
       }
 
       let snapshot = marketSnapshot;
@@ -5414,6 +5511,30 @@ function Positions(){
           position.id ||
           position.symbol
         );
+
+        const serverAnalysis = position?.monitor || null;
+
+        if (serverAnalysis) {
+          setAi(prev => ({
+            ...prev,
+            [key]: {
+              recommendation: serverAnalysis.recommendation || "WATCH",
+              riskLevel: serverAnalysis.riskLevel || "MEDIUM",
+              confidence: serverAnalysis.confidence ?? 0,
+              confidenceDelta: serverAnalysis.confidenceDelta,
+              reasoning: serverAnalysis.reasoning || "Server AI monitoring is active.",
+              action: serverAnalysis.action || "",
+              holdTimeMinMinutes: serverAnalysis.holdTimeMinMinutes || 0,
+              holdTimeMaxMinutes: serverAnalysis.holdTimeMaxMinutes || 0,
+              holdTimeReason: serverAnalysis.holdTimeReason || "",
+              provider: serverAnalysis.provider || "groq",
+              analyzedAt: serverAnalysis.analyzedAt || null,
+              exitWarning: serverAnalysis.exitWarning === true,
+              serverSide: true,
+            }
+          }));
+          continue;
+        }
 
         if (ai[key]) continue;
 
@@ -5642,6 +5763,26 @@ function Positions(){
 
               <div className="panel" style={{marginTop:"18px",padding:"18px"}}>
                 <h3><BrainCircuit/> AI POSITION MONITORING</h3>
+
+                {analysis?.exitWarning ? (
+                  <div
+                    className="metric"
+                    style={{
+                      marginBottom: "12px",
+                      border: "1px solid rgba(255,90,90,.35)",
+                      background: "rgba(255,70,70,.08)",
+                    }}
+                  >
+                    <span>EXIT WARNING</span>
+                    <b style={{color:"#ff7777"}}>
+                      {analysis.recommendation === "EXIT_CONSIDERATION"
+                        ? "AI EXIT CONSIDERATION"
+                        : analysis.recommendation === "REDUCE_RISK"
+                          ? "REDUCE RISK"
+                          : "AI CONFIDENCE WEAKENING"}
+                    </b>
+                  </div>
+                ) : null}
 
                 {analysisLoading ? (
                   <div className="metric">
