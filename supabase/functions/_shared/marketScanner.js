@@ -484,6 +484,14 @@ function scoreCandidate({
     riskReward,
     change24h,
 
+    // Persist the 15M price path so the mobile viewer can render the
+    // same server-scanned market chart even when the app was closed.
+    sparkline:
+      candles
+        .slice(-96)
+        .map((c) => c.close)
+        .filter((value) => Number.isFinite(Number(value))),
+
     price,
 
     indicators: {
