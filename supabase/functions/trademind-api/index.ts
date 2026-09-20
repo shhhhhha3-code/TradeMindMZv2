@@ -1327,6 +1327,14 @@ function handle(req) {
         },
       });
     } catch (error) {
+      try {
+        const admin = supabaseAdmin();
+        await admin.from("trademind_scheduler_runs").update({
+          status:"ERROR",
+          finished_at:new Date().toISOString(),
+          error:error?.message || String(error),
+        }).is("finished_at", null).eq("status","RUNNING");
+      } catch {}
       const rateLimited = error?.status === 429 || error?.code === "PIONEX_RATE_LIMITED";
       return response({ success:false, scanned:0, candidates:[], status:rateLimited?"PIONEX_RATE_LIMITED":"PIONEX_MARKET_ERROR", retryable:true, error:error?.message||"Pionex market scan failed." }, rateLimited?429:502);
     }
@@ -1413,6 +1421,12 @@ function handle(req) {
   ) {
     try {
       const admin = supabaseAdmin();
+      const schedulerStartedAt = new Date().toISOString();
+      const { data: schedulerRun } = await admin
+        .from("trademind_scheduler_runs")
+        .insert({ status:"RUNNING", started_at:schedulerStartedAt })
+        .select("id")
+        .single();
 
       if (
         !(await authorizeSchedulerRequest(
@@ -1477,6 +1491,17 @@ function handle(req) {
           error: positionError?.message || String(positionError),
           readOnly: true,
         };
+      }
+
+      if (schedulerRun?.id) {
+        await admin.from("trademind_scheduler_runs").update({
+          status:"SUCCESS",
+          finished_at:new Date().toISOString(),
+          perp_snapshot_at:payload?.persistedAt || payload?.updatedAt || null,
+          spot_snapshot_at:spotSnapshot?.persistedAt || spotSnapshot?.updatedAt || null,
+          position_monitoring_count:Number(positionMonitoring?.monitoredCount || 0),
+          spot_monitoring_count:Number(spotMonitoring?.monitoredCount || 0),
+        }).eq("id",schedulerRun.id);
       }
 
       return response({
@@ -1683,6 +1708,16 @@ function handle(req) {
 
     let latestSnapshot = null;
     let snapshotError = null;
+    let schedulerHeartbeat = null;
+    if (supabaseOk) {
+      try {
+        const admin = supabaseAdmin();
+        const { data } = await admin.from("trademind_scheduler_runs").select("id,status,started_at,finished_at,perp_snapshot_at,spot_snapshot_at,position_monitoring_count,spot_monitoring_count,error").order("created_at",{ascending:false}).limit(1).maybeSingle();
+        schedulerHeartbeat = data || null;
+      } catch (error) {
+        schedulerHeartbeat = { status:"ERROR", error:error?.message || String(error) };
+      }
+    }
 
     if (supabaseOk) {
       try {
@@ -1744,6 +1779,7 @@ function handle(req) {
       timestamp: new Date().toISOString(),
       totalDurationMs:
         Date.now() - startedAt,
+      scheduler: schedulerHeartbeat,
       checks: [
         {
           name: "Backend",
