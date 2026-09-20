@@ -138,7 +138,7 @@ export async function fetchLiveAiSignal(
         : "NO_TRADE",
 
     recommended:
-      selectedCandidate,
+      approvedRecommendation,
 
     summary:
       ai?.reason ||
