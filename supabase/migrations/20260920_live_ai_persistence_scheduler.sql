@@ -152,3 +152,53 @@ revoke all on public.trademind_scheduler_runs from anon, authenticated, public;
 grant select, insert, update on table public.trademind_scheduler_runs to service_role;
 
 notify pgrst, 'reload schema';
+
+
+-- Spot monitoring / performance extensions.
+create table if not exists public.trade_journal (
+  position_key text primary key,
+  symbol text not null,
+  side text not null check (side in ('LONG','SHORT')),
+  entry_price numeric(30,12),
+  quantity numeric(30,12),
+  stop_loss numeric(30,12),
+  take_profit numeric(30,12),
+  ai_confidence_at_entry numeric(6,3),
+  ai_hold_time_min_minutes integer,
+  ai_hold_time_max_minutes integer,
+  ai_hold_time_reason text,
+  opened_at timestamptz not null default now(),
+  status text not null default 'OPEN' check (status in ('OPEN','CLOSED')),
+  last_price numeric(30,12),
+  last_pnl numeric(30,12),
+  last_pnl_percent numeric(12,6),
+  exit_price numeric(30,12),
+  realized_pnl numeric(30,12),
+  closed_at timestamptz,
+  close_reason text,
+  source text not null default 'PIONEX_READ_ONLY',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.trade_journal
+  add column if not exists market_type text not null default 'PERP',
+  add column if not exists fee_rate numeric(12,8),
+  add column if not exists estimated_slippage_rate numeric(12,8),
+  add column if not exists gross_pnl numeric(30,12),
+  add column if not exists net_pnl numeric(30,12),
+  add column if not exists current_value numeric(30,12),
+  add column if not exists cost_basis numeric(30,12),
+  add column if not exists entry_price_source text,
+  add column if not exists ai_exit_recommendation text,
+  add column if not exists ai_exit_confidence numeric(6,3),
+  add column if not exists ai_exit_reason text;
+
+create index if not exists idx_trade_journal_market_status
+  on public.trade_journal(market_type, status, updated_at desc);
+
+alter table public.trade_journal enable row level security;
+revoke all on public.trade_journal from anon, authenticated, public;
+grant select, insert, update, delete on table public.trade_journal to service_role;
+
+notify pgrst, 'reload schema';
