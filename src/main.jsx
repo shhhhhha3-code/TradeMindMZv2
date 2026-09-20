@@ -4589,9 +4589,33 @@ function SettingsPage({settings,updateSetting}){const Row=({id,title,desc})=><di
 function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
 
   const [marketType, setMarketType] = useState("PERP");
+  const [accountBalanceUsdt, setAccountBalanceUsdt] = useState(0);
   const [riskSizing, setRiskSizing] = useState(null);
   const [learningStats,setLearningStats] = useState(null);
   const [learningError,setLearningError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    fetch(apiUrl("/api/pionex/wallet-balances"), {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    })
+      .then(response => response.json())
+      .then(result => {
+        if (!active || result?.success !== true) return;
+        const wallet = result?.data || {};
+        const balance = marketType === "SPOT"
+          ? Number(wallet?.botAccount?.totalInUsdt)
+          : Number(wallet?.traderAccount?.totalInUsdt);
+        if (Number.isFinite(balance) && balance > 0) {
+          setAccountBalanceUsdt(balance);
+        }
+      })
+      .catch(() => {});
+
+    return () => { active = false; };
+  }, [marketType]);
 
   useEffect(() => {
     let active = true;
@@ -4694,9 +4718,7 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
     setRiskSizing(null);
     if (!recommended || !entry || !stop) return undefined;
 
-    const balance = marketType === "SPOT"
-      ? Number(data?.spotUsdtBalance ?? 0)
-      : 0;
+    const balance = accountBalanceUsdt;
 
     if (!(balance > 0)) return undefined;
 
@@ -4712,7 +4734,7 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
     });
 
     return () => { active = false; };
-  }, [recommended?.symbol, entry, stop, marketType, data?.spotUsdtBalance]);
+  }, [recommended?.symbol, entry, stop, marketType, accountBalanceUsdt]);
 
   const technicalSource =
     data?.candidates?.find(
