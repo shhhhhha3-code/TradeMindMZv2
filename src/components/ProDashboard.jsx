@@ -961,6 +961,7 @@ export default function ProDashboard({ onSelectTrade = null }) {
                     <div><small>VALUE</small><strong>{formatUsdt(holding.currentValueUsdt)}</strong></div>
                     <div><small>ENTRY</small><strong>{holding.entryPrice ? formatPrice(holding.entryPrice) : "—"}</strong></div>
                     <div><small>AI CONF</small><strong>{holding.monitor?.confidence != null ? holding.monitor.confidence + "%" : "—"}</strong></div>
+                    <div><small>P/L</small><strong>{holding.unrealizedPercent != null ? formatPct(holding.unrealizedPercent) : "—"}</strong></div>
                   </div>
                 </article>
               ))}
