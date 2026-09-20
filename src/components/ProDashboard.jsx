@@ -189,6 +189,8 @@ export default function ProDashboard({ onSelectTrade = null }) {
       candidates: normalizePionexCandidates(rawCandidates),
       aiDecision: result?.aiDecision || null,
       finalDecision: result?.finalDecision || "NO_TRADE",
+      tradeQuality: result?.tradeQuality || null,
+      tradeExplanation: result?.tradeExplanation || result?.aiDecision?.tradeExplanation || null,
     });
   }, []);
 
@@ -767,6 +769,58 @@ export default function ProDashboard({ onSelectTrade = null }) {
             </div>
 
           </div>
+
+
+          {data?.finalDecision === "TRADE" && data?.tradeExplanation ? (
+            <div
+              className="tmz-decision-box"
+              style={{
+                marginTop: "10px",
+                alignItems: "flex-start",
+              }}
+            >
+              <div className="tmz-decision-icon">✓</div>
+              <div style={{width:"100%"}}>
+                <strong>WHY {data.tradeExplanation.side || "TRADE"}</strong>
+                <p style={{marginTop:"6px"}}>
+                  {data.tradeExplanation.decisionSummary}
+                </p>
+
+                <div style={{
+                  display:"grid",
+                  gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",
+                  gap:"12px",
+                  marginTop:"12px"
+                }}>
+                  <div>
+                    <small style={{display:"block",opacity:.45,marginBottom:"6px"}}>
+                      SUPPORTING FACTORS
+                    </small>
+                    {(data.tradeExplanation.supportingFactors || []).map((item,index)=>(
+                      <div key={index} style={{fontSize:"12px",lineHeight:"1.5",marginBottom:"5px"}}>
+                        <span style={{color:"#bfff00",marginRight:"6px"}}>✓</span>{item}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div>
+                    <small style={{display:"block",opacity:.45,marginBottom:"6px"}}>
+                      WHAT WOULD INVALIDATE IT
+                    </small>
+                    {(data.tradeExplanation.invalidationFactors || []).map((item,index)=>(
+                      <div key={index} style={{fontSize:"12px",lineHeight:"1.5",marginBottom:"5px"}}>
+                        <span style={{color:"#ff7777",marginRight:"6px"}}>•</span>{item}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <small style={{display:"block",marginTop:"8px",opacity:.45}}>
+                  {data.tradeExplanation.tradeQualitySummary || ""}
+                </small>
+              </div>
+            </div>
+          ) : null}
 
           <div className="tmz-ai-stats">
             <div>
