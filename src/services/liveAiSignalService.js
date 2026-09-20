@@ -186,7 +186,16 @@ export async function fetchLiveAiSignal(
       recommendation.summary,
 
     scannedAt:
-      new Date().toISOString()
+      scanner?.updatedAt ||
+      new Date().toISOString(),
+
+    updatedAt:
+      scanner?.updatedAt ||
+      new Date().toISOString(),
+
+    persistedAt:
+      scanner?.persistedAt ||
+      null
   };
 }
 
