@@ -1011,7 +1011,46 @@ function evaluateCandidate(candidate, { marketType = "PERP" } = {}) {
   return { passed: checks.every((x)=>x.passed), checks, failedChecks: checks.filter((x)=>!x.passed), criteria, costs:{feeRate,slippageRate,roundTripCostRate,grossTargetRate,netTargetRate,minimumNetEdgeRate} };
 }
 
-async function handle(req) {
+async 
+function calculateRiskSizing(body = {}) {
+  const balance = Number(body?.balanceUsdt);
+  const entry = Number(body?.entryPrice);
+  const stop = Number(body?.stopLoss);
+  const riskPercent = Math.max(0.1, Math.min(5, Number(body?.riskPercent) || 1));
+  const maxAllocationPercent = Math.max(1, Math.min(100, Number(body?.maxAllocationPercent) || 10));
+  const marketType = String(body?.marketType || "PERP").toUpperCase() === "SPOT" ? "SPOT" : "PERP";
+  if (![balance, entry, stop].every(Number.isFinite) || balance <= 0 || entry <= 0 || stop <= 0 || entry === stop) {
+    throw new Error("balanceUsdt, entryPrice and stopLoss are required.");
+  }
+  const stopDistancePct = Math.abs(entry - stop) / entry;
+  const maxLoss = balance * (riskPercent / 100);
+  const riskBasedNotional = stopDistancePct > 0 ? maxLoss / stopDistancePct : 0;
+  const allocationCap = balance * (maxAllocationPercent / 100);
+  const suggestedNotional = Math.min(riskBasedNotional, allocationCap);
+  const quantity = suggestedNotional / entry;
+  const feeRate = marketType === "SPOT"
+    ? Number(Deno.env.get("PIONEX_SPOT_FEE_RATE") || 0.001)
+    : Number(Deno.env.get("PIONEX_FUTURES_TAKER_FEE_RATE") || 0.0005);
+  return {
+    success: true,
+    marketType,
+    balanceUsdt: balance,
+    riskPercent,
+    maxAllocationPercent,
+    maxLossUsdt: maxLoss,
+    stopDistancePct: stopDistancePct * 100,
+    riskBasedNotionalUsdt: riskBasedNotional,
+    allocationCapUsdt: allocationCap,
+    suggestedNotionalUsdt: suggestedNotional,
+    suggestedQuantity: quantity,
+    estimatedEntryFeeUsdt: suggestedNotional * feeRate,
+    feeRate,
+    readOnly: true,
+    automaticTrading: false,
+  };
+}
+
+function handle(req) {
   const url = new URL(req.url);
   const path = url.pathname.replace(/^\/functions\/v1\/trademind-api/, "").replace(/^\/trademind-api/, "") || "/";
   const method = req.method.toUpperCase();
@@ -1261,6 +1300,15 @@ async function handle(req) {
   if (path === "/api/pionex/wallet-balances" && method === "GET") {
     try { const wallet=await getWalletBalancesFull(); return wallet?.result ? response({success:true,source:"pionex",data:wallet.data,updatedAt:new Date().toISOString()}) : response({success:false,source:"pionex",data:null,error:wallet?.message||"Pionex wallet request failed.",code:wallet?.code||"PIONEX_WALLET_ERROR",data:wallet||null},502); }
     catch(error){ return response({success:false,source:"pionex",data:null,error:error?.message||"Pionex wallet request failed."},502); }
+  }
+
+
+  if (path === "/api/ai/risk-size" && method === "POST") {
+    try {
+      return response(calculateRiskSizing(body));
+    } catch (error) {
+      return response({ success:false, readOnly:true, automaticTrading:false, error:error?.message||"Risk sizing failed." },400);
+    }
   }
 
   if (path === "/api/ai/trade-criteria" && method === "GET") {
