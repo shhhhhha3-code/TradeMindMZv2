@@ -136,6 +136,13 @@ export async function fetchLiveAiSignal(
 
     tradeQuality:
       snapshot?.tradeQuality || null,
+
+    whyNoTrade:
+      snapshot?.whyNoTrade || null,
+
+    marketRegime:
+      snapshot?.marketRegime || null,
+
     tradeExplanation:
       ai?.tradeExplanation || null,
     recommendation: {
