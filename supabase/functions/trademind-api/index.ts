@@ -1578,6 +1578,15 @@ function handle(req) {
     try { return response(await getSignalHistory(supabaseAdmin(), url.searchParams.get("limit"))); } catch(error){ return response({success:false,history:[],count:0,error:error?.message||"Signal history failed."},500); }
   }
 
+
+  if (path === "/api/positions/register-manual" && method === "POST") {
+    try {
+      return response(await registerManualTradeJournal(supabaseAdmin(), body));
+    } catch (error) {
+      return response({ success:false, readOnly:true, error:error?.message||"Manual trade journal registration failed." },400);
+    }
+  }
+
   if (path === "/api/positions" && method === "GET") {
     try {
       const supabase=supabaseAdmin();
