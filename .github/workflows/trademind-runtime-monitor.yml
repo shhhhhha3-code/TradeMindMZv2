@@ -1,0 +1,30 @@
+name: TradeMindMZ Runtime Monitor
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "*/10 * * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: codex-android-capacitor
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Check live TradeMindMZ backend
+        env:
+          API_BASE_URL: https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api
+        run: node monitoring/trademind-health-check.mjs
