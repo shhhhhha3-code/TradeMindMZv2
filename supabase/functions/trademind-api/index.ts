@@ -735,7 +735,7 @@ async function analyzeSpotHoldingWithAI(supabase, holding, market) {
   if (Deno.env.get("OPENAI_API_KEY")) available.push("openai");
   if (!available.length) throw new Error("No AI provider is configured.");
 
-  const systemPrompt = "You are the TradeMindMZ Spot exit-monitoring analyst. Analyze only the supplied Spot holding and market data. Do not place orders. Spot holdings are long-only. Return JSON only: {\\"recommendation\\":\\"HOLD|EXIT_CONSIDERATION|REDUCE_RISK\\",\\"confidence\\":0,\\"reasoning\\":\\"brief reason\\",\\"action\\":\\"brief practical guidance\\",\\"holdTimeMinMinutes\\":0,\\"holdTimeMaxMinutes\\":0,\\"holdTimeReason\\":\\"brief estimate\\"}. Never invent an entry price or P&L.";
+  const systemPrompt = 'You are the TradeMindMZ Spot exit-monitoring analyst. Analyze only the supplied Spot holding and market data. Do not place orders. Spot holdings are long-only. Return JSON only: {"recommendation":"HOLD|EXIT_CONSIDERATION|REDUCE_RISK","confidence":0,"reasoning":"brief reason","action":"brief practical guidance","holdTimeMinMinutes":0,"holdTimeMaxMinutes":0,"holdTimeReason":"brief estimate"}. Never invent an entry price or P&L.';
   const userPrompt = "SPOT HOLDING:\\n" + JSON.stringify(holding) + "\\n\\nMARKET:\\n" + JSON.stringify(market);
 
   const errors = [];
