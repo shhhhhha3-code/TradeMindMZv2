@@ -204,13 +204,13 @@ function normalizeTradeCriteria(input = {}) {
     : globalThis.__tradeMindCriteria || {};
   const n = (v, d) => Number.isFinite(Number(v)) ? Number(v) : d;
   return {
-    minimumScore: Math.round(Math.max(0, Math.min(100, n(input.minimumScore,75)))),
-    minimumConfidence: Math.round(Math.max(0, Math.min(100, n(input.minimumConfidence,80)))),
-    minimumRiskReward: Number(Math.max(.1, Math.min(20, n(input.minimumRiskReward,2))).toFixed(2)),
-    minimumRsi: Number(Math.max(0, Math.min(100, n(input.minimumRsi,35))).toFixed(2)),
-    maximumRsi: Number(Math.max(0, Math.min(100, n(input.maximumRsi,70))).toFixed(2)),
-    minimumVolumeRatio: Number(Math.max(0, Math.min(20, n(input.minimumVolumeRatio,.8))).toFixed(2)),
-    highRisk: { minimumScore: Math.round(Math.max(0, Math.min(100, n(input.highRisk?.minimumScore,85)))), minimumConfidence: Math.round(Math.max(0, Math.min(100, n(input.highRisk?.minimumConfidence,90)))) },
+    minimumScore: Math.round(Math.max(0, Math.min(100, n(source.minimumScore,75)))),
+    minimumConfidence: Math.round(Math.max(0, Math.min(100, n(source.minimumConfidence,80)))),
+    minimumRiskReward: Number(Math.max(.1, Math.min(20, n(source.minimumRiskReward,2))).toFixed(2)),
+    minimumRsi: Number(Math.max(0, Math.min(100, n(source.minimumRsi,35))).toFixed(2)),
+    maximumRsi: Number(Math.max(0, Math.min(100, n(source.maximumRsi,70))).toFixed(2)),
+    minimumVolumeRatio: Number(Math.max(0, Math.min(20, n(source.minimumVolumeRatio,.8))).toFixed(2)),
+    highRisk: { minimumScore: Math.round(Math.max(0, Math.min(100, n(source.highRisk?.minimumScore,85)))), minimumConfidence: Math.round(Math.max(0, Math.min(100, n(source.highRisk?.minimumConfidence,90)))) },
   };
 }
 
