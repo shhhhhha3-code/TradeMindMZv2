@@ -1071,6 +1071,31 @@ async function getServerPositionMonitoring(supabase) {
     .map((row) => Number(row.ai_confidence_at_entry))
     .filter(Number.isFinite);
 
+  const winners = closedPnl.filter((value) => value > 0);
+  const losers = closedPnl.filter((value) => value < 0);
+  const grossProfit = winners.reduce((sum, value) => sum + value, 0);
+  const grossLossAbs = Math.abs(losers.reduce((sum, value) => sum + value, 0));
+  const profitFactor = grossLossAbs > 0 ? grossProfit / grossLossAbs : null;
+  const confidenceBuckets = [
+    { label:"90-100", min:90, max:100 },
+    { label:"80-89", min:80, max:89.999 },
+    { label:"70-79", min:70, max:79.999 },
+    { label:"<70", min:-Infinity, max:69.999 },
+  ].map(bucket => {
+    const rows = (journal || []).filter(row => {
+      const confidence = Number(row.ai_confidence_at_entry);
+      return Number.isFinite(confidence) && confidence >= bucket.min && confidence <= bucket.max && row.status === "CLOSED";
+    });
+    const pnl = rows.map(row => Number(row.realized_pnl)).filter(Number.isFinite);
+    const wins = pnl.filter(value => value > 0).length;
+    return {
+      label: bucket.label,
+      closed: pnl.length,
+      winRate: pnl.length ? Math.round((wins / pnl.length) * 1000) / 10 : null,
+      netPnl: pnl.reduce((sum,value) => sum + value, 0),
+    };
+  });
+
   return {
     success: true,
     serverSide: true,
@@ -1094,6 +1119,12 @@ async function getServerPositionMonitoring(supabase) {
       averageAiConfidenceAtEntry: entryConfidence.length
         ? Math.round((entryConfidence.reduce((sum, value) => sum + value, 0) / entryConfidence.length) * 10) / 10
         : null,
+      grossProfit,
+      grossLoss: -grossLossAbs,
+      profitFactor,
+      averageWinner: winners.length ? grossProfit / winners.length : null,
+      averageLoser: losers.length ? (-grossLossAbs) / losers.length : null,
+      confidenceBuckets,
     },
   };
 }
