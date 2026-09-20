@@ -10,7 +10,7 @@ import {
 } from "./liveAiSignalService.js";
 
 const DEFAULT_REFRESH_INTERVAL =
-  60000;
+  7 * 60 * 1000;
 
 export function useLiveAiSignal(
   options = {}
