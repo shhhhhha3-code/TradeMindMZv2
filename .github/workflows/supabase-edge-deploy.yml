@@ -47,3 +47,41 @@ jobs:
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
             --data-binary @/tmp/trademind-migration.json
+
+      - name: Smoke test live AI pipeline and persistence
+        run: |
+          curl --fail-with-body -sS \
+            "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/live-scan?force=1&interval=15M&marketType=PERP&leverage=2&maxMarkets=25" \
+            -o /tmp/trademind-live.json
+          python - <<'PY'
+          import json
+          with open("/tmp/trademind-live.json", "r", encoding="utf-8") as f:
+              data = json.load(f)
+          if not data.get("success"):
+              raise SystemExit("Live AI smoke test failed: " + str(data))
+          if not data.get("candidates"):
+              raise SystemExit("Live AI smoke test returned no Engine TOP 5 candidates")
+          if data.get("persistenceError"):
+              raise SystemExit("Live AI snapshot persistence failed: " + str(data["persistenceError"]))
+          print("Live AI OK:", len(data["candidates"]), "TOP 5 candidates")
+          print("AI decision:", data.get("aiDecision", {}).get("decision"))
+          print("Provider:", data.get("aiDecision", {}).get("provider"))
+          print("Next analysis:", data.get("nextAnalysisAt"))
+          PY
+
+      - name: Verify persisted latest snapshot
+        run: |
+          curl --fail-with-body -sS \
+            "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/latest?interval=15M&marketType=PERP&leverage=2" \
+            -o /tmp/trademind-latest.json
+          python - <<'PY'
+          import json
+          with open("/tmp/trademind-latest.json", "r", encoding="utf-8") as f:
+              data = json.load(f)
+          if not data.get("success") or not data.get("available"):
+              raise SystemExit("Latest snapshot verification failed: " + str(data))
+          snapshot = data.get("snapshot") or {}
+          if not snapshot.get("candidates"):
+              raise SystemExit("Latest snapshot has no candidates")
+          print("Persisted snapshot OK:", snapshot.get("persistedAt"))
+          PY
