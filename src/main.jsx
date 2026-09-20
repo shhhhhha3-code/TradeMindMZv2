@@ -4629,21 +4629,38 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
     }).format(number);
   };
 
-  const handlePurchase = () => {
-    if (!recommended || !direction) return;
+  const handlePurchase = async () => {
+    if (!recommended || !direction || refreshing) return;
+
+    const fresh = await refresh(true);
+    const freshRecommendation = fresh?.recommended || null;
+
+    const freshDirectionRaw =
+      String(freshRecommendation?.direction || "").toUpperCase();
+
+    const freshDirection =
+      freshDirectionRaw === "BUY" || freshDirectionRaw === "LONG"
+        ? "BUY"
+        : freshDirectionRaw === "SELL" || freshDirectionRaw === "SHORT"
+          ? "SELL"
+          : "";
+
+    if (!freshRecommendation || !freshDirection) {
+      return;
+    }
 
     setPurchaseDefaults({
-      symbol: symbolRaw.replace("_",""),
-      side: direction,
-      entryPrice: entry,
-      stopLoss: stop,
-      takeProfit: tp,
+      symbol: String(freshRecommendation.symbol || "").replace("_",""),
+      side: freshDirection,
+      entryPrice: Number(freshRecommendation.entry) || 0,
+      stopLoss: Number(freshRecommendation.stopLoss) || 0,
+      takeProfit: Number(freshRecommendation.takeProfit) || 0,
       holdTimeMinMinutes:
-        Number(recommended?.holdTimeMinMinutes) || 0,
+        Number(freshRecommendation.holdTimeMinMinutes) || 0,
       holdTimeMaxMinutes:
-        Number(recommended?.holdTimeMaxMinutes) || 0,
+        Number(freshRecommendation.holdTimeMaxMinutes) || 0,
       holdTimeReason:
-        recommended?.holdTimeReason || ""
+        freshRecommendation.holdTimeReason || ""
     });
 
     setManualPurchaseOpen(true);
