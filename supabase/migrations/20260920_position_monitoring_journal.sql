@@ -40,3 +40,14 @@ revoke all on public.trade_journal from anon, authenticated, public;
 -- The Edge Function uses the Supabase secret/service key, so the table
 -- remains inaccessible directly from the mobile client.
 notify pgrst, 'reload schema';
+
+alter table public.position_ai_analysis
+  add column if not exists risk_level text,
+  add column if not exists action text,
+  add column if not exists hold_time_min_minutes integer,
+  add column if not exists hold_time_max_minutes integer,
+  add column if not exists hold_time_reason text;
+
+create index if not exists idx_position_ai_analysis_symbol_direction_created
+  on public.position_ai_analysis(symbol, direction, created_at desc);
+
