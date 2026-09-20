@@ -847,19 +847,207 @@ async function handle(req) {
   }
 
   if (path === "/api/diagnostics" && method === "GET") {
-    const supabaseOk=Boolean(Deno.env.get("SUPABASE_URL") && secretKey());
-    const pionexOk=Boolean(Deno.env.get("PIONEX_API_KEY") && Deno.env.get("PIONEX_API_SECRET"));
-    const groqOk=Boolean(Deno.env.get("GROQ_API_KEY"));
+    const startedAt = Date.now();
+    const supabaseOk = Boolean(
+      Deno.env.get("SUPABASE_URL") &&
+      secretKey()
+    );
+    const pionexConfigured = Boolean(
+      Deno.env.get("PIONEX_API_KEY") &&
+      Deno.env.get("PIONEX_API_SECRET")
+    );
+    const groqOk = Boolean(
+      Deno.env.get("GROQ_API_KEY")
+    );
+
+    let latestSnapshot = null;
+    let snapshotError = null;
+
+    if (supabaseOk) {
+      try {
+        latestSnapshot =
+          await getLatestLiveAiSnapshot(
+            supabaseAdmin(),
+            {
+              marketType: "PERP",
+              interval: "15M",
+              leverage: 2,
+            }
+          );
+      } catch (error) {
+        snapshotError =
+          error?.message ||
+          String(error);
+      }
+    }
+
+    const persistedAt =
+      latestSnapshot?.snapshot?.persistedAt || null;
+
+    const snapshotAgeMs =
+      persistedAt
+        ? Math.max(
+            0,
+            Date.now() -
+              new Date(persistedAt).getTime()
+          )
+        : null;
+
+    const snapshotFresh =
+      Boolean(
+        latestSnapshot?.available &&
+        Number.isFinite(snapshotAgeMs) &&
+        snapshotAgeMs <=
+          15 * 60 * 1000
+      );
+
+    const marketAiStatus =
+      snapshotFresh
+        ? "OK"
+        : latestSnapshot?.available
+          ? "STALE"
+          : "ERROR";
+
+    const diagnosticsOk =
+      supabaseOk &&
+      pionexConfigured &&
+      groqOk &&
+      snapshotFresh;
+
     return response({
-      success:supabaseOk&&pionexOk&&groqOk,
-      status:supabaseOk&&pionexOk&&groqOk?"DIAGNOSTICS_OK":"DIAGNOSTICS_WARNING",
-      timestamp:new Date().toISOString(),
-      totalDurationMs:0,
-      checks:[
-        {name:"Backend",status:"OK",httpStatus:200,details:{service:"Supabase Edge Function"},error:null},
-        {name:"Supabase",status:supabaseOk?"OK":"ERROR",httpStatus:supabaseOk?200:500,details:{configured:supabaseOk},error:supabaseOk?null:"Supabase server credentials are not configured."},
-        {name:"Pionex",status:pionexOk?"OK":"ERROR",httpStatus:pionexOk?200:500,details:{configured:pionexOk,readOnly:true},error:pionexOk?null:"Pionex credentials are not configured."},
-        {name:"Groq AI",status:groqOk?"CONFIGURED":"ERROR",httpStatus:groqOk?200:500,details:{configured:groqOk,activeProvider:"groq",probe:false},error:groqOk?null:"GROQ_API_KEY is not configured."},
+      success: diagnosticsOk,
+      status:
+        diagnosticsOk
+          ? "DIAGNOSTICS_OK"
+          : "DIAGNOSTICS_WARNING",
+      timestamp: new Date().toISOString(),
+      totalDurationMs:
+        Date.now() - startedAt,
+      checks: [
+        {
+          name: "Backend",
+          status: "OK",
+          httpStatus: 200,
+          details: {
+            service: "Supabase Edge Function",
+          },
+          error: null,
+        },
+        {
+          name: "Supabase",
+          status:
+            supabaseOk
+              ? "OK"
+              : "ERROR",
+          httpStatus:
+            supabaseOk
+              ? 200
+              : 500,
+          details: {
+            configured:
+              supabaseOk,
+          },
+          error:
+            supabaseOk
+              ? null
+              : "Supabase server credentials are not configured.",
+        },
+        {
+          name: "Pionex",
+          status:
+            pionexConfigured
+              ? snapshotFresh
+                ? "OK"
+                : "STALE"
+              : "ERROR",
+          httpStatus:
+            pionexConfigured
+              ? 200
+              : 500,
+          details: {
+            configured:
+              pionexConfigured,
+            readOnly: true,
+            marketSnapshotFresh:
+              snapshotFresh,
+          },
+          error:
+            pionexConfigured
+              ? snapshotFresh
+                ? null
+                : "Pionex credentials are configured, but the latest server market snapshot is stale or unavailable."
+              : "Pionex credentials are not configured.",
+        },
+        {
+          name: "Market AI",
+          status: marketAiStatus,
+          httpStatus:
+            marketAiStatus === "ERROR"
+              ? 500
+              : 200,
+          details: {
+            available:
+              Boolean(
+                latestSnapshot?.available
+              ),
+            scanned:
+              Number(
+                latestSnapshot?.snapshot?.scanned ||
+                0
+              ),
+            candidates:
+              Array.isArray(
+                latestSnapshot?.snapshot?.candidates
+              )
+                ? latestSnapshot.snapshot.candidates.length
+                : 0,
+            finalDecision:
+              latestSnapshot?.snapshot?.finalDecision ||
+              "NO_TRADE",
+            provider:
+              latestSnapshot?.snapshot?.aiDecision?.provider ||
+              null,
+            updatedAt:
+              latestSnapshot?.snapshot?.updatedAt ||
+              persistedAt,
+            snapshotAgeSeconds:
+              snapshotAgeMs !== null
+                ? Math.round(
+                    snapshotAgeMs / 1000
+                  )
+                : null,
+            cadenceMinutes: 7,
+          },
+          error:
+            snapshotError ||
+            (
+              snapshotFresh
+                ? null
+                : "No fresh persisted server AI snapshot is available."
+            ),
+        },
+        {
+          name: "Groq AI",
+          status:
+            groqOk
+              ? "CONFIGURED"
+              : "ERROR",
+          httpStatus:
+            groqOk
+              ? 200
+              : 500,
+          details: {
+            configured:
+              groqOk,
+            activeProvider:
+              "groq",
+            probe: false,
+          },
+          error:
+            groqOk
+              ? null
+              : "GROQ_API_KEY is not configured.",
+        },
       ],
     });
   }
