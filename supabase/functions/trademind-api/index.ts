@@ -854,12 +854,29 @@ async function runServerSpotMonitoring(supabase) {
     }
   }
 
-  const { data: openRows } = await supabase.from("trade_journal").select("position_key,last_price,entry_price,quantity,market_type,status").eq("market_type","SPOT").eq("status","OPEN").limit(100);
+  const { data: openRows } = await supabase.from("trade_journal").select("position_key,last_price,entry_price,quantity,market_type,status,fee_rate,estimated_slippage_rate").eq("market_type","SPOT").eq("status","OPEN").limit(100);
   for (const row of openRows || []) {
     if (currentKeys.has(row.position_key)) continue;
+    const exitPrice = Number(row.last_price);
+    const entryPrice = Number(row.entry_price);
+    const quantity = Number(row.quantity);
+    const grossPnl = Number.isFinite(exitPrice) && Number.isFinite(entryPrice) && Number.isFinite(quantity)
+      ? (exitPrice - entryPrice) * quantity
+      : null;
+    const feeRate = Number.isFinite(Number(row.fee_rate)) ? Number(row.fee_rate) : 0.001;
+    const slippageRate = Number.isFinite(Number(row.estimated_slippage_rate)) ? Number(row.estimated_slippage_rate) : 0.0005;
+    const entryNotional = Number.isFinite(entryPrice) && Number.isFinite(quantity) ? entryPrice * quantity : null;
+    const exitNotional = Number.isFinite(exitPrice) && Number.isFinite(quantity) ? exitPrice * quantity : null;
+    const estimatedCosts = Number.isFinite(entryNotional) && Number.isFinite(exitNotional)
+      ? (entryNotional + exitNotional) * feeRate + (entryNotional + exitNotional) * slippageRate
+      : null;
+    const netPnl = Number.isFinite(grossPnl) && Number.isFinite(estimatedCosts) ? grossPnl - estimatedCosts : grossPnl;
     await supabase.from("trade_journal").update({
       status:"CLOSED",
-      exit_price:Number.isFinite(Number(row.last_price)) ? Number(row.last_price) : null,
+      exit_price:Number.isFinite(exitPrice) ? exitPrice : null,
+      gross_pnl:Number.isFinite(grossPnl) ? grossPnl : null,
+      net_pnl:Number.isFinite(netPnl) ? netPnl : null,
+      realized_pnl:Number.isFinite(netPnl) ? netPnl : null,
       closed_at:new Date().toISOString(),
       close_reason:"Spot balance no longer returned by Pionex account endpoint.",
       updated_at:new Date().toISOString(),
