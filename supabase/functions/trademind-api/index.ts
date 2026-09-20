@@ -492,6 +492,282 @@ ${JSON.stringify(market, null, 2)}`,
   };
 }
 
+function normalizedPositionKey(position) {
+  const rawId = position?.id ? String(position.id).trim() : "";
+  const symbol = String(position?.symbol || "").trim().toUpperCase();
+  const side = String(position?.side || position?.direction || "").trim().toUpperCase();
+  return rawId && rawId.startsWith("pionex-") === false
+    ? `PIONEX:${rawId}`
+    : `PIONEX:${symbol}:${side}`;
+}
+
+function positionDirection(position) {
+  const raw = String(position?.direction || position?.side || "").toUpperCase();
+  if (raw === "LONG" || raw === "BUY") return "BUY";
+  if (raw === "SHORT" || raw === "SELL") return "SELL";
+  return raw;
+}
+
+function calculatePositionPnlPercent(position) {
+  const entry = Number(position?.entryPrice);
+  const current = Number(position?.currentPrice ?? position?.markPrice);
+  if (!Number.isFinite(entry) || entry <= 0 || !Number.isFinite(current)) return null;
+  const side = String(position?.side || position?.direction || "").toUpperCase();
+  return side === "SHORT"
+    ? ((entry - current) / entry) * 100
+    : ((current - entry) / entry) * 100;
+}
+
+async function upsertTradeJournalForPosition(supabase, position, analysis = null) {
+  const key = normalizedPositionKey(position);
+  const direction = positionDirection(position);
+  if (!key || !position?.symbol || !["BUY", "SELL"].includes(direction)) return null;
+
+  const row = {
+    position_key: key,
+    symbol: String(position.symbol).trim().toUpperCase(),
+    side: direction === "SELL" ? "SHORT" : "LONG",
+    entry_price: Number.isFinite(Number(position.entryPrice)) ? Number(position.entryPrice) : null,
+    quantity: Number.isFinite(Number(position.quantity)) ? Number(position.quantity) : null,
+    stop_loss: Number.isFinite(Number(position.stopLoss)) ? Number(position.stopLoss) : null,
+    take_profit: Number.isFinite(Number(position.takeProfit)) ? Number(position.takeProfit) : null,
+    ai_confidence_at_entry: analysis?.confidence != null
+      ? Number(analysis.confidence)
+      : null,
+    ai_hold_time_min_minutes: analysis?.holdTimeMinMinutes != null
+      ? Number(analysis.holdTimeMinMinutes)
+      : null,
+    ai_hold_time_max_minutes: analysis?.holdTimeMaxMinutes != null
+      ? Number(analysis.holdTimeMaxMinutes)
+      : null,
+    ai_hold_time_reason: analysis?.holdTimeReason || null,
+    last_price: Number.isFinite(Number(position.currentPrice ?? position.markPrice))
+      ? Number(position.currentPrice ?? position.markPrice)
+      : null,
+    last_pnl: Number.isFinite(Number(position.unrealizedPnl))
+      ? Number(position.unrealizedPnl)
+      : null,
+    last_pnl_percent: calculatePositionPnlPercent(position),
+    status: "OPEN",
+    source: String(position.source || "PIONEX_READ_ONLY"),
+    updated_at: new Date().toISOString(),
+  };
+
+  const { data, error } = await supabase
+    .from("trade_journal")
+    .upsert(row, { onConflict: "position_key" })
+    .select("*")
+    .single();
+
+  if (error) {
+    console.error("Trade journal upsert failed:", error);
+    return null;
+  }
+
+  return data;
+}
+
+async function runServerPositionMonitoring(supabase, { marketSnapshot = null } = {}) {
+  const raw = await getOpenPositions();
+  const positions = normalizePositions(raw);
+  const currentKeys = new Set();
+
+  const candidates =
+    Array.isArray(marketSnapshot?.snapshot?.candidates)
+      ? marketSnapshot.snapshot.candidates
+      : Array.isArray(marketSnapshot?.candidates)
+        ? marketSnapshot.candidates
+        : [];
+
+  const monitored = [];
+  const maxPositions = Math.min(5, positions.length);
+
+  for (const position of positions.slice(0, maxPositions)) {
+    const key = normalizedPositionKey(position);
+    currentKeys.add(key);
+
+    const market = candidates.find((candidate) =>
+      String(candidate?.symbol || "").toUpperCase() ===
+      String(position?.symbol || "").toUpperCase()
+    ) || {};
+
+    try {
+      const result = await analyzePosition(supabase, {
+        position,
+        market,
+        preferredProvider: "groq",
+      });
+
+      const analysis = result?.analysis || null;
+      const journal = await upsertTradeJournalForPosition(
+        supabase,
+        position,
+        analysis
+      );
+
+      monitored.push({
+        key,
+        symbol: position.symbol,
+        direction: positionDirection(position),
+        analysis,
+        provider: result?.provider || null,
+        journalId: journal?.position_key || null,
+        analyzedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Server position monitoring failed:", error);
+      const journal = await upsertTradeJournalForPosition(
+        supabase,
+        position,
+        null
+      );
+      monitored.push({
+        key,
+        symbol: position.symbol,
+        direction: positionDirection(position),
+        analysis: null,
+        provider: null,
+        journalId: journal?.position_key || null,
+        error: error?.message || String(error),
+      });
+    }
+  }
+
+  // Only close journal entries after a successful Pionex position request.
+  // An API failure throws above, so a temporary outage cannot mark trades closed.
+  const { data: openJournalRows, error: openJournalError } = await supabase
+    .from("trade_journal")
+    .select("*")
+    .eq("status", "OPEN")
+    .limit(100);
+
+  if (!openJournalError) {
+    for (const row of openJournalRows || []) {
+      if (currentKeys.has(row.position_key)) continue;
+
+      const exitPrice = Number(row.last_price);
+      const entry = Number(row.entry_price);
+      const quantity = Number(row.quantity);
+      const side = String(row.side || "").toUpperCase();
+      const realizedPnl = Number.isFinite(exitPrice) && Number.isFinite(entry) && Number.isFinite(quantity)
+        ? (side === "SHORT" ? (entry - exitPrice) : (exitPrice - entry)) * quantity
+        : null;
+
+      await supabase
+        .from("trade_journal")
+        .update({
+          status: "CLOSED",
+          exit_price: Number.isFinite(exitPrice) ? exitPrice : null,
+          realized_pnl: Number.isFinite(realizedPnl) ? realizedPnl : null,
+          closed_at: new Date().toISOString(),
+          close_reason: "Position no longer returned by Pionex open-position endpoint; exit price is last observed mark.",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("position_key", row.position_key)
+        .eq("status", "OPEN");
+    }
+  }
+
+  return {
+    success: true,
+    monitoredCount: monitored.length,
+    positions: monitored,
+    checkedAt: new Date().toISOString(),
+    readOnly: true,
+  };
+}
+
+async function getServerPositionMonitoring(supabase) {
+  const raw = await getOpenPositions();
+  const positions = normalizePositions(raw);
+
+  const { data: analyses, error: analysisError } = await supabase
+    .from("position_ai_analysis")
+    .select("id,symbol,direction,recommendation,risk_level,confidence,reasoning,action,hold_time_min_minutes,hold_time_max_minutes,hold_time_reason,provider,created_at")
+    .order("created_at", { ascending: false })
+    .limit(200);
+
+  if (analysisError) throw new Error(`Position monitoring analysis query failed: ${analysisError.message}`);
+
+  const latestByKey = new Map();
+  const previousByKey = new Map();
+
+  for (const row of analyses || []) {
+    const key = `${String(row.symbol || "").toUpperCase()}:${String(row.direction || "").toUpperCase()}`;
+    if (!latestByKey.has(key)) {
+      latestByKey.set(key, row);
+    } else if (!previousByKey.has(key)) {
+      previousByKey.set(key, row);
+    }
+  }
+
+  const enriched = positions.map((position) => {
+    const key = `${String(position.symbol || "").toUpperCase()}:${positionDirection(position)}`;
+    const current = latestByKey.get(key) || null;
+    const previous = previousByKey.get(key) || null;
+    const confidence = current?.confidence != null ? Number(current.confidence) : null;
+    const previousConfidence = previous?.confidence != null ? Number(previous.confidence) : null;
+    const confidenceDelta =
+      Number.isFinite(confidence) && Number.isFinite(previousConfidence)
+        ? confidence - previousConfidence
+        : null;
+
+    const recommendation = String(current?.recommendation || "WATCH").toUpperCase();
+    const riskLevel = String(current?.risk_level || "MEDIUM").toUpperCase();
+    const exitWarning =
+      recommendation === "EXIT_CONSIDERATION" ||
+      recommendation === "REDUCE_RISK" ||
+      riskLevel === "CRITICAL" ||
+      riskLevel === "HIGH" ||
+      (Number.isFinite(confidenceDelta) && confidenceDelta <= -10);
+
+    return {
+      ...position,
+      monitor: {
+        recommendation,
+        riskLevel,
+        confidence,
+        confidenceDelta,
+        reasoning: current?.reasoning || null,
+        action: current?.action || null,
+        holdTimeMinMinutes: current?.hold_time_min_minutes != null ? Number(current.hold_time_min_minutes) : 0,
+        holdTimeMaxMinutes: current?.hold_time_max_minutes != null ? Number(current.hold_time_max_minutes) : 0,
+        holdTimeReason: current?.hold_time_reason || null,
+        provider: current?.provider || null,
+        analyzedAt: current?.created_at || null,
+        exitWarning,
+      },
+    };
+  });
+
+  const { data: journal, error: journalError } = await supabase
+    .from("trade_journal")
+    .select("*")
+    .order("updated_at", { ascending: false })
+    .limit(100);
+
+  if (journalError) throw new Error(`Trade journal query failed: ${journalError.message}`);
+
+  const closed = (journal || []).filter((row) => row.status === "CLOSED");
+  const closedPnl = closed.map((row) => Number(row.realized_pnl)).filter(Number.isFinite);
+
+  return {
+    success: true,
+    serverSide: true,
+    readOnly: true,
+    updatedAt: new Date().toISOString(),
+    positions: enriched,
+    journal: journal || [],
+    journalStats: {
+      total: (journal || []).length,
+      open: (journal || []).filter((row) => row.status === "OPEN").length,
+      closed: closed.length,
+      closedPnl: closedPnl.reduce((sum, value) => sum + value, 0),
+      closedCountWithPnl: closedPnl.length,
+    },
+  };
+}
+
 async function getLearningStats(supabase) {
   const { data, error } = await supabase.from("position_ai_analysis").select("recommendation,confidence,provider,created_at");
   if (error) throw new Error(`Learning stats query failed: ${error.message}`);
@@ -734,12 +1010,27 @@ async function handle(req) {
         }, 500);
       }
 
+      let positionMonitoring = null;
+      try {
+        positionMonitoring = await runServerPositionMonitoring(admin, {
+          marketSnapshot: payload,
+        });
+      } catch (positionError) {
+        console.error("Scheduled position monitoring failed:", positionError);
+        positionMonitoring = {
+          success: false,
+          error: positionError?.message || String(positionError),
+          readOnly: true,
+        };
+      }
+
       return response({
         success: true,
         status: "SCHEDULED_AI_SCAN_COMPLETE",
         serverSide: true,
         cadenceMinutes: 7,
         snapshot: payload,
+        positionMonitoring,
       });
     } catch (error) {
       const rateLimited =
@@ -820,6 +1111,21 @@ async function handle(req) {
       const r=await fetch("https://api.groq.com/openai/v1/chat/completions",{method:"POST",headers:{"Content-Type":"application/json",Authorization:`Bearer ${key}`},body:JSON.stringify({model:Deno.env.get("GROQ_MODEL")||"llama-3.3-70b-versatile",temperature:.1,response_format:{type:"json_object"},messages:[{role:"system",content:"You are TradeMindMZ market analyst. Do not invent data. Return JSON only."},{role:"user",content:marketPrompt}]})});
       const t=await r.text(); if(!r.ok) throw new Error(`Groq request failed: ${r.status} ${t.slice(0,300)}`); return response({success:true,status:"AI_ANALYZED",provider:"groq",providers:["groq"],signal:JSON.parse(JSON.parse(t).choices?.[0]?.message?.content||"{}"),error:null});
     }catch(error){return response({success:false,status:"AI_FAILED",signal:null,error:error?.message||"AI analysis failed."},500);}
+  }
+
+  if (path === "/api/ai/position-monitoring" && method === "GET") {
+    try {
+      return response(await getServerPositionMonitoring(supabaseAdmin()));
+    } catch (error) {
+      return response({
+        success: false,
+        serverSide: true,
+        positions: [],
+        journal: [],
+        journalStats: { total: 0, open: 0, closed: 0, closedPnl: 0, closedCountWithPnl: 0 },
+        error: error?.message || "Server position monitoring unavailable.",
+      }, 502);
+    }
   }
 
   if ((path === "/api/ai/position-analyze" || path === "/api/positions/analyze") && method === "POST") {
