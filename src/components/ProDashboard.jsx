@@ -902,6 +902,28 @@ export default function ProDashboard({ onSelectTrade = null }) {
 
       </div>
 
+      {data?.finalDecision === "NO_TRADE" && data?.whyNoTrade ? (
+        <section className="panel" style={{marginBottom:"18px"}}>
+          <div className="settinghead">
+            <div>
+              <h3>WHY NO TRADE</h3>
+              <p>{data.whyNoTrade.summary}</p>
+            </div>
+            <span className="status"><i/>NO TRADE</span>
+          </div>
+          {Array.isArray(data.whyNoTrade.failedChecks) && data.whyNoTrade.failedChecks.length ? (
+            <div className="costgrid" style={{marginTop:"12px"}}>
+              {data.whyNoTrade.failedChecks.map(check => (
+                <span key={check.key}>
+                  <b style={{color:"#ff6b6b"}}>FAIL</b>
+                  <small>{check.label}: {String(check.actual ?? "—")} / {String(check.target ?? "—")}</small>
+                </span>
+              ))}
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
       {marketType === "SPOT" ? (
         <section className="tmz-section" style={{marginBottom:"22px"}}>
           <div className="tmz-section-heading">
