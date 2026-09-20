@@ -1327,14 +1327,6 @@ function handle(req) {
         },
       });
     } catch (error) {
-      try {
-        const admin = supabaseAdmin();
-        await admin.from("trademind_scheduler_runs").update({
-          status:"ERROR",
-          finished_at:new Date().toISOString(),
-          error:error?.message || String(error),
-        }).is("finished_at", null).eq("status","RUNNING");
-      } catch {}
       const rateLimited = error?.status === 429 || error?.code === "PIONEX_RATE_LIMITED";
       return response({ success:false, scanned:0, candidates:[], status:rateLimited?"PIONEX_RATE_LIMITED":"PIONEX_MARKET_ERROR", retryable:true, error:error?.message||"Pionex market scan failed." }, rateLimited?429:502);
     }
@@ -1419,14 +1411,9 @@ function handle(req) {
     path === "/api/ai/scheduled-scan" &&
     method === "POST"
   ) {
+    let schedulerRunId = null;
     try {
       const admin = supabaseAdmin();
-      const schedulerStartedAt = new Date().toISOString();
-      const { data: schedulerRun } = await admin
-        .from("trademind_scheduler_runs")
-        .insert({ status:"RUNNING", started_at:schedulerStartedAt })
-        .select("id")
-        .single();
 
       if (
         !(await authorizeSchedulerRequest(
@@ -1439,6 +1426,14 @@ function handle(req) {
           error: "Unauthorized scheduler request.",
         }, 401);
       }
+
+      const schedulerStartedAt = new Date().toISOString();
+      const { data: schedulerRun } = await admin
+        .from("trademind_scheduler_runs")
+        .insert({ status:"RUNNING", started_at:schedulerStartedAt })
+        .select("id")
+        .single();
+      schedulerRunId = schedulerRun?.id || null;
 
       const payload = await runLiveAiAnalysis({
         interval: "15M",
@@ -1493,7 +1488,7 @@ function handle(req) {
         };
       }
 
-      if (schedulerRun?.id) {
+      if (schedulerRunId) {
         await admin.from("trademind_scheduler_runs").update({
           status:"SUCCESS",
           finished_at:new Date().toISOString(),
@@ -1501,7 +1496,7 @@ function handle(req) {
           spot_snapshot_at:spotSnapshot?.persistedAt || spotSnapshot?.updatedAt || null,
           position_monitoring_count:Number(positionMonitoring?.monitoredCount || 0),
           spot_monitoring_count:Number(spotMonitoring?.monitoredCount || 0),
-        }).eq("id",schedulerRun.id);
+        }).eq("id",schedulerRunId);
       }
 
       return response({
@@ -1515,6 +1510,17 @@ function handle(req) {
         positionMonitoring,
       });
     } catch (error) {
+      try {
+        if (schedulerRunId) {
+          const admin = supabaseAdmin();
+          await admin.from("trademind_scheduler_runs").update({
+            status:"ERROR",
+            finished_at:new Date().toISOString(),
+            error:error?.message || String(error),
+          }).eq("id",schedulerRunId);
+        }
+      } catch {}
+
       const rateLimited =
         error?.status === 429 ||
         error?.code === "PIONEX_RATE_LIMITED";
