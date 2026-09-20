@@ -49,6 +49,7 @@ function getLiveAiCacheKey(url) {
     url.searchParams.get("maxMarkets") || "25",
     url.searchParams.get("leverage") || "2",
     url.searchParams.get("provider") || "groq",
+    url.searchParams.get("marketType") || "PERP",
   ].join(":");
 }
 
@@ -102,6 +103,7 @@ async function runLiveAiAnalysis({
     maxMarkets,
     leverage,
     provider,
+    String(marketType || "PERP").toUpperCase(),
   ].join(":");
 
   const now = Date.now();
@@ -142,7 +144,8 @@ async function runLiveAiAnalysis({
 
       const aiDecision = await runDecision(
         result.engineTop5,
-        provider
+        provider,
+        { marketType }
       );
 
       const selectedCandidate = result.engineTop5.find(
@@ -152,7 +155,7 @@ async function runLiveAiAnalysis({
       ) || null;
 
       const tradeQuality = selectedCandidate
-        ? evaluateCandidate(selectedCandidate)
+        ? evaluateCandidate(selectedCandidate, { marketType })
         : null;
 
       const finalDecision =
@@ -162,12 +165,30 @@ async function runLiveAiAnalysis({
           ? "TRADE"
           : "NO_TRADE";
 
+      const whyNoTrade = finalDecision === "TRADE"
+        ? null
+        : {
+            summary: aiDecision?.reason || "No actionable setup passed the final filters.",
+            aiReasons: Array.isArray(aiDecision?.engineReasons) ? aiDecision.engineReasons : [],
+            failedChecks: Array.isArray(tradeQuality?.failedChecks)
+              ? tradeQuality.failedChecks.map((check) => ({
+                  key: check.key,
+                  label: check.label,
+                  actual: check.actual,
+                  target: check.target,
+                  operator: check.operator,
+                }))
+              : [],
+            marketType,
+          };
+
       const createdAt = Date.now();
 
       const payload = {
         ...result,
         aiDecision,
         tradeQuality,
+        whyNoTrade,
         finalDecision,
         decisionPipeline: {
           marketSource:
@@ -182,8 +203,10 @@ async function runLiveAiAnalysis({
           automaticTrading: false,
           readOnly: true,
           persistedServerSide: true,
-          riskFilter: "ENGINE SCORE + AI CONFIDENCE + R/R + RSI + VOLUME",
-          actionableOnlyWhen: "AI TRADE AND RISK FILTER PASS",
+          riskFilter: "ENGINE SCORE + AI CONFIDENCE + R/R + RSI + VOLUME + NET EDGE",
+          actionableOnlyWhen: marketType === "SPOT"
+            ? "AI TRADE + BUY ONLY + RISK FILTER PASS"
+            : "AI TRADE AND RISK FILTER PASS",
         },
       };
 
@@ -890,26 +913,37 @@ function normalizeTradeCriteria(input = {}) {
   };
 }
 
-function evaluateCandidate(candidate) {
+function evaluateCandidate(candidate, { marketType = "PERP" } = {}) {
   const criteria = normalizeTradeCriteria();
-  const score = Number(candidate?.score);
+  const score = Number(candidate?.score ?? candidate?.engineScore);
   const confidence = Number(candidate?.confidence);
   const rr = Number(candidate?.riskReward);
-  const rsi = Number(candidate?.rsi);
-  const volume = Number(candidate?.volumeRatio);
+  const rsi = Number(candidate?.rsi ?? candidate?.indicators?.rsi14);
+  const volume = Number(candidate?.volumeRatio ?? candidate?.indicators?.volumeRatio);
   const entry = Number(candidate?.entry), sl = Number(candidate?.stopLoss), tp = Number(candidate?.takeProfit);
   const direction = String(candidate?.direction || "").toUpperCase();
   const risk = String(candidate?.riskLevel || candidate?.risk?.level || "UNKNOWN").toUpperCase();
+  const normalizedMarketType = String(marketType || "PERP").toUpperCase() === "SPOT" ? "SPOT" : "PERP";
+  const feeRate = normalizedMarketType === "SPOT"
+    ? Number(Deno.env.get("PIONEX_SPOT_FEE_RATE") || 0.001)
+    : Number(Deno.env.get("PIONEX_FUTURES_TAKER_FEE_RATE") || 0.0005);
+  const slippageRate = Number(Deno.env.get("TRADEMIND_ESTIMATED_SLIPPAGE_RATE") || 0.0005);
+  const roundTripCostRate = Math.max(0, feeRate * 2 + slippageRate * 2);
+  const grossTargetRate = Number.isFinite(entry) && entry > 0 && Number.isFinite(tp) ? Math.abs(tp - entry) / entry : NaN;
+  const netTargetRate = Number.isFinite(grossTargetRate) ? grossTargetRate - roundTripCostRate : NaN;
+  const minimumNetEdgeRate = Number(Deno.env.get("TRADEMIND_MIN_NET_EDGE_RATE") || 0.003);
   const checks = [
     { key:"score",label:"Score",actual:score,target:criteria.minimumScore,operator:">=",passed:Number.isFinite(score)&&score>=criteria.minimumScore },
     { key:"confidence",label:"Confidence",actual:confidence,target:criteria.minimumConfidence,operator:">=",passed:Number.isFinite(confidence)&&confidence>=criteria.minimumConfidence },
     { key:"riskReward",label:"Risk / Reward",actual:rr,target:criteria.minimumRiskReward,operator:">=",passed:Number.isFinite(rr)&&rr>=criteria.minimumRiskReward },
-    { key:"rsi",label:"RSI",actual:rsi,target:`${criteria.minimumRsi}–${criteria.maximumRsi}`,operator:"RANGE",passed:Number.isFinite(rsi)&&rsi>=criteria.minimumRsi&&rsi<=criteria.maximumRsi },
+    { key:"rsi",label:"RSI",actual:rsi,target:String(criteria.minimumRsi)+"–"+String(criteria.maximumRsi),operator:"RANGE",passed:Number.isFinite(rsi)&&rsi>=criteria.minimumRsi&&rsi<=criteria.maximumRsi },
     { key:"volumeRatio",label:"Volume ratio",actual:volume,target:criteria.minimumVolumeRatio,operator:">=",passed:Number.isFinite(volume)&&volume>=criteria.minimumVolumeRatio },
     { key:"tradeLevels",label:"Trade levels",actual:"",target:direction==="BUY"?"SL < Entry < TP":direction==="SELL"?"SL > Entry > TP":"Valid direction",operator:"STRUCTURE",passed:direction==="BUY"?sl<entry&&entry<tp:direction==="SELL"?sl>entry&&entry>tp:false },
-    { key:"highRisk",label:"HIGH risk protection",actual:risk==="HIGH"?`${score} / ${confidence}%`:"NOT REQUIRED",target:risk==="HIGH"?`${criteria.highRisk.minimumScore} / ${criteria.highRisk.minimumConfidence}%`:"Only enforced for HIGH risk",operator:risk==="HIGH"?">=":"INFO",passed:risk==="HIGH"?Number.isFinite(score)&&Number.isFinite(confidence)&&score>=criteria.highRisk.minimumScore&&confidence>=criteria.highRisk.minimumConfidence:true },
+    { key:"spotDirection",label:"Spot direction",actual:direction,target:"BUY",operator:"=",passed:normalizedMarketType==="PERP" || direction==="BUY" },
+    { key:"netEdge",label:"Net edge after costs",actual:Number.isFinite(netTargetRate)?(netTargetRate*100).toFixed(2)+"%":"—",target:">= "+(minimumNetEdgeRate*100).toFixed(2)+"%",operator:">=",passed:Number.isFinite(netTargetRate)&&netTargetRate>=minimumNetEdgeRate },
+    { key:"highRisk",label:"HIGH risk protection",actual:risk==="HIGH"?String(score)+" / "+String(confidence)+"%":"NOT REQUIRED",target:risk==="HIGH"?String(criteria.highRisk.minimumScore)+" / "+String(criteria.highRisk.minimumConfidence)+"%":"Only enforced for HIGH risk",operator:risk==="HIGH"?">=":"INFO",passed:risk==="HIGH"?Number.isFinite(score)&&Number.isFinite(confidence)&&score>=criteria.highRisk.minimumScore&&confidence>=criteria.highRisk.minimumConfidence:true },
   ];
-  return { passed: checks.every((x)=>x.passed), checks, failedChecks: checks.filter((x)=>!x.passed), criteria };
+  return { passed: checks.every((x)=>x.passed), checks, failedChecks: checks.filter((x)=>!x.passed), criteria, costs:{feeRate,slippageRate,roundTripCostRate,grossTargetRate,netTargetRate,minimumNetEdgeRate} };
 }
 
 async function handle(req) {
