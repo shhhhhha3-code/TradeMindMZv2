@@ -497,10 +497,10 @@ function scoreCandidate({
     },
 
     ticker,
-    marketType: normalizedMarketType,
-    contractType: normalizedMarketType === "PERP" ? "USDT-M PERPETUAL" : "SPOT",
-    leverage: normalizedMarketType === "PERP" ? Number(leverage) || 2 : 1,
-    marginAsset: normalizedMarketType === "PERP" ? "USDT" : null,
+    marketType,
+    contractType: marketType === "PERP" ? "USDT-M PERPETUAL" : "SPOT",
+    leverage: marketType === "PERP" ? Number(leverage) || 2 : 1,
+    marginAsset: marketType === "PERP" ? "USDT" : null,
 
     reasoning:
       direction === "BUY"
@@ -670,7 +670,7 @@ export async function scanPionexMarket({
           symbol: item.symbol,
           candles,
           ticker: item.ticker,
-          marketType: normalizedMarketType,
+          marketType,
           leverage,
         });
 
@@ -709,7 +709,7 @@ export async function scanPionexMarket({
     engineTop5:
       engineResult.top5,
 
-    marketType: normalizedMarketType,
+    marketType,
     contractType:
       normalizedMarketType === "PERP"
         ? "USDT-M PERPETUAL"
