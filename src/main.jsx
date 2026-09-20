@@ -3496,7 +3496,8 @@ function TradeJournalPanel() {
             <div><small>OPEN</small><b>{stats.open ?? 0}</b></div>
             <div><small>CLOSED</small><b>{stats.closed ?? 0}</b></div>
             <div><small>CLOSED P&L</small><b>{Number.isFinite(Number(stats.closedPnl)) ? Number(stats.closedPnl).toFixed(2) : "—"}</b></div>
-            <div><small>AI ENTRIES</small><b>{journal.filter(row => row.ai_confidence_at_entry != null).length}</b></div>
+            <div><small>POSITIVE / NEGATIVE</small><b>{stats.positiveCount ?? 0} / {stats.negativeCount ?? 0}</b></div>
+            <div><small>AI CONF. AVG</small><b>{stats.averageAiConfidenceAtEntry != null ? Number(stats.averageAiConfidenceAtEntry).toFixed(1) + "%" : "—"}</b></div>
           </div>
 
           {journal.length ? (
@@ -3525,7 +3526,7 @@ function TradeJournalPanel() {
           )}
 
           <small style={{display:"block",marginTop:"12px",opacity:.45}}>
-            Closed trades are inferred from the read-only Pionex open-position feed; the exit price is the last observed mark when Pionex no longer reports the position.
+            Server monitor runs independently of Android. Closed trades are inferred from the read-only Pionex open-position feed; the exit price is the last observed mark when Pionex no longer reports the position.
           </small>
         </>
       )}
