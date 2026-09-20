@@ -37,6 +37,7 @@ function sanitizeLimit(value, fallback = 50) {
 }
 
 const LIVE_AI_INTERVAL_MS = 7 * 60 * 1000;
+const liveAiInFlight = new Map();
 
 function getLiveAiCacheKey(url) {
   return [
@@ -291,45 +292,64 @@ async function handle(req) {
         });
       }
 
-      const result = await scanPionexMarket({
-        interval: url.searchParams.get("interval") || "15M",
-        candleLimit: Number(url.searchParams.get("limit") || 100),
-        maxMarkets: Number(url.searchParams.get("maxMarkets") || 25),
-        marketType: url.searchParams.get("marketType") || "PERP",
-        leverage: Number(url.searchParams.get("leverage") || 2),
-      });
+      let analysisPromise = liveAiInFlight.get(cacheKey);
 
-      const aiDecision = await runDecision(
-        result.engineTop5,
-        url.searchParams.get("provider") || "groq"
-      );
+      if (!analysisPromise) {
+        analysisPromise = (async () => {
+          const result = await scanPionexMarket({
+            interval: url.searchParams.get("interval") || "15M",
+            candleLimit: Number(url.searchParams.get("limit") || 100),
+            maxMarkets: Number(url.searchParams.get("maxMarkets") || 25),
+            marketType: url.searchParams.get("marketType") || "PERP",
+            leverage: Number(url.searchParams.get("leverage") || 2),
+          });
 
-      const payload = {
-        ...result,
-        aiDecision,
-        finalDecision: aiDecision?.success ? aiDecision.decision : "NO_TRADE",
-        decisionPipeline: {
-          marketSource: result.contractType || "PIONEX USDT-M PERPETUAL",
-          universe: result.scanned,
-          engine: "TradeMindMZ Engine V2",
-          ai: "TradeMindMZ AI Decision Layer V1",
-          aiInput: "ENGINE TOP 5 ONLY",
-          aiCadence: "7 MINUTES",
-          leverage: result.leverage || 2,
-          automaticTrading: false,
-          readOnly: true,
-        },
-      };
+          const aiDecision = await runDecision(
+            result.engineTop5,
+            url.searchParams.get("provider") || "groq"
+          );
 
-      globalThis.__tradeMindLiveAiCache = {
-        ...(globalThis.__tradeMindLiveAiCache || {}),
-        [cacheKey]: { createdAt: now, payload },
-      };
+          const payload = {
+            ...result,
+            aiDecision,
+            finalDecision: aiDecision?.success ? aiDecision.decision : "NO_TRADE",
+            decisionPipeline: {
+              marketSource: result.contractType || "PIONEX USDT-M PERPETUAL",
+              universe: result.scanned,
+              engine: "TradeMindMZ Engine V2",
+              ai: "TradeMindMZ AI Decision Layer V1",
+              aiInput: "ENGINE TOP 5 ONLY",
+              aiCadence: "7 MINUTES",
+              leverage: result.leverage || 2,
+              automaticTrading: false,
+              readOnly: true,
+            },
+          };
+
+          globalThis.__tradeMindLiveAiCache = {
+            ...(globalThis.__tradeMindLiveAiCache || {}),
+            [cacheKey]: { createdAt: Date.now(), payload },
+          };
+
+          return payload;
+        })();
+
+        liveAiInFlight.set(cacheKey, analysisPromise);
+        analysisPromise.finally(() => {
+          if (liveAiInFlight.get(cacheKey) === analysisPromise) {
+            liveAiInFlight.delete(cacheKey);
+          }
+        });
+      }
+
+      const payload = await analysisPromise;
+      const latestCache = globalThis.__tradeMindLiveAiCache?.[cacheKey];
+      const createdAt = latestCache?.createdAt || now;
 
       return response({
         ...payload,
-        cached: false,
-        nextAnalysisAt: new Date(now + LIVE_AI_INTERVAL_MS).toISOString(),
+        cached: Boolean(cached) && !force,
+        nextAnalysisAt: new Date(createdAt + LIVE_AI_INTERVAL_MS).toISOString(),
       });
     } catch (error) {
       const rateLimited = error?.status === 429 || error?.code === "PIONEX_RATE_LIMITED";
