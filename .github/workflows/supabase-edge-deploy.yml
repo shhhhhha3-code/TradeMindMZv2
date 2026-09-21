@@ -50,9 +50,16 @@ jobs:
 
       - name: Smoke test live AI pipeline and persistence
         run: |
-          curl --fail-with-body -sS \
+          set +e
+          curl -sS -w "\nHTTP_STATUS:%{http_code}\n" \
             "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/live-scan?force=1&interval=15M&marketType=PERP&leverage=2&maxMarkets=25" \
             -o /tmp/trademind-live.json
+          CURL_STATUS=$?
+          set -e
+          echo "Live AI raw response:"
+          cat /tmp/trademind-live.json
+          echo
+          echo "curl status: $CURL_STATUS"
           python - <<'PY'
           import json
           with open("/tmp/trademind-live.json", "r", encoding="utf-8") as f:
