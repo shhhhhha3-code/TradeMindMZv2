@@ -38,6 +38,7 @@ export default function ServerPerformancePanel() {
         <span><b>{stats.positiveRate != null ? stats.positiveRate + "%" : "—"}</b><small>WIN RATE</small></span>
         <span><b>{stats.profitFactor != null ? Number(stats.profitFactor).toFixed(2) : "—"}</b><small>PROFIT FACTOR</small></span>
         <span><b>{stats.closedPnl != null ? Number(stats.closedPnl).toFixed(2) : "—"}</b><small>NET PNL</small></span>
+        <span><b>{stats.averageAiConfidenceAtEntry != null ? Number(stats.averageAiConfidenceAtEntry).toFixed(1) + "%" : "—"}</b><small>AI CONF. AVG</small></span>
       </div>
 
       {Array.isArray(stats.confidenceBuckets) && stats.confidenceBuckets.length ? (
