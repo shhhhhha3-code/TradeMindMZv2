@@ -1159,7 +1159,7 @@ async function getServerPositionMonitoring(supabase) {
     };
   });
 
-  const { data: journal, error: journalError } = await supabase
+  const { data: journalRows, error: journalError } = await supabase
     .from("trade_journal")
     .select("*")
     .order("updated_at", { ascending: false })
@@ -1168,6 +1168,41 @@ async function getServerPositionMonitoring(supabase) {
   if (journalError) {
     console.error("Trade journal query failed:", journalError);
   }
+
+  const journal = await Promise.all((journalRows || []).map(async (row) => {
+    const rowEntry = Number(row?.entry_price);
+    const rowConfidence = Number(row?.ai_confidence_at_entry);
+    const direction = String(row?.side || "").toUpperCase() === "SHORT" ? "SELL" : "BUY";
+    const analysisMatch = (analyses || []).find((analysis) =>
+      String(analysis?.symbol || "").toUpperCase() === String(row?.symbol || "").toUpperCase() &&
+      String(analysis?.direction || "").toUpperCase() === direction &&
+      Number.isFinite(Number(analysis?.entry_price)) && Number(analysis.entry_price) > 0
+    );
+    const recoveredEntry = Number.isFinite(rowEntry) && rowEntry > 0
+      ? rowEntry
+      : Number.isFinite(Number(analysisMatch?.entry_price)) && Number(analysisMatch.entry_price) > 0
+        ? Number(analysisMatch.entry_price)
+        : null;
+    const recoveredConfidence = Number.isFinite(rowConfidence)
+      ? rowConfidence
+      : Number.isFinite(Number(analysisMatch?.confidence))
+        ? Number(analysisMatch.confidence)
+        : null;
+    const needsBackfill =
+      (recoveredEntry !== null && (!Number.isFinite(rowEntry) || rowEntry <= 0)) ||
+      (recoveredConfidence !== null && !Number.isFinite(rowConfidence));
+    if (needsBackfill) {
+      const patch = {};
+      if (recoveredEntry !== null && (!Number.isFinite(rowEntry) || rowEntry <= 0)) patch.entry_price = recoveredEntry;
+      if (recoveredConfidence !== null && !Number.isFinite(rowConfidence)) patch.ai_confidence_at_entry = recoveredConfidence;
+      if (Object.keys(patch).length) {
+        patch.updated_at = new Date().toISOString();
+        await supabase.from("trade_journal").update(patch).eq("position_key", row.position_key);
+        return { ...row, ...patch };
+      }
+    }
+    return row;
+  }));
 
   const closed = (journal || []).filter((row) => row.status === "CLOSED");
   const closedPnl = closed.map((row) => Number(row.realized_pnl)).filter(Number.isFinite);
