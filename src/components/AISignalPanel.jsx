@@ -119,7 +119,7 @@ export default function AISignalPanel({
             <div>
               <span>Score</span>
               <strong>
-                {signal.score ?? 0}/100
+                {signal.engineScore ?? signal.score ?? 0}/100
               </strong>
             </div>
 
@@ -133,10 +133,8 @@ export default function AISignalPanel({
             <div>
               <span>Risk / Reward</span>
               <strong>
-                {signal.riskReward
-                  ? `1:${Number(
-                      signal.riskReward
-                    ).toFixed(2)}`
+                {Number.isFinite(Number(signal.riskReward))
+                  ? `1:${Number(signal.riskReward).toFixed(2)}`
                   : "—"}
               </strong>
             </div>
