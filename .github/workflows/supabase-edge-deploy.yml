@@ -48,6 +48,23 @@ jobs:
             -H "Content-Type: application/json" \
             --data-binary @/tmp/trademind-migration.json
 
+      - name: Runtime sanity check
+        run: |
+          set +e
+          curl -sS -w "\nHTTP_STATUS:%{http_code}\n" \
+            "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/diagnostics" \
+            -o /tmp/trademind-diagnostics.json
+          echo "=== diagnostics ==="
+          cat /tmp/trademind-diagnostics.json
+          echo
+          curl -sS -w "\nHTTP_STATUS:%{http_code}\n" \
+            "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/latest?interval=15M&marketType=PERP&leverage=2" \
+            -o /tmp/trademind-latest-sanity.json
+          echo "=== ai/latest ==="
+          cat /tmp/trademind-latest-sanity.json
+          echo
+          set -e
+
       - name: Smoke test live AI pipeline and persistence
         run: |
           set +e
