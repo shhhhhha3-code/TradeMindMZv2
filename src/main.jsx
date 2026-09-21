@@ -689,6 +689,7 @@ function TopFiveCommandCenter() {
         }))
         .sort((a, b) => {
           const sa = Number(
+            a.engineScore ??
             a.score ??
             a.aiScore ??
             a.signalScore ??
@@ -696,6 +697,7 @@ function TopFiveCommandCenter() {
           );
 
           const sb = Number(
+            b.engineScore ??
             b.score ??
             b.aiScore ??
             b.signalScore ??
@@ -731,6 +733,7 @@ function TopFiveCommandCenter() {
 
   const candidateScore = (item) =>
     Number(
+      item.engineScore ??
       item.score ??
       item.aiScore ??
       item.signalScore ??
@@ -4684,9 +4687,11 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
         : "";
 
   const score =
-    Number.isFinite(Number(recommended?.score))
-      ? Number(recommended.score)
-      : 0;
+    Number.isFinite(Number(recommended?.engineScore))
+      ? Number(recommended.engineScore)
+      : Number.isFinite(Number(recommended?.score))
+        ? Number(recommended.score)
+        : 0;
 
   const confidence =
     Number.isFinite(Number(recommended?.aiConfidence))
