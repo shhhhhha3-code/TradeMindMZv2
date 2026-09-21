@@ -111,6 +111,42 @@ jobs:
             -o /tmp/trademind-edge-logs.json
           echo "=== Supabase Edge runtime logs ==="
           cat /tmp/trademind-edge-logs.json
+      - name: Verify SPOT, risk sizing, learning and monitoring APIs
+        run: |
+          set -e
+          curl --fail-with-body -sS \
+            "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/live-scan?force=1&interval=15M&marketType=SPOT&maxMarkets=25" \
+            -o /tmp/trademind-spot-live.json
+          curl --fail-with-body -sS \
+            "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/spot-monitoring" \
+            -o /tmp/trademind-spot-monitoring.json
+          curl --fail-with-body -sS \
+            "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/learning-stats" \
+            -o /tmp/trademind-learning.json
+          curl --fail-with-body -sS \
+            -X POST \
+            -H "Content-Type: application/json" \
+            -d '{"balanceUsdt":1000,"entryPrice":100,"stopLoss":98,"riskPercent":1,"maxAllocationPercent":25,"marketType":"SPOT"}' \
+            "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/risk-size" \
+            -o /tmp/trademind-risk.json
+          python - <<'PY'
+          import json
+          def load(path):
+              with open(path, encoding="utf-8") as f: return json.load(f)
+          spot=load('/tmp/trademind-spot-live.json')
+          monitor=load('/tmp/trademind-spot-monitoring.json')
+          learning=load('/tmp/trademind-learning.json')
+          risk=load('/tmp/trademind-risk.json')
+          if not spot.get('success') or not spot.get('candidates'): raise SystemExit('SPOT live AI verification failed: '+str(spot))
+          if spot.get('marketType') != 'SPOT': raise SystemExit('SPOT live AI returned wrong market type: '+str(spot))
+          if not monitor.get('success') or monitor.get('readOnly') is not True or monitor.get('serverSide') is not True: raise SystemExit('SPOT monitoring verification failed: '+str(monitor))
+          if not learning.get('success'): raise SystemExit('Learning stats verification failed: '+str(learning))
+          if not risk.get('success') or risk.get('readOnly') is not True or risk.get('automaticTrading') is not False: raise SystemExit('Risk sizing verification failed: '+str(risk))
+          print('SPOT live AI OK:', len(spot['candidates']), 'TOP 5 candidates')
+          print('SPOT monitoring OK:', len(monitor.get('holdings') or []), 'holdings')
+          print('Learning stats OK:', learning.get('totalAnalyses'))
+          print('Risk sizing OK:', risk.get('positionSizeUsdt'))
+          PY
       - name: Verify persisted latest snapshot
         run: |
           curl --fail-with-body -sS \
