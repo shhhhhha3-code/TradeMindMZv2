@@ -261,7 +261,7 @@ function LiveAiDashboardCard() {
                     Score
                   </div>
                   <div className="mt-1 text-lg font-semibold text-white">
-                    {recommendation.score ?? "—"}
+                    {recommendation.engineScore ?? recommendation.score ?? "—"}
                   </div>
                 </div>
 
@@ -5808,16 +5808,19 @@ function Positions(){
 
           const entry = Number(position.entryPrice);
           const current = Number(position.currentPrice ?? position.markPrice);
-          let pnlPercent = 0;
+          let pnlPercent = null;
 
-          if (Number.isFinite(entry) && Number.isFinite(current) && entry > 0) {
+          if (Number.isFinite(entry) && entry > 0 && Number.isFinite(current) && current > 0) {
             pnlPercent =
               String(position.side || "").toUpperCase() === "SHORT"
                 ? ((entry-current)/entry)*100
                 : ((current-entry)/entry)*100;
           }
 
-          const pnl = Number(position.unrealizedPnl);
+          const rawPnl = Number(position.unrealizedPnl);
+          const pnl = pnlPercent !== null && Number.isFinite(rawPnl)
+            ? rawPnl
+            : null;
           const key = String(
             position.trackedPositionId || position.id || position.symbol
           );
@@ -5863,10 +5866,10 @@ function Positions(){
                   ["ENTRY",formatPrice(entry)],
                   ["CURRENT",formatPrice(current)],
                   ["UNREALIZED PNL",formatPnl(pnl)],
-                  ["PNL %",`${pnlPercent >= 0 ? "+" : ""}${pnlPercent.toFixed(2)}%`]
+                  ["PNL %",pnlPercent !== null ? `${pnlPercent >= 0 ? "+" : ""}${pnlPercent.toFixed(2)}%` : "—"]
                 ].map((x,i) =>
                   <div
-                    className={i >= 2 && pnl < 0 ? "danger" : ""}
+                    className={i >= 2 && Number.isFinite(pnl) && pnl < 0 ? "danger" : ""}
                     key={x[0]}
                   >
                     <small>{x[0]}</small>
