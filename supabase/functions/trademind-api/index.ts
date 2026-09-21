@@ -401,8 +401,10 @@ function normalizePositions(payload) {
     const sideUpper = side ? String(side).toUpperCase() : null;
     const n = (v) => { const x = Number(v); return Number.isFinite(x) ? x : null; };
     const quantity = n(position?.quantity ?? position?.qty ?? position?.positionAmt ?? position?.size ?? position?.amount);
-    const entryPrice = n(position?.entryPrice ?? position?.entry_price ?? position?.avgEntryPrice ?? position?.openPrice ?? position?.averageEntryPrice);
-    const markPrice = n(position?.markPrice ?? position?.mark_price ?? position?.currentPrice ?? position?.lastPrice ?? position?.price);
+    const rawEntryPrice = n(position?.entryPrice ?? position?.entry_price ?? position?.avgEntryPrice ?? position?.openPrice ?? position?.averageEntryPrice);
+    const rawMarkPrice = n(position?.markPrice ?? position?.mark_price ?? position?.currentPrice ?? position?.lastPrice ?? position?.price);
+    const entryPrice = Number.isFinite(rawEntryPrice) && rawEntryPrice > 0 ? rawEntryPrice : null;
+    const markPrice = Number.isFinite(rawMarkPrice) && rawMarkPrice > 0 ? rawMarkPrice : null;
     const unrealizedPnl = n(position?.unrealizedPnl ?? position?.unrealizedPNL ?? position?.unrealized_profit ?? position?.pnl ?? position?.profit);
     return {
       id: position?.id ?? position?.positionId ?? `pionex-${index}-${symbol || "unknown"}`,
@@ -683,22 +685,48 @@ async function upsertTradeJournalForPosition(supabase, position, analysis = null
 
   const { data: existingJournal } = await supabase
     .from("trade_journal")
-    .select("position_key")
+    .select("*")
     .eq("position_key", key)
     .maybeSingle();
 
+  const currentEntryPrice = Number(position?.entryPrice);
+  const existingEntryPrice = Number(existingJournal?.entry_price);
+  const effectiveEntryPrice = Number.isFinite(currentEntryPrice) && currentEntryPrice > 0
+    ? currentEntryPrice
+    : Number.isFinite(existingEntryPrice) && existingEntryPrice > 0
+      ? existingEntryPrice
+      : null;
+  const currentQuantity = Number(position?.quantity);
+  const existingQuantity = Number(existingJournal?.quantity);
+  const effectiveQuantity = Number.isFinite(currentQuantity) && currentQuantity > 0
+    ? currentQuantity
+    : Number.isFinite(existingQuantity) && existingQuantity > 0
+      ? existingQuantity
+      : null;
+  const currentPrice = Number(position?.currentPrice ?? position?.markPrice);
+  const effectiveLastPrice = Number.isFinite(currentPrice) && currentPrice > 0
+    ? currentPrice
+    : Number(existingJournal?.last_price);
+  const effectiveLastPnl = Number.isFinite(currentPrice) && currentPrice > 0 && Number.isFinite(effectiveEntryPrice) && effectiveEntryPrice > 0
+    ? Number(position?.unrealizedPnl)
+    : null;
+  const effectiveLastPnlPercent = Number.isFinite(currentPrice) && currentPrice > 0 && Number.isFinite(effectiveEntryPrice) && effectiveEntryPrice > 0
+    ? calculatePositionPnlPercent({ ...position, entryPrice: effectiveEntryPrice, currentPrice })
+    : null;
   const row = {
     position_key: key,
     symbol: String(position.symbol).trim().toUpperCase(),
     side: direction === "SELL" ? "SHORT" : "LONG",
-    entry_price: Number.isFinite(Number(position.entryPrice)) ? Number(position.entryPrice) : null,
-    quantity: Number.isFinite(Number(position.quantity)) ? Number(position.quantity) : null,
+    entry_price: effectiveEntryPrice,
+    quantity: effectiveQuantity,
     stop_loss: Number.isFinite(Number(position.stopLoss)) ? Number(position.stopLoss) : null,
     take_profit: Number.isFinite(Number(position.takeProfit)) ? Number(position.takeProfit) : null,
     ai_confidence_at_entry:
-      existingJournal?.ai_confidence_at_entry != null
+      Number.isFinite(Number(existingJournal?.ai_confidence_at_entry))
         ? Number(existingJournal.ai_confidence_at_entry)
-        : (analysis?.confidence != null ? Number(analysis.confidence) : null),
+        : (analysis?.confidence != null && Number.isFinite(Number(analysis.confidence))
+          ? Number(analysis.confidence)
+          : null),
     ai_hold_time_min_minutes:
       existingJournal?.ai_hold_time_min_minutes != null
         ? Number(existingJournal.ai_hold_time_min_minutes)
@@ -709,13 +737,13 @@ async function upsertTradeJournalForPosition(supabase, position, analysis = null
         : (analysis?.holdTimeMaxMinutes != null ? Number(analysis.holdTimeMaxMinutes) : null),
     ai_hold_time_reason:
       existingJournal?.ai_hold_time_reason || analysis?.holdTimeReason || null,
-    last_price: Number.isFinite(Number(position.currentPrice ?? position.markPrice))
-      ? Number(position.currentPrice ?? position.markPrice)
+    last_price: Number.isFinite(effectiveLastPrice) && effectiveLastPrice > 0
+      ? effectiveLastPrice
       : null,
-    last_pnl: Number.isFinite(Number(position.unrealizedPnl))
-      ? Number(position.unrealizedPnl)
+    last_pnl: Number.isFinite(effectiveLastPnl)
+      ? effectiveLastPnl
       : null,
-    last_pnl_percent: calculatePositionPnlPercent(position),
+    last_pnl_percent: effectiveLastPnlPercent,
     status: "OPEN",
     source: String(position.source || "PIONEX_READ_ONLY"),
     updated_at: new Date().toISOString(),
