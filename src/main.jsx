@@ -4600,17 +4600,30 @@ function TradeCriteriaPanel() {
 
 function SettingsPage({settings,updateSetting}){const Row=({id,title,desc})=><div className="settingrow"><div><b>{title}</b><small>{desc}</small></div><button className={settings[id]?"toggle on":"toggle"} onClick={()=>updateSetting(id,!settings[id])}><i/>{settings[id]?"ON":"OFF"}</button></div>;return <div className="settingspage"><div className="settingshero"><div><label><Settings/> AI CONTROL CENTER</label><h1>Control your AI usage.</h1><p>Turn AI providers on or off to control analysis and API usage. These settings are saved on this device.</p></div></div><div className="panel settingspanel"><div className="settinghead"><div><h2>AI ENGINE</h2><p>Main controls for TradeMindMZ intelligence.</p></div><span className={settings.ai?"status on":"status"}><i/>{settings.ai?"AI ACTIVE":"AI DISABLED"}</span></div><Row id="ai" title="AI Analysis" desc="Master switch for AI analysis."/><Row id="openai" title="OpenAI" desc="Allow OpenAI to perform analysis."/><Row id="groq" title="Groq" desc="Allow Groq to perform analysis and fallback."/><Row id="learning" title="Historical Learning" desc="Continue evaluating historical market outcomes." /></div><div className="panel costpanel"><h3>AI COST CONTROL</h3><p>When AI Analysis is OFF, TradeMindMZ must not send AI analysis requests. Market data and historical collection can continue independently.</p><div className="costgrid"><span><b>{settings.ai?"ACTIVE":"OFF"}</b><small>AI Analysis</small></span><span><b>{settings.openai&&settings.ai?"ACTIVE":"OFF"}</b><small>OpenAI</small></span><span><b>{settings.groq&&settings.ai?"ACTIVE":"OFF"}</b><small>Groq</small></span><span><b>{settings.learning?"ACTIVE":"OFF"}</b><small>Learning</small></span></div></div><TradeCriteriaPanel /><DiagnosticsPanel /><div className="panel settingsnote"><ShieldCheck/><div><b>Safety rule</b><p>TradeMindMZ V2 will never place a Pionex order automatically. The user manually confirms purchases in Pionex.</p></div></div></div>}
 
-function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
 
+function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
   const [marketType, setMarketType] = useState("PERP");
   const [accountBalanceUsdt, setAccountBalanceUsdt] = useState(0);
   const [riskSizing, setRiskSizing] = useState(null);
   const [learningStats,setLearningStats] = useState(null);
   const [learningError,setLearningError] = useState("");
 
+  const {
+    data,
+    loading,
+    refreshing,
+    error,
+    refresh
+  } = useLiveAiSignal({
+    scanLimit: 100,
+    maxMarkets: 25,
+    preferredProvider: "groq",
+    marketType,
+    refreshInterval: 60000
+  });
+
   useEffect(() => {
     let active = true;
-
     fetch(apiUrl("/api/pionex/wallet-balances"), {
       headers: { Accept: "application/json" },
       cache: "no-store",
@@ -4627,111 +4640,155 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
         }
       })
       .catch(() => {});
-
     return () => { active = false; };
   }, [marketType]);
 
   useEffect(() => {
     let active = true;
-
     fetchLearningStats()
       .then(result => {
         if (!active) return;
-
         setLearningStats(result);
       })
       .catch(error => {
         if (!active) return;
-
         setLearningError(
           error instanceof Error
             ? error.message
             : "Learning statistics unavailable."
         );
       });
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
-
-  const {
-    data,
-    loading,
-    refreshing,
-    error,
-    refresh
-  } = useLiveAiSignal({
-    scanLimit: 100,
-    maxMarkets: 25,
-    preferredProvider: "groq",
-    marketType
-  });
 
   const recommended = data?.recommended || null;
 
   const symbolRaw = String(recommended?.symbol || "—");
   const displaySymbol = symbolRaw.includes("_")
-    ? symbolRaw.replace("_"," / ")
-    : symbolRaw.replace("USDT"," / USDT");
+    ? symbolRaw.replace("_", " / ")
+    : symbolRaw.replace("USDT", " / USDT");
 
   const directionRaw = String(
-    recommended?.direction || "NO_TRADE"
+    recommended?.direction || ""
   ).toUpperCase();
 
-  const direction =
-    directionRaw === "BUY" || directionRaw === "LONG"
-      ? "BUY"
-      : directionRaw === "SELL" || directionRaw === "SHORT"
-        ? "SELL"
-        : "";
+  const direction = marketType === "SPOT"
+    ? (
+        directionRaw === "BUY" || directionRaw === "LONG"
+          ? "BUY"
+          : directionRaw === "SELL" || directionRaw === "SHORT"
+            ? "SELL"
+            : ""
+      )
+    : (
+        directionRaw === "BUY" || directionRaw === "LONG"
+          ? "LONG"
+          : directionRaw === "SELL" || directionRaw === "SHORT"
+            ? "SHORT"
+            : ""
+      );
 
-  const score =
-    Number.isFinite(Number(recommended?.engineScore))
-      ? Number(recommended.engineScore)
-      : Number.isFinite(Number(recommended?.score))
-        ? Number(recommended.score)
-        : 0;
-
-  const confidence =
-    Number.isFinite(Number(recommended?.aiConfidence))
-      ? Number(recommended.aiConfidence)
-      : Number.isFinite(Number(recommended?.confidence))
-        ? Number(recommended.confidence)
-        : 0;
-
-  const entry =
-    Number.isFinite(Number(recommended?.entry))
-      ? Number(recommended.entry)
+  const score = Number.isFinite(Number(recommended?.engineScore))
+    ? Number(recommended.engineScore)
+    : Number.isFinite(Number(recommended?.score))
+      ? Number(recommended.score)
       : 0;
 
-  const stop =
-    Number.isFinite(Number(recommended?.stopLoss))
-      ? Number(recommended.stopLoss)
+  const confidence = Number.isFinite(Number(recommended?.aiConfidence))
+    ? Number(recommended.aiConfidence)
+    : Number.isFinite(Number(recommended?.confidence))
+      ? Number(recommended.confidence)
       : 0;
 
-  const tp =
-    Number.isFinite(Number(recommended?.takeProfit))
-      ? Number(recommended.takeProfit)
-      : 0;
+  const entry = Number.isFinite(Number(recommended?.entry))
+    ? Number(recommended.entry)
+    : 0;
 
-  const rr =
-    Number.isFinite(Number(recommended?.riskReward))
-      ? Number(recommended.riskReward)
-      : 0;
+  const stop = Number.isFinite(Number(recommended?.stopLoss))
+    ? Number(recommended.stopLoss)
+    : 0;
 
-  const risk = String(
-    recommended?.riskLevel || "—"
-  ).toUpperCase();
+  const tp = Number.isFinite(Number(recommended?.takeProfit))
+    ? Number(recommended.takeProfit)
+    : 0;
 
-  const marketRegime =
-    data?.marketRegime?.regime ||
-    "—";
+  const rr = Number.isFinite(Number(recommended?.riskReward))
+    ? Number(recommended.riskReward)
+    : 0;
 
+  const risk = String(recommended?.riskLevel || "—").toUpperCase();
+  const marketRegime = data?.marketRegime?.regime || "—";
   const reasoning =
     recommended?.reasoning ||
     data?.summary ||
     "Awaiting live Pionex market analysis.";
+
+  const verdict = String(data?.verdict || "NO_TRADE")
+    .replace("_", " ");
+
+  const comparison = Array.isArray(data?.comparison)
+    ? data.comparison
+    : [];
+
+  const candidates = Array.isArray(data?.candidates)
+    ? data.candidates
+    : Array.isArray(data?.engineTop5)
+      ? data.engineTop5
+      : [];
+
+  const earlyCandidates = candidates
+    .map((candidate, index) => {
+      const candidateScore = Number(
+        candidate?.engineScore ??
+        candidate?.score ??
+        candidate?.aiScore ??
+        0
+      );
+      const candidateConfidence = Number(
+        candidate?.aiConfidence ??
+        candidate?.confidence ??
+        0
+      );
+      const rawDirection = String(
+        candidate?.direction ??
+        candidate?.side ??
+        candidate?.trend ??
+        ""
+      ).toUpperCase();
+
+      const signal = marketType === "SPOT"
+        ? (
+            rawDirection === "BUY" || rawDirection === "LONG"
+              ? "BUY"
+              : rawDirection === "SELL" || rawDirection === "SHORT"
+                ? "SELL"
+                : "WATCH"
+          )
+        : (
+            rawDirection === "BUY" || rawDirection === "LONG"
+              ? "LONG"
+              : rawDirection === "SELL" || rawDirection === "SHORT"
+                ? "SHORT"
+                : "WATCH"
+          );
+
+      return {
+        ...candidate,
+        __index: index,
+        __score: Number.isFinite(candidateScore) ? candidateScore : 0,
+        __confidence: Number.isFinite(candidateConfidence) ? candidateConfidence : 0,
+        __signal: signal,
+      };
+    })
+    .filter(candidate => candidate.__score >= 70)
+    .sort((a,b) => b.__score - a.__score)
+    .slice(0,5);
+
+  const signalCriteria = data?.criteria || null;
+  const signalBestCandidate = signalCriteria?.bestCandidate || null;
+  const signalFailedChecks = Array.isArray(signalCriteria?.failedChecks)
+    ? signalCriteria.failedChecks
+    : [];
 
   useEffect(() => {
     let active = true;
@@ -4739,7 +4796,6 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
     if (!recommended || !entry || !stop) return undefined;
 
     const balance = accountBalanceUsdt;
-
     if (!(balance > 0)) return undefined;
 
     calculateRiskSizing({
@@ -4756,124 +4812,44 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
     return () => { active = false; };
   }, [recommended?.symbol, entry, stop, marketType, accountBalanceUsdt]);
 
-  const technicalSource =
-    data?.candidates?.find(
-      candidate =>
-        candidate?.symbol ===
-        recommended?.symbol
-    ) || {};
+  const technicalSource = data?.candidates?.find(
+    candidate => candidate?.symbol === recommended?.symbol
+  ) || {};
 
-  const ema9 =
-    Number(technicalSource?.ema9 ?? technicalSource?.indicators?.ema9);
-
-  const ema21 =
-    Number(technicalSource?.ema21 ?? technicalSource?.indicators?.ema21);
-
-  const rsi =
-    Number(technicalSource?.rsi ?? technicalSource?.indicators?.rsi14);
-
-  const macd =
-    Number(technicalSource?.macd ?? technicalSource?.indicators?.macd);
-
-  const atrPercent =
-    Number(
-      technicalSource?.atrPercent ??
-      technicalSource?.atrPct
-    );
-
-  const volumeRatio =
-    Number(
-      technicalSource?.volumeRatio ?? technicalSource?.indicators?.volumeRatio
-    );
-
-  const change24h =
-    Number(
-      technicalSource?.change24h ?? technicalSource?.indicators?.change24h
-    );
+  const ema9 = Number(technicalSource?.ema9 ?? technicalSource?.indicators?.ema9);
+  const ema21 = Number(technicalSource?.ema21 ?? technicalSource?.indicators?.ema21);
+  const rsi = Number(technicalSource?.rsi ?? technicalSource?.indicators?.rsi14);
+  const macd = Number(technicalSource?.macd ?? technicalSource?.indicators?.macd);
+  const atrPercent = Number(
+    technicalSource?.atrPercent ?? technicalSource?.atrPct
+  );
+  const volumeRatio = Number(
+    technicalSource?.volumeRatio ?? technicalSource?.indicators?.volumeRatio
+  );
+  const change24h = Number(
+    technicalSource?.change24h ?? technicalSource?.indicators?.change24h
+  );
 
   const technicalMetrics = [
     [
       "EMA trend",
-      Number.isFinite(ema9) &&
-      Number.isFinite(ema21)
-        ? ema9 > ema21
-          ? "Bullish"
-          : "Bearish"
+      Number.isFinite(ema9) && Number.isFinite(ema21)
+        ? ema9 > ema21 ? "Bullish" : "Bearish"
         : "—"
     ],
-    [
-      "RSI",
-      Number.isFinite(rsi)
-        ? rsi.toFixed(1)
-        : "—"
-    ],
-    [
-      "MACD",
-      Number.isFinite(macd)
-        ? macd.toFixed(4)
-        : "—"
-    ],
-    [
-      "ATR",
-      Number.isFinite(atrPercent)
-        ? `${atrPercent.toFixed(2)}%`
-        : "—"
-    ],
-    [
-      "Volume ratio",
-      Number.isFinite(volumeRatio)
-        ? volumeRatio.toFixed(2)
-        : "—"
-    ],
-    [
-      "24h change",
-      Number.isFinite(change24h)
-        ? `${change24h >= 0 ? "+" : ""}${change24h.toFixed(2)}%`
-        : "—"
-    ]
+    ["RSI", Number.isFinite(rsi) ? rsi.toFixed(1) : "—"],
+    ["MACD", Number.isFinite(macd) ? macd.toFixed(4) : "—"],
+    ["ATR", Number.isFinite(atrPercent) ? atrPercent.toFixed(2) + "%" : "—"],
+    ["Volume ratio", Number.isFinite(volumeRatio) ? volumeRatio.toFixed(2) : "—"],
+    ["24h change", Number.isFinite(change24h) ? (change24h >= 0 ? "+" : "") + change24h.toFixed(2) + "%" : "—"]
   ];
 
-  const verdict =
-    String(data?.verdict || "NO_TRADE")
-      .replace("_"," ");
-
-  const comparison = Array.isArray(data?.comparison)
-    ? data.comparison
-    : [];
-
-  const signalCriteria =
-    data?.criteria || null;
-
-  const signalBestCandidate =
-    signalCriteria?.bestCandidate || null;
-
-  const signalFailedChecks =
-    Array.isArray(
-      signalCriteria?.failedChecks
-    )
-      ? signalCriteria.failedChecks
-      : [];
-
-  const signalPassedChecks =
-    Array.isArray(
-      signalCriteria?.checks
-    )
-      ? signalCriteria.checks.filter(
-          check => check.passed
-        )
-      : [];
-
-
-  const formatPrice = value => {
+  const formatSignalPrice = value => {
     const number = Number(value);
-
-    if (!Number.isFinite(number) || number <= 0) {
-      return "—";
-    }
-
+    if (!Number.isFinite(number) || number <= 0) return "—";
     return new Intl.NumberFormat("en-US", {
       minimumFractionDigits: 2,
-      maximumFractionDigits: 2
+      maximumFractionDigits: 6
     }).format(number);
   };
 
@@ -4882,548 +4858,466 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
 
     const fresh = await refresh(true);
     const freshRecommendation = fresh?.recommended || null;
+    const freshDirectionRaw = String(
+      freshRecommendation?.direction || ""
+    ).toUpperCase();
 
-    const freshDirectionRaw =
-      String(freshRecommendation?.direction || "").toUpperCase();
+    const freshDirection = marketType === "SPOT"
+      ? (
+          freshDirectionRaw === "BUY" || freshDirectionRaw === "LONG"
+            ? "BUY"
+            : freshDirectionRaw === "SELL" || freshDirectionRaw === "SHORT"
+              ? "SELL"
+              : ""
+        )
+      : (
+          freshDirectionRaw === "BUY" || freshDirectionRaw === "LONG"
+            ? "LONG"
+            : freshDirectionRaw === "SELL" || freshDirectionRaw === "SHORT"
+              ? "SHORT"
+              : ""
+        );
 
-    const freshDirection =
-      freshDirectionRaw === "BUY" || freshDirectionRaw === "LONG"
-        ? "BUY"
-        : freshDirectionRaw === "SELL" || freshDirectionRaw === "SHORT"
-          ? "SELL"
-          : "";
-
-    if (!freshRecommendation || !freshDirection) {
-      return;
-    }
+    if (!freshRecommendation || !freshDirection) return;
 
     setPurchaseDefaults({
       symbol: String(freshRecommendation.symbol || "").replace("_",""),
-      side: freshDirection === "SELL" ? "SHORT" : "LONG",
+      side: freshDirection === "SHORT" || freshDirection === "SELL" ? "SHORT" : "LONG",
       entryPrice: Number(freshRecommendation.entry) || 0,
       stopLoss: Number(freshRecommendation.stopLoss) || 0,
       takeProfit: Number(freshRecommendation.takeProfit) || 0,
-      holdTimeMinMinutes:
-        Number(freshRecommendation.holdTimeMinMinutes) || 0,
-      holdTimeMaxMinutes:
-        Number(freshRecommendation.holdTimeMaxMinutes) || 0,
-      holdTimeReason:
-        freshRecommendation.holdTimeReason || ""
+      holdTimeMinMinutes: Number(freshRecommendation.holdTimeMinMinutes) || 0,
+      holdTimeMaxMinutes: Number(freshRecommendation.holdTimeMaxMinutes) || 0,
+      holdTimeReason: freshRecommendation.holdTimeReason || "",
+      marketType
     });
 
     setManualPurchaseOpen(true);
   };
 
-  return <>
-    <div className="hero">
-      <div>
-        <label><Zap/> BEST RECOMMENDED SIGNAL</label>
-        <h1>
-          {loading
-            ? "AI is scanning the live market."
-            : recommended
-              ? "AI has found the strongest setup."
-              : "No trade recommendation yet."}
-        </h1>
+  const tradeApproved = Boolean(
+    recommended &&
+    direction &&
+    String(data?.finalDecision || "").toUpperCase() === "TRADE"
+  );
 
-        <p>
-          {error
-            ? error
-            : `Pionex TOP 5 compared by ${data?.provider || "AI"}.
-               Analysis only. No automatic trading.`}
-        </p>
+  const headerText = loading
+    ? "AI is scanning the live market."
+    : tradeApproved
+      ? "AI has found a qualified setup."
+      : "No confirmed trade yet.";
+
+  return (
+    <>
+      <div className="hero">
+        <div>
+          <label><Zap/> AI SIGNALS</label>
+          <h1>{headerText}</h1>
+          <p>
+            Pionex market scan → early candidates → AI final decision.
+            Analysis only. No automatic trading.
+          </p>
+        </div>
+
+        <button
+          className="refresh"
+          onClick={() => refresh(true)}
+          disabled={loading || refreshing}
+        >
+          <RefreshCw className={refreshing ? "spin" : ""}/>
+          {refreshing ? " Scanning..." : " Refresh analysis"}
+        </button>
       </div>
 
-      <button
-        className="refresh"
-        onClick={refresh}
-        disabled={loading || refreshing}
+      <div
+        style={{
+          display:"grid",
+          gridTemplateColumns:"1fr 1fr",
+          gap:"6px",
+          padding:"5px",
+          marginBottom:"18px",
+          border:"1px solid rgba(255,255,255,.08)",
+          borderRadius:"12px",
+          background:"rgba(255,255,255,.025)"
+        }}
       >
-        <RefreshCw className={refreshing ? "spin" : ""}/>
-        {refreshing ? " Scanning..." : " Refresh analysis"}
-      </button>
-    </div>
+        {[
+          ["PERP","M-USDT / PERP"],
+          ["SPOT","SPOT"]
+        ].map(([value,label]) => (
+          <button
+            key={value}
+            type="button"
+            onClick={() => setMarketType(value)}
+            style={{
+              border: marketType === value
+                ? "1px solid rgba(54,224,161,.55)"
+                : "1px solid transparent",
+              background: marketType === value
+                ? "rgba(54,224,161,.12)"
+                : "transparent",
+              color: marketType === value ? "#fff" : "rgba(255,255,255,.5)",
+              borderRadius:"9px",
+              padding:"11px 12px",
+              fontWeight:700,
+              letterSpacing:".05em",
+              cursor:"pointer"
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-    <div className="grid">
-      <div className="panel main">
+      {error && (
+        <div className="panel" style={{padding:"16px",marginBottom:"18px"}}>
+          <strong>AI signal unavailable</strong>
+          <p style={{margin:"6px 0 0",opacity:.65}}>{error}</p>
+        </div>
+      )}
 
-        <div className="head">
-          <div className="pair">
-            <div className="coin">
-              {symbolRaw.startsWith("BTC") ? "₿" : symbolRaw.charAt(0) || "?"}
+      <div className="grid">
+        <div
+          className="panel main"
+          style={{
+            borderColor: tradeApproved
+              ? "rgba(53,224,161,.45)"
+              : "rgba(255,255,255,.09)"
+          }}
+        >
+          <div className="head">
+            <div className="pair">
+              <div className="coin">
+                {symbolRaw.startsWith("BTC") ? "₿" : symbolRaw.charAt(0) || "?"}
+              </div>
+              <div>
+                <b>{displaySymbol}</b>
+                <small>
+                  {marketType === "SPOT" ? "Pionex SPOT" : "Pionex USDT-M PERP"}
+                  {" → "}
+                  {String(data?.provider || "AI").toUpperCase()}
+                </small>
+              </div>
             </div>
 
-            <div>
-              <b>{displaySymbol}</b>
-              <small>
-                {loading
-                  ? "Scanning Pionex..."
-                  : `Pionex MARKET → ${String(data?.provider || "AI").toUpperCase()} AI`}
-              </small>
+            <span className={
+              direction === "SELL" || direction === "SHORT"
+                ? "short"
+                : "long"
+            }>
+              <TrendingUp/>
+              {tradeApproved ? direction : "NO TRADE"}
+            </span>
+          </div>
+
+          <div className="core">
+            <Ring score={score}/>
+            <div className="copy">
+              <div>
+                <small>AI CONFIDENCE</small>
+                <b>{confidence > 0 ? confidence + "%" : "—"}</b>
+              </div>
+              <div className="meter">
+                <i style={{width:Math.max(0,Math.min(100,confidence))+"%"}}/>
+              </div>
+              <p>{reasoning}</p>
             </div>
           </div>
 
-          <span className={direction === "SELL" ? "short" : "long"}>
-            <TrendingUp/>
-            {direction || "NO TRADE"}
-          </span>
-        </div>
-
-        <div className="core">
-          <Ring score={score}/>
-
-          <div className="copy">
-            <div>
-              <small>AI CONFIDENCE</small>
-              <b>{confidence}%</b>
-            </div>
-
-            <div className="meter">
-              <i style={{width:confidence+"%"}}/>
-            </div>
-
-            <p>
-              {reasoning}
-            </p>
+          <div className="levels">
+            {[
+              ["ENTRY", formatSignalPrice(entry)],
+              ["TAKE PROFIT", formatSignalPrice(tp)],
+              ["STOP LOSS", formatSignalPrice(stop)]
+            ].map((x,i)=>
+              <div className={i===2 ? "danger" : ""} key={x[0]}>
+                <small>{x[0]}</small>
+                <b>{x[1]}</b>
+              </div>
+            )}
           </div>
-        </div>
 
-        <div className="levels">
-          {[
-            ["ENTRY", formatPrice(entry)],
-            ["TAKE PROFIT", formatPrice(tp)],
-            ["STOP LOSS", formatPrice(stop)]
-          ].map((x,i)=>
-            <div className={i===2 ? "danger" : ""} key={x[0]}>
-              <small>{x[0]}</small>
-              <b>{x[1]}</b>
+          <div
+            style={{
+              marginTop:"14px",
+              padding:"14px",
+              borderRadius:"10px",
+              border: tradeApproved
+                ? "1px solid rgba(53,224,161,.2)"
+                : "1px solid rgba(255,107,107,.18)",
+              background: tradeApproved
+                ? "rgba(53,224,161,.045)"
+                : "rgba(255,107,107,.035)"
+            }}
+          >
+            <div style={{fontSize:"10px",letterSpacing:".14em",opacity:.45}}>
+              FINAL DECISION
             </div>
-          )}
+            <strong style={{
+              display:"block",
+              marginTop:"4px",
+              fontSize:"22px",
+              color: tradeApproved ? "#35e0a1" : "#ff7777"
+            }}>
+              {tradeApproved ? direction : "NO TRADE"}
+            </strong>
+            <span style={{display:"block",marginTop:"4px",fontSize:"12px",opacity:.62}}>
+              {tradeApproved
+                ? "AI approved this setup after the final trade checks."
+                : "Candidate data can be strong without becoming a confirmed trade."}
+            </span>
+          </div>
+
+          <div className="meta">
+            <span><Target/> R/R <b>{rr ? "1 : " + rr : "—"}</b></span>
+            <span><History/> AI verdict <b>{verdict}</b></span>
+            <span>Risk <b>{risk}</b></span>
+            <span>Regime <b>{marketRegime}</b></span>
+            {data?.tradeQuality?.costs ? (
+              <span>
+                Net edge <b>{Number(data.tradeQuality.costs.netTargetRate * 100).toFixed(2)}%</b>
+              </span>
+            ) : null}
+            {direction ? (
+              <span>
+                <History/> Hold time <b>
+                  {Number(recommended?.holdTimeMinMinutes) > 0
+                    ? recommended.holdTimeMinMinutes + "–" + recommended.holdTimeMaxMinutes + " min"
+                    : "—"}
+                </b>
+              </span>
+            ) : null}
+          </div>
+
+          {riskSizing ? (
+            <div className="meta" style={{marginTop:"10px"}}>
+              <span>Suggested size <b>{Number(riskSizing.suggestedNotionalUsdt).toFixed(2)} USDT</b></span>
+              <span>Max loss <b>{Number(riskSizing.maxLossUsdt).toFixed(2)} USDT</b></span>
+            </div>
+          ) : null}
+
+          <button
+            className={bought ? "buy done" : "buy"}
+            onClick={handlePurchase}
+            disabled={!tradeApproved || loading || refreshing}
+          >
+            {bought
+              ? <><ShieldCheck/> PURCHASE REGISTERED IN PIONEX</>
+              : <><Wallet/> I BOUGHT THIS IN PIONEX</>}
+          </button>
+
+          <small className="note">
+            Manual Pionex confirmation only. TradeMindMZ does not place orders.
+          </small>
         </div>
 
-        {direction && recommended?.tradeExplanation ? (
+        <div className="stack">
           <div
             className="panel"
             style={{
-              marginTop: "14px",
-              padding: "16px",
-              border: "1px solid rgba(191,255,0,.14)",
-              background: "rgba(191,255,0,.025)",
+              borderColor:"rgba(76,180,255,.18)"
             }}
           >
-            <strong style={{display:"block",fontSize:"13px",letterSpacing:".08em"}}>
-              WHY {direction}
-            </strong>
-            <p style={{margin:"8px 0 12px",lineHeight:"1.5",opacity:.72}}>
-              {recommended.tradeExplanation.decisionSummary}
-            </p>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(220px,1fr))",gap:"12px"}}>
+            <div className="settinghead" style={{alignItems:"flex-start"}}>
               <div>
-                <small style={{display:"block",opacity:.45,marginBottom:"6px"}}>SUPPORTING FACTORS</small>
-                {(recommended.tradeExplanation.supportingFactors || []).map((item,index)=>(
-                  <div key={index} style={{fontSize:"12px",lineHeight:"1.45",marginBottom:"5px"}}>
-                    <span style={{color:"#bfff00",marginRight:"6px"}}>✓</span>{item}
-                  </div>
-                ))}
+                <h3><Zap/> EARLY SIGNALS</h3>
+                <p>
+                  Earlier market candidates are shown before the final AI decision.
+                  This is a watchlist, not an automatic trade recommendation.
+                </p>
               </div>
-              <div>
-                <small style={{display:"block",opacity:.45,marginBottom:"6px"}}>INVALIDATION</small>
-                {(recommended.tradeExplanation.invalidationFactors || []).map((item,index)=>(
-                  <div key={index} style={{fontSize:"12px",lineHeight:"1.45",marginBottom:"5px"}}>
-                    <span style={{color:"#ff7777",marginRight:"6px"}}>•</span>{item}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="meta">
-          <span>
-            <Target/>
-            R/R <b>{rr ? `1 : ${rr}` : "—"}</b>
-          </span>
-
-          <span>
-            <History/>
-            AI verdict <b>{verdict}</b>
-          </span>
-
-          <span>
-            Risk <b>{risk}</b>
-          </span>
-          <span>
-            Regime <b>{marketRegime}</b>
-          </span>
-          {data?.tradeQuality?.costs ? (
-            <span>
-              Net edge <b>{Number(data.tradeQuality.costs.netTargetRate * 100).toFixed(2)}%</b>
-            </span>
-          ) : null}
-
-          {direction && (
-            <span>
-              <History/>
-              Hold time <b>
-                {Number(recommended?.holdTimeMinMinutes) > 0
-                  ? recommended.holdTimeMinMinutes + "–" + recommended.holdTimeMaxMinutes + " min"
-                  : "—"}
-              </b>
-            </span>
-          )}
-        </div>
-
-        {riskSizing ? (
-          <div className="meta" style={{marginTop:"10px"}}>
-            <span>Suggested size <b>{Number(riskSizing.suggestedNotionalUsdt).toFixed(2)} USDT</b></span>
-            <span>Max loss <b>{Number(riskSizing.maxLossUsdt).toFixed(2)} USDT</b></span>
-          </div>
-        ) : null}
-
-        <button
-          className={bought?"buy done":"buy"}
-          onClick={handlePurchase}
-          disabled={!recommended || !direction || loading}
-        >
-          {bought
-            ? <><ShieldCheck/> PURCHASE REGISTERED IN PIONEX</>
-            : <><Wallet/> I BOUGHT THIS IN PIONEX</>}
-        </button>
-
-        <small className="note">
-          Records your manual Pionex purchase.
-          TradeMindMZ does not place orders.
-          {recommended?.holdTimeReason
-            ? " AI hold-time view: " + recommended.holdTimeReason
-            : ""}
-        </small>
-      </div>
-
-      <div className="stack">
-
-  
-      {data?.verdict === "NO_TRADE" && (
-        <div
-          className="panel"
-          style={{
-            marginBottom: "18px",
-            padding: "20px"
-          }}
-        >
-          <div
-            className="settinghead"
-            style={{
-              alignItems: "flex-start"
-            }}
-          >
-            <div>
-              <h3>
-                <Target/>
-                SIGNAL TRADE CRITERIA
-              </h3>
-
-              <p>
-                Hard TradeMindMZ criteria used
-                before a signal can be recommended.
-              </p>
+              <span className="status on"><i/> LIVE</span>
             </div>
 
-            <span className="status">
-              <i/>
-              NO TRADE
-            </span>
-          </div>
-
-          {signalBestCandidate && (
-            <div
-              style={{
-                marginTop: "16px",
-                padding: "14px",
-                borderRadius: "10px",
-                border:
-                  "1px solid rgba(255,255,255,.08)",
-                background:
-                  "rgba(255,255,255,.02)"
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "11px",
-                  textTransform: "uppercase",
-                  letterSpacing: ".12em",
-                  color:
-                    "rgba(255,255,255,.4)"
-                }}
-              >
-                Best candidate
-              </div>
-
-              <div
-                style={{
-                  marginTop: "4px",
-                  fontSize: "20px",
-                  fontWeight: 700
-                }}
-              >
-                {signalBestCandidate.symbol}
-              </div>
-
-              <div
-                style={{
-                  marginTop: "3px",
-                  fontSize: "12px",
-                  color:
-                    "rgba(255,255,255,.45)"
-                }}
-              >
-                {signalBestCandidate.direction}
-              </div>
-            </div>
-          )}
-
-          <div
-            className="costgrid"
-            style={{
-              marginTop: "16px"
-            }}
-          >
-
-            {signalCriteria?.checks?.map(
-              check => (
-                <span key={check.key}>
-                  <b
+            {earlyCandidates.length ? (
+              <div style={{marginTop:"12px"}}>
+                {earlyCandidates.map((candidate,index) => (
+                  <div
+                    key={String(candidate.symbol || index)}
                     style={{
-                      color: check.passed
-                        ? "#35e0a1"
-                        : "#ff6b6b"
+                      display:"grid",
+                      gridTemplateColumns:"28px 1fr auto auto",
+                      gap:"10px",
+                      alignItems:"center",
+                      padding:"10px 0",
+                      borderTop:index ? "1px solid rgba(255,255,255,.06)" : "none"
                     }}
                   >
-                    {check.passed
-                      ? "PASS"
-                      : "FAIL"}
-                  </b>
+                    <small style={{opacity:.45}}>{index + 1}</small>
+                    <div>
+                      <strong>{String(candidate.symbol || "—").replace("_"," / ")}</strong>
+                      <small style={{display:"block",opacity:.48,marginTop:"2px"}}>
+                        {candidate.__signal}
+                      </small>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <small style={{display:"block",opacity:.42}}>ENGINE</small>
+                      <strong>{candidate.__score}</strong>
+                    </div>
+                    <div style={{textAlign:"right"}}>
+                      <small style={{display:"block",opacity:.42}}>AI</small>
+                      <strong>{candidate.__confidence > 0 ? candidate.__confidence + "%" : "—"}</strong>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p style={{opacity:.5,marginTop:"12px"}}>
+                No early candidates meet the current preview threshold.
+              </p>
+            )}
+          </div>
 
-                  <small>
-                    {check.label}:{" "}
-                    {String(
-                      check.actual ??
-                      "—"
-                    )}
-                    {" / "}
-                    {String(
-                      check.target ??
-                      "—"
-                    )}
-                  </small>
-                </span>
-              )
+          {data?.verdict === "NO_TRADE" && (
+            <div className="panel">
+              <div className="settinghead" style={{alignItems:"flex-start"}}>
+                <div>
+                  <h3><Target/> WHY NO TRADE?</h3>
+                  <p>Final filters remain visible so a strong candidate is not mistaken for an approved trade.</p>
+                </div>
+                <span className="status"><i/> NO TRADE</span>
+              </div>
+
+              {signalBestCandidate && (
+                <div style={{
+                  marginTop:"12px",
+                  padding:"12px",
+                  borderRadius:"9px",
+                  border:"1px solid rgba(255,255,255,.07)",
+                  background:"rgba(255,255,255,.02)"
+                }}>
+                  <small style={{opacity:.42}}>BEST CANDIDATE</small>
+                  <strong style={{display:"block",marginTop:"3px"}}>
+                    {signalBestCandidate.symbol}
+                  </strong>
+                  <span style={{fontSize:"12px",opacity:.5}}>
+                    {marketType === "SPOT" ? "SPOT" : "M-USDT / PERP"}
+                  </span>
+                </div>
+              )}
+
+              {signalFailedChecks.length ? (
+                <div style={{marginTop:"12px"}}>
+                  {signalFailedChecks.map(check => (
+                    <div key={check.key} style={{
+                      display:"flex",
+                      justifyContent:"space-between",
+                      gap:"10px",
+                      padding:"8px 0",
+                      borderTop:"1px solid rgba(255,255,255,.05)"
+                    }}>
+                      <span style={{fontSize:"12px"}}>{check.label}</span>
+                      <b style={{color:"#ff7777",fontSize:"12px"}}>
+                        {check.actual ?? "—"} / {check.target ?? "—"}
+                      </b>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              {data?.whyNoTrade?.aiReasons?.length ? (
+                <p style={{marginTop:"12px",fontSize:"12px",opacity:.58}}>
+                  AI filter: {data.whyNoTrade.aiReasons.join(" • ")}
+                </p>
+              ) : null}
+            </div>
+          )}
+
+          <div className="panel">
+            <h3><BrainCircuit/> SIGNAL QUALITY</h3>
+            {[
+              ["AI provider", data?.provider || "—"],
+              ["Engine score", score ? String(score) : "—"],
+              ["Confidence", confidence ? confidence + "%" : "—"],
+              ["Risk", risk],
+              ["Verdict", verdict]
+            ].map(x =>
+              <div className="metric" key={x[0]}>
+                <span>{x[0]}</span>
+                <b>{x[1]}</b>
+              </div>
             )}
 
+            <h3 style={{marginTop:"18px"}}><LineChart/> TECHNICAL DATA</h3>
+            {technicalMetrics.map(x =>
+              <div className="metric" key={x[0]}>
+                <span>{x[0]}</span>
+                <b>{x[1]}</b>
+              </div>
+            )}
           </div>
 
-          {signalFailedChecks.length > 0 && (
-            <div
-              style={{
-                marginTop: "16px",
-                paddingTop: "14px",
-                borderTop:
-                  "1px solid rgba(255,255,255,.06)"
-              }}
-            >
-              <div
-                style={{
-                  fontSize: "11px",
-                  textTransform: "uppercase",
-                  letterSpacing: ".12em",
-                  color: "#ff6b6b"
-                }}
-              >
-                Why no trade?
-              </div>
-
-              <div
-                style={{
-                  marginTop: "7px",
-                  fontSize: "13px",
-                  color:
-                    "rgba(255,255,255,.65)"
-                }}
-              >
-                {signalFailedChecks
-                  .map(
-                    check =>
-                      `${check.label}: ${check.actual ?? "—"} (required ${check.target ?? "—"})`
-                  )
-                  .join(" • ")}
-              </div>
+          <div className="panel">
+            <h3><History/> AI LEARNING</h3>
+            <strong className="big">
+              {learningStats?.totalAnalyses ?? "—"}
+            </strong>
+            <p>AI position analyses stored</p>
+            {learningError && <small className="note">{learningError}</small>}
+            <div className="mini">
+              <span>
+                <b>
+                  {learningStats?.averageConfidence != null
+                    ? learningStats.averageConfidence + "%"
+                    : "—"}
+                </b>
+                <small>avg confidence</small>
+              </span>
+              <span>
+                <b>{learningStats ? (learningStats.recommendations?.WATCH || 0) : "—"}</b>
+                <small>BUY/SELL analyses</small>
+              </span>
             </div>
-          )}
-
-          {data?.whyNoTrade?.aiReasons?.length ? (
-            <div style={{marginTop:"12px",fontSize:"12px",color:"rgba(255,255,255,.55)"}}>
-              AI filter: {data.whyNoTrade.aiReasons.join(" • ")}
-            </div>
-          ) : null}
-
-          {signalFailedChecks.length === 1 && (
-            <div
-              style={{
-                marginTop: "12px",
-                fontSize: "12px",
-                color:
-                  "rgba(255,255,255,.4)"
-              }}
-            >
-              All other hard criteria passed.
-            </div>
-          )}
-
-        </div>
-      )}
-
-      <div className="panel">
-          <h3><BrainCircuit/> WHY AI LIKES IT</h3>
-
-          {[
-            [
-              "AI provider",
-              data?.provider || "—"
-            ],
-            [
-              "AI score",
-              score ? String(score) : "—"
-            ],
-            [
-              "Confidence",
-              confidence ? `${confidence}%` : "—"
-            ],
-            [
-              "Risk",
-              risk
-            ],
-            [
-              "Verdict",
-              verdict
-            ]
-          ].map(x=>
-            <div className="metric" key={x[0]}>
-              <span>{x[0]}</span>
-              <b>{x[1]}</b>
-            </div>
-          )}
-
-          <h3 style={{marginTop:"20px"}}>
-            <LineChart/> TECHNICAL DATA
-          </h3>
-
-          {technicalMetrics.map(x=>
-            <div
-              className="metric"
-              key={x[0]}
-            >
-              <span>{x[0]}</span>
-              <b>{x[1]}</b>
-            </div>
-          )}
-        </div>
-
-        <div className="panel">
-          <h3><History/> AI LEARNING</h3>
-
-          <strong className="big">
-            {learningStats?.totalAnalyses ?? "—"}
-          </strong>
-
-          <p>
-            AI position analyses stored
-          </p>
-
-          {learningError && (
-            <small className="note">
-              {learningError}
-            </small>
-          )}
-
-          <div className="mini">
-            <span>
-              <b>
-                {learningStats?.averageConfidence != null
-                  ? `${learningStats.averageConfidence}%`
-                  : "—"}
-              </b>
-              <small>avg confidence</small>
-            </span>
-
-            <span>
-              <b>
-                {learningStats
-                  ? (
-                      learningStats.recommendations?.WATCH || 0
-                    )
-                  : "—"}
-              </b>
-              <small>BUY/SELL analyses</small>
-            </span>
           </div>
         </div>
-
       </div>
-    </div>
 
-    <div className="section">
-      <h2>Other AI Opportunities</h2>
-      <button onClick={refresh}>
-        View all <ChevronRight/>
-      </button>
-    </div>
+      <div className="section">
+        <h2>Recent AI Signals</h2>
+        <button onClick={() => refresh(false)}>
+          View all <ChevronRight/>
+        </button>
+      </div>
 
-    <div className="opps">
-      {(comparison.length
-        ? comparison
-            .filter(x => {
-              if (x.symbol === symbolRaw) return false;
-              const side = String(x.direction || x.side || "").toUpperCase();
-              return side === "BUY" || side === "SELL" || side === "LONG" || side === "SHORT";
-            })
-            .slice(0,3)
-        : []
-      ).map((x)=>
-        <div className="panel opp" key={x.symbol}>
-          <div>
-            <b>{String(x.symbol || "").replace("_"," / ")}</b>
-            <span>
-              {["SELL","SHORT"].includes(String(x.direction || x.side || "").toUpperCase()) ? "SELL" : "BUY"}
-            </span>
+      <div className="opps">
+        {(comparison.length
+          ? comparison
+              .filter(x => {
+                if (x.symbol === symbolRaw) return false;
+                const side = String(x.direction || x.side || "").toUpperCase();
+                return side === "BUY" || side === "SELL" || side === "LONG" || side === "SHORT";
+              })
+              .slice(0,3)
+          : []
+        ).map(x =>
+          <div className="panel opp" key={x.symbol}>
+            <div>
+              <b>{String(x.symbol || "").replace("_"," / ")}</b>
+              <span>
+                {["SELL","SHORT"].includes(String(x.direction || x.side || "").toUpperCase())
+                  ? (marketType === "SPOT" ? "SELL" : "SHORT")
+                  : (marketType === "SPOT" ? "BUY" : "LONG")}
+              </span>
+            </div>
+            <strong>
+              {x.score ?? x.engineScore ?? "—"}
+              <small> ENGINE SCORE</small>
+            </strong>
+            <p>{x.assessment || "Compared by AI."}</p>
           </div>
+        )}
 
-          <strong>
-            {x.score}
-            <small> AI SCORE</small>
-          </strong>
-
-          <p>
-            {x.assessment || "Compared by AI."}
-          </p>
-        </div>
-      )}
-
-      {!comparison.length && (
-        <div className="panel opp">
-          <div>
-            <b>Waiting for market scan</b>
-            <span>LIVE</span>
+        {!comparison.length && (
+          <div className="panel opp">
+            <div>
+              <b>Waiting for market scan</b>
+              <span>LIVE</span>
+            </div>
+            <strong>—<small> ENGINE SCORE</small></strong>
+            <p>Refresh analysis to load the current Pionex TOP 5.</p>
           </div>
-
-          <strong>
-            —
-            <small> AI SCORE</small>
-          </strong>
-
-          <p>
-            Refresh analysis to load the current Pionex TOP 5.
-          </p>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   </>
 }
