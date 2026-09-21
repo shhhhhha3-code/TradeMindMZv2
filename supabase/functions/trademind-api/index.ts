@@ -695,18 +695,20 @@ async function upsertTradeJournalForPosition(supabase, position, analysis = null
     quantity: Number.isFinite(Number(position.quantity)) ? Number(position.quantity) : null,
     stop_loss: Number.isFinite(Number(position.stopLoss)) ? Number(position.stopLoss) : null,
     take_profit: Number.isFinite(Number(position.takeProfit)) ? Number(position.takeProfit) : null,
-    ...(existingJournal ? {} : {
-      ai_confidence_at_entry: analysis?.confidence != null
-        ? Number(analysis.confidence)
-        : null,
-      ai_hold_time_min_minutes: analysis?.holdTimeMinMinutes != null
-        ? Number(analysis.holdTimeMinMinutes)
-        : null,
-      ai_hold_time_max_minutes: analysis?.holdTimeMaxMinutes != null
-        ? Number(analysis.holdTimeMaxMinutes)
-        : null,
-      ai_hold_time_reason: analysis?.holdTimeReason || null,
-    }),
+    ai_confidence_at_entry:
+      existingJournal?.ai_confidence_at_entry != null
+        ? Number(existingJournal.ai_confidence_at_entry)
+        : (analysis?.confidence != null ? Number(analysis.confidence) : null),
+    ai_hold_time_min_minutes:
+      existingJournal?.ai_hold_time_min_minutes != null
+        ? Number(existingJournal.ai_hold_time_min_minutes)
+        : (analysis?.holdTimeMinMinutes != null ? Number(analysis.holdTimeMinMinutes) : null),
+    ai_hold_time_max_minutes:
+      existingJournal?.ai_hold_time_max_minutes != null
+        ? Number(existingJournal.ai_hold_time_max_minutes)
+        : (analysis?.holdTimeMaxMinutes != null ? Number(analysis.holdTimeMaxMinutes) : null),
+    ai_hold_time_reason:
+      existingJournal?.ai_hold_time_reason || analysis?.holdTimeReason || null,
     last_price: Number.isFinite(Number(position.currentPrice ?? position.markPrice))
       ? Number(position.currentPrice ?? position.markPrice)
       : null,
@@ -863,10 +865,20 @@ async function runServerSpotMonitoring(supabase) {
         fee_rate: Number(Deno.env.get("PIONEX_SPOT_FEE_RATE") || 0.001),
         estimated_slippage_rate: Number(Deno.env.get("TRADEMIND_ESTIMATED_SLIPPAGE_RATE") || 0.0005),
         source: existingSpotJournal ? "MANUAL_PIONEX_SPOT" : "PIONEX_SPOT",
-        ai_confidence_at_entry: existingSpotJournal?.ai_confidence_at_entry ?? null,
-        ai_hold_time_min_minutes: existingSpotJournal?.ai_hold_time_min_minutes ?? null,
-        ai_hold_time_max_minutes: existingSpotJournal?.ai_hold_time_max_minutes ?? null,
-        ai_hold_time_reason: existingSpotJournal?.ai_hold_time_reason ?? null,
+        ai_confidence_at_entry:
+          existingSpotJournal?.ai_confidence_at_entry != null
+            ? Number(existingSpotJournal.ai_confidence_at_entry)
+            : (analysis?.confidence != null ? Number(analysis.confidence) : null),
+        ai_hold_time_min_minutes:
+          existingSpotJournal?.ai_hold_time_min_minutes != null
+            ? Number(existingSpotJournal.ai_hold_time_min_minutes)
+            : (analysis?.holdTimeMinMinutes != null ? Number(analysis.holdTimeMinMinutes) : null),
+        ai_hold_time_max_minutes:
+          existingSpotJournal?.ai_hold_time_max_minutes != null
+            ? Number(existingSpotJournal.ai_hold_time_max_minutes)
+            : (analysis?.holdTimeMaxMinutes != null ? Number(analysis.holdTimeMaxMinutes) : null),
+        ai_hold_time_reason:
+          existingSpotJournal?.ai_hold_time_reason || analysis?.holdTimeReason || null,
         ai_exit_recommendation: analysis.recommendation,
         ai_exit_confidence: analysis.confidence,
         ai_exit_reason: analysis.reasoning,
