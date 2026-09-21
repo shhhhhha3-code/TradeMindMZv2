@@ -101,7 +101,7 @@ jobs:
         run: |
           START=$(date -u -d '15 minutes ago' '+%Y-%m-%dT%H:%M:%SZ')
           END=$(date -u '+%Y-%m-%dT%H:%M:%SZ')
-          SQL="select timestamp, event_message, level, log_attributes from logs where source = 'edge_logs' and timestamp >= toDateTime('$START') and timestamp <= toDateTime('$END') order by timestamp desc limit 100"
+          SQL="select timestamp, event_message, log_attributes from logs where source = 'edge_logs' and timestamp >= toDateTime('$START') and timestamp <= toDateTime('$END') order by timestamp desc limit 100"
           curl --fail-with-body -sS --get \
             "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/analytics/endpoints/logs" \
             -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
