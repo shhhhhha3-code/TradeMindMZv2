@@ -79,6 +79,18 @@ function directionClass(value) {
     : "tmz-negative";
 }
 
+function formatHoldingPnl(holding) {
+  const currentPrice = number(holding?.currentPrice);
+  const entryPrice = number(holding?.entryPrice);
+  const pnlPercent = number(holding?.unrealizedPercent);
+
+  if (currentPrice === null || entryPrice === null || pnlPercent === null) {
+    return "—";
+  }
+
+  return formatPct(pnlPercent);
+}
+
 function toBaseSymbol(symbol = "") {
   return String(symbol)
     .toUpperCase()
@@ -118,8 +130,8 @@ function normalizePionexCandidates(
           ),
         score:
           number(
-            candidate.score ??
-            candidate.engineScore
+            candidate.engineScore ??
+            candidate.score
           ),
         confidence:
           number(
@@ -352,6 +364,15 @@ export default function ProDashboard({ onSelectTrade = null }) {
         return;
       }
 
+      if (String(fresh?.finalDecision || "").toUpperCase() !== "TRADE") {
+        setError(
+          fresh?.aiDecision?.reason ||
+          fresh?.summary ||
+          "AI completed the fresh analysis but did not approve a BUY or SELL trade."
+        );
+        return;
+      }
+
       const recommendation = fresh?.recommended || null;
       const directionRaw = String(
         recommendation?.direction || ""
@@ -364,7 +385,11 @@ export default function ProDashboard({ onSelectTrade = null }) {
             ? "SELL"
             : "";
 
-      if (!recommendation || !direction) {
+      if (
+        !recommendation ||
+        !direction ||
+        (marketType === "SPOT" && direction !== "BUY")
+      ) {
         setError(
           fresh?.aiDecision?.reason ||
           fresh?.summary ||
@@ -390,6 +415,7 @@ export default function ProDashboard({ onSelectTrade = null }) {
     liveAi.refreshing,
     onSelectTrade,
     refreshing,
+    marketType,
   ]);
 
   const tradeAnalysisRefreshing =
@@ -961,7 +987,7 @@ export default function ProDashboard({ onSelectTrade = null }) {
                     <div><small>VALUE</small><strong>{formatUsdt(holding.currentValueUsdt)}</strong></div>
                     <div><small>ENTRY</small><strong>{holding.entryPrice ? formatPrice(holding.entryPrice) : "—"}</strong></div>
                     <div><small>AI CONF</small><strong>{holding.monitor?.confidence != null ? holding.monitor.confidence + "%" : "—"}</strong></div>
-                    <div><small>P/L</small><strong>{holding.unrealizedPercent != null ? formatPct(holding.unrealizedPercent) : "—"}</strong></div>
+                    <div><small>P/L</small><strong>{formatHoldingPnl(holding)}</strong></div>
                   </div>
                 </article>
               ))}
