@@ -286,14 +286,19 @@ async function runLiveAiAnalysis({
       analysisPromise
     );
 
-    analysisPromise.finally(() => {
-      if (
-        liveAiInFlight.get(cacheKey) ===
-        analysisPromise
-      ) {
-        liveAiInFlight.delete(cacheKey);
-      }
-    });
+    analysisPromise
+      .then(
+        () => {
+          if (liveAiInFlight.get(cacheKey) === analysisPromise) {
+            liveAiInFlight.delete(cacheKey);
+          }
+        },
+        () => {
+          if (liveAiInFlight.get(cacheKey) === analysisPromise) {
+            liveAiInFlight.delete(cacheKey);
+          }
+        }
+      );
   }
 
   return analysisPromise;
@@ -997,7 +1002,6 @@ async function runServerPositionMonitoring(supabase, { marketSnapshot = null } =
       });
     }
   }
-
   // Only close journal entries after a successful Pionex position request.
   // An API failure throws above, so a temporary outage cannot mark trades closed.
   const { data: openJournalRows, error: openJournalError } = await supabase
