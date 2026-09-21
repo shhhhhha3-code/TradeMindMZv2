@@ -1293,7 +1293,7 @@ function evaluateCandidate(candidate, { marketType = "PERP" } = {}) {
   return { passed: checks.every((x)=>x.passed), checks, failedChecks: checks.filter((x)=>!x.passed), criteria, costs:{feeRate,slippageRate,roundTripCostRate,grossTargetRate,netTargetRate,minimumNetEdgeRate} };
 }
 
-async function calculateRiskSizing(body = {}) {
+function calculateRiskSizing(body = {}) {
   const balance = Number(body?.balanceUsdt);
   const entry = Number(body?.entryPrice);
   const stop = Number(body?.stopLoss);
