@@ -5791,7 +5791,9 @@ function Positions(){
           setAi(prev => ({
             ...prev,
             [key]: {
-              recommendation: serverAnalysis.recommendation || "WATCH",
+              recommendation: serverAnalysis.analyzedAt
+                ? (serverAnalysis.recommendation || "WATCH")
+                : "WAITING",
               riskLevel: serverAnalysis.riskLevel || "MEDIUM",
               confidence: serverAnalysis.confidence ?? 0,
               confidenceDelta: serverAnalysis.confidenceDelta,
@@ -5934,6 +5936,21 @@ function Positions(){
     const risk = String(analysis?.riskLevel || "MEDIUM").toUpperCase();
     const confidence = Number(analysis?.confidence);
     const delta = Number(analysis?.confidenceDelta);
+
+    // A position without a completed AI analysis is not a warning by itself.
+    const hasAnalysis = Boolean(
+      analysis &&
+      (
+        !analysis.serverSide ||
+        analysis.analyzedAt ||
+        Number.isFinite(confidence) ||
+        recommendation !== "WATCH"
+      )
+    );
+
+    if (!hasAnalysis) {
+      return { label: "WAITING", className: "neutral" };
+    }
 
     if (
       recommendation === "EXIT_CONSIDERATION" ||
@@ -6218,7 +6235,7 @@ function Positions(){
                   <>
                     <div className="metric">
                       <span>AI STATUS</span>
-                      <b className={recommendationClass}>
+                      <b className={recommendation === "WAITING" ? "neutral" : recommendationClass}>
                         {recommendation.replace(/_/g," ")}
                       </b>
                     </div>
