@@ -5318,7 +5318,6 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
           </div>
         )}
       </div>
-    </div>
   </>
 }
 
