@@ -462,12 +462,70 @@ async function analyzePosition(supabase, body) {
   if (!position?.symbol) throw new Error("Position symbol is required.");
   const market = body?.market || body?.marketData || {};
 
+  const marketIndicators = market?.indicators || {};
+  const normalizedMarket = {
+    symbol: market?.symbol || position?.symbol || null,
+    timeframe: market?.timeframe || "15M",
+    price: Number.isFinite(Number(market?.price)) ? Number(market.price) : null,
+    engineScore: Number.isFinite(Number(market?.score ?? market?.engineScore))
+      ? Number(market?.score ?? market?.engineScore)
+      : null,
+    confidence: Number.isFinite(Number(market?.confidence))
+      ? Number(market.confidence)
+      : null,
+    direction: market?.direction || null,
+    riskReward: Number.isFinite(Number(market?.riskReward))
+      ? Number(market.riskReward)
+      : null,
+    stopLoss: Number.isFinite(Number(market?.stopLoss))
+      ? Number(market.stopLoss)
+      : null,
+    takeProfit: Number.isFinite(Number(market?.takeProfit))
+      ? Number(market.takeProfit)
+      : null,
+    rsi: Number.isFinite(Number(market?.rsi ?? marketIndicators?.rsi14))
+      ? Number(market?.rsi ?? marketIndicators?.rsi14)
+      : null,
+    volumeRatio: Number.isFinite(Number(market?.volumeRatio ?? marketIndicators?.volumeRatio))
+      ? Number(market?.volumeRatio ?? marketIndicators?.volumeRatio)
+      : null,
+    ema9: Number.isFinite(Number(market?.ema9 ?? marketIndicators?.ema9))
+      ? Number(market?.ema9 ?? marketIndicators?.ema9)
+      : null,
+    ema21: Number.isFinite(Number(market?.ema21 ?? marketIndicators?.ema21))
+      ? Number(market?.ema21 ?? marketIndicators?.ema21)
+      : null,
+    macd: Number.isFinite(Number(market?.macd ?? marketIndicators?.macd))
+      ? Number(market?.macd ?? marketIndicators?.macd)
+      : null,
+    change24h: Number.isFinite(Number(market?.change24h ?? marketIndicators?.change24h))
+      ? Number(market?.change24h ?? marketIndicators?.change24h)
+      : null,
+    scannedAt: market?.scannedAt || market?.updatedAt || null,
+  };
+  const hasMarketData = Number.isFinite(Number(normalizedMarket.price)) ||
+    Number.isFinite(Number(normalizedMarket.engineScore)) ||
+    Number.isFinite(Number(normalizedMarket.rsi));
+
   const prompt = {
-    systemPrompt: `You are TradeMindMZ position risk analyst. Analyze ONLY the supplied Pionex position and supplied market data. Do not place trades and do not invent missing information. The position is USDT-M perpetual and read-only. Return ONLY JSON: {"recommendation":"HOLD|WATCH|REDUCE_RISK|EXIT_CONSIDERATION","riskLevel":"LOW|MEDIUM|HIGH|CRITICAL","confidence":0,"reasoning":"brief explanation","action":"brief practical guidance","holdTimeMinMinutes":0,"holdTimeMaxMinutes":0,"holdTimeReason":"brief explanation of expected remaining hold time"}. Hold time is an estimate, not a guarantee. Base it only on the supplied timeframe, volatility, distance to TP/SL, momentum, and position age when available.`,
+    systemPrompt: `You are TradeMindMZ position risk analyst. Analyze ONLY the supplied Pionex position and supplied market data. Do not place trades and do not invent missing information. The position is USDT-M perpetual and read-only.
+
+IMPORTANT DATA RULES:
+- The MARKET DATA SUMMARY below is authoritative for this analysis when values are present.
+- If hasMarketData=true, market data IS available. Do not say "market data is unavailable".
+- If position stop-loss/take-profit fields are missing but MARKET DATA SUMMARY contains suggested stopLoss/takeProfit, explicitly distinguish "no user-defined SL/TP" from the available market-derived levels.
+- Use the actual current position price and supplied market price. Do not invent values.
+- Base confidence and risk on the supplied position, market score, RSI, volume, R/R, momentum, EMA/MACD and price distance.
+- Return ONLY JSON: {"recommendation":"HOLD|WATCH|REDUCE_RISK|EXIT_CONSIDERATION","riskLevel":"LOW|MEDIUM|HIGH|CRITICAL","confidence":0,"reasoning":"brief explanation","action":"brief practical guidance","holdTimeMinMinutes":0,"holdTimeMaxMinutes":0,"holdTimeReason":"brief explanation of expected remaining hold time"}. Hold time is an estimate, not a guarantee.
+
+MARKET DATA AVAILABLE: ${hasMarketData ? "YES" : "NO"}`,
     userPrompt: `OPEN POSITION:
 ${JSON.stringify(position, null, 2)}
 
-CURRENT MARKET DATA:
+MARKET DATA SUMMARY:
+${JSON.stringify(normalizedMarket, null, 2)}
+
+RAW MARKET DATA:
 ${JSON.stringify(market, null, 2)}`,
   };
 
