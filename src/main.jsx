@@ -6108,13 +6108,13 @@ function Positions(){
               state: Number.isFinite(engineScore) ? (engineScore >= 75 ? "PASS" : "WARN") : "UNKNOWN",
             },
             {
-              label: "AI confidence",
-              value: Number.isFinite(marketConfidence) ? Math.round(marketConfidence) + "%" : (Number.isFinite(confidence) ? Math.round(confidence) + "%" : "—"),
+              label: "Market confidence",
+              value: Number.isFinite(marketConfidence) ? Math.round(marketConfidence) + "%" : "—",
               state: Number.isFinite(marketConfidence) ? (marketConfidence >= 80 ? "PASS" : "WARN") : "UNKNOWN",
             },
             {
               label: "Risk / Reward",
-              value: Number.isFinite(marketRiskReward) ? "1:" + marketRiskReward.toFixed(1) : "—",
+              value: Number.isFinite(marketRiskReward) ? marketRiskReward.toFixed(1) + ":1" : "—",
               state: Number.isFinite(marketRiskReward) ? (marketRiskReward >= 2 ? "PASS" : "WARN") : "UNKNOWN",
             },
             {
