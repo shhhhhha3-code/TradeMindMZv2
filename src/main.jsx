@@ -6277,6 +6277,17 @@ function Positions(){
                         <b>{formatTime(analysis.analyzedAt)}</b>
                       </span>
                       <span>
+                        AI analysis age
+                        <b>
+                          {Number.isFinite(Number(analysis.analysisAgeSeconds))
+                            ? Number(analysis.analysisAgeSeconds) < 60
+                              ? Number(analysis.analysisAgeSeconds) + "s"
+                              : Math.floor(Number(analysis.analysisAgeSeconds) / 60) + "m"
+                            : "—"}
+                          {analysis.analysisFresh === false && analysis.analyzedAt ? " · STALE" : ""}
+                        </b>
+                      </span>
+                      <span>
                         Provider
                         <b>{analysis.provider || "—"}</b>
                       </span>
