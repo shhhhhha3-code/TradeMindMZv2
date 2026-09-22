@@ -4607,6 +4607,7 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
   const [riskSizing, setRiskSizing] = useState(null);
   const [learningStats,setLearningStats] = useState(null);
   const [learningError,setLearningError] = useState("");
+  const [signalHistory,setSignalHistory] = useState([]);
 
   const {
     data: rawData,
@@ -4827,6 +4828,92 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
   const signalFailedChecks = Array.isArray(signalCriteria?.failedChecks)
     ? signalCriteria.failedChecks
     : [];
+
+  const formatSignalAge = value => {
+    if (!value) return "—";
+    const timestamp = new Date(value).getTime();
+    if (!Number.isFinite(timestamp)) return "—";
+    const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+    if (seconds < 60) return seconds + "s ago";
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return minutes + "m ago";
+    const hours = Math.floor(minutes / 60);
+    return hours + "h " + (minutes % 60) + "m ago";
+  };
+
+  const signalAge = formatSignalAge(data?.updatedAt || data?.persistedAt);
+
+  const noTradeReasons = [
+    ...signalFailedChecks.map(check => {
+      const label = check?.label || check?.key || "Trade criterion";
+      const actual = check?.actual;
+      const target = check?.target;
+      return actual !== undefined && target !== undefined
+        ? label + ": " + actual + " / required " + target
+        : label;
+    }),
+    ...(Array.isArray(data?.whyNoTrade?.aiReasons)
+      ? data.whyNoTrade.aiReasons
+      : [])
+  ].filter(Boolean);
+
+  useEffect(() => {
+    if (!data || data.marketType !== marketType) return;
+
+    const timestamp = data.updatedAt || data.persistedAt;
+    const historySymbol = String(
+      data?.recommended?.symbol ||
+      earlyPreviewCandidate?.symbol ||
+      ""
+    ).trim();
+
+    const historyScore = Number(
+      data?.recommended?.engineScore ??
+      data?.recommended?.score ??
+      earlyPreviewCandidate?.engineScore ??
+      earlyPreviewCandidate?.score ??
+      0
+    );
+
+    const historyConfidence = Number(
+      data?.recommended?.aiConfidence ??
+      data?.recommended?.confidence ??
+      earlyPreviewCandidate?.aiConfidence ??
+      earlyPreviewCandidate?.confidence ??
+      0
+    );
+
+    if (!historySymbol || !timestamp || !Number.isFinite(historyScore)) return;
+
+    setSignalHistory(previous => {
+      const point = {
+        id: timestamp + "-" + historySymbol + "-" + historyScore + "-" + historyConfidence,
+        timestamp,
+        symbol: historySymbol,
+        score: historyScore,
+        confidence: Number.isFinite(historyConfidence) ? historyConfidence : 0
+      };
+
+      if (previous.some(item => item.id === point.id)) return previous;
+
+      return [point, ...previous].slice(0, 6);
+    });
+  }, [
+    data?.updatedAt,
+    data?.persistedAt,
+    data?.marketType,
+    data?.recommended?.symbol,
+    data?.recommended?.engineScore,
+    data?.recommended?.score,
+    data?.recommended?.aiConfidence,
+    data?.recommended?.confidence,
+    earlyPreviewCandidate?.symbol,
+    earlyPreviewCandidate?.engineScore,
+    earlyPreviewCandidate?.score,
+    earlyPreviewCandidate?.aiConfidence,
+    earlyPreviewCandidate?.confidence,
+    marketType
+  ]);
 
   useEffect(() => {
     let active = true;
@@ -5144,6 +5231,7 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
             <span><History/> AI verdict <b>{verdict}</b></span>
             <span>Risk <b>{risk}</b></span>
             <span>Regime <b>{marketRegime}</b></span>
+            <span><Radio/> Signal age <b>{signalAge}</b></span>
             {data?.tradeQuality?.costs ? (
               <span>
                 Net edge <b>{Number(data.tradeQuality.costs.netTargetRate * 100).toFixed(2)}%</b>
@@ -5288,11 +5376,29 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
                 </div>
               ) : null}
 
-              {data?.whyNoTrade?.aiReasons?.length ? (
+              {noTradeReasons.length ? (
+                <div style={{
+                  marginTop:"12px",
+                  padding:"10px 12px",
+                  borderRadius:"9px",
+                  border:"1px solid rgba(255,119,119,.16)",
+                  background:"rgba(255,119,119,.035)"
+                }}>
+                  <small style={{display:"block",opacity:.42}}>PRIMARY REASON</small>
+                  <strong style={{display:"block",marginTop:"4px",fontSize:"13px"}}>
+                    {noTradeReasons[0]}
+                  </strong>
+                  {noTradeReasons.length > 1 && (
+                    <span style={{display:"block",marginTop:"5px",fontSize:"11px",opacity:.5}}>
+                      Also: {noTradeReasons.slice(1,4).join(" • ")}
+                    </span>
+                  )}
+                </div>
+              ) : (
                 <p style={{marginTop:"12px",fontSize:"12px",opacity:.58}}>
-                  AI filter: {data.whyNoTrade.aiReasons.join(" • ")}
+                  Final AI decision did not approve the candidate.
                 </p>
-              ) : null}
+              )}
             </div>
           )}
 
@@ -5316,6 +5422,41 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
               <div className="metric" key={x[0]}>
                 <span>{x[0]}</span>
                 <b>{x[1]}</b>
+              </div>
+            )}
+
+            <h3 style={{marginTop:"18px"}}><History/> SIGNAL SCORE HISTORY</h3>
+            <p style={{marginBottom:"8px",fontSize:"11px",opacity:.45}}>
+              Session history of snapshots seen by this AI Signals screen.
+            </p>
+            {signalHistory.length ? (
+              <div style={{display:"grid",gap:"6px"}}>
+                {signalHistory.map(point => (
+                  <div
+                    key={point.id}
+                    className="metric"
+                    style={{padding:"7px 0"}}
+                  >
+                    <span>
+                      {point.symbol.replace("_"," / ")}
+                      {" · "}
+                      {new Date(point.timestamp).toLocaleTimeString("nb-NO", {
+                        hour:"2-digit",
+                        minute:"2-digit"
+                      })}
+                    </span>
+                    <b>
+                      {point.score}
+                      {" / "}
+                      {point.confidence > 0 ? point.confidence + "%" : "—"}
+                    </b>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="metric">
+                <span>Waiting for signal snapshots</span>
+                <b>—</b>
               </div>
             )}
           </div>
