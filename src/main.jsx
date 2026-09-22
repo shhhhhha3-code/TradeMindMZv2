@@ -5268,7 +5268,9 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
               ? <><ShieldCheck/> PURCHASE REGISTERED IN PIONEX</>
               : tradeApproved
                 ? <><Wallet/> I BOUGHT THIS IN PIONEX</>
-                : <><ShieldCheck/> WAITING FOR FINAL AI DECISION</>}
+                : evaluating
+                  ? <><ShieldCheck/> WAITING FOR FINAL AI DECISION</>
+                  : <><ShieldCheck/> NO TRADE — NO PURCHASE</>}
           </button>
 
           <small className="note">
