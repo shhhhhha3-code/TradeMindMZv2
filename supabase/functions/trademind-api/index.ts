@@ -1133,6 +1133,15 @@ async function getServerPositionMonitoring(supabase) {
 
     const recommendation = String(current?.recommendation || "WATCH").toUpperCase();
     const riskLevel = String(current?.risk_level || "MEDIUM").toUpperCase();
+    const analyzedAt = current?.created_at || null;
+    const analyzedTimestamp = analyzedAt ? new Date(analyzedAt).getTime() : NaN;
+    const analysisAgeSeconds = Number.isFinite(analyzedTimestamp)
+      ? Math.max(0, Math.floor((Date.now() - analyzedTimestamp) / 1000))
+      : null;
+    const analysisFresh = Number.isFinite(analysisAgeSeconds)
+      ? analysisAgeSeconds <= 15 * 60
+      : false;
+
     const exitWarning =
       recommendation === "EXIT_CONSIDERATION" ||
       recommendation === "REDUCE_RISK" ||
@@ -1153,7 +1162,9 @@ async function getServerPositionMonitoring(supabase) {
         holdTimeMaxMinutes: current?.hold_time_max_minutes != null ? Number(current.hold_time_max_minutes) : 0,
         holdTimeReason: current?.hold_time_reason || null,
         provider: current?.provider || null,
-        analyzedAt: current?.created_at || null,
+        analyzedAt,
+        analysisAgeSeconds,
+        analysisFresh,
         exitWarning,
       },
     };
