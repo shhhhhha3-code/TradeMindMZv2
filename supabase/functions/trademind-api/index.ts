@@ -977,6 +977,81 @@ async function getServerSpotMonitoring(supabase) {
   };
 }
 
+async function getPositionMarketContexts(positions = [], fallbackCandidates = []) {
+  const contexts = new Map();
+  const fallback = Array.isArray(fallbackCandidates) ? fallbackCandidates : [];
+
+  for (const candidate of fallback) {
+    const symbol = String(candidate?.symbol || "").toUpperCase();
+    if (symbol) contexts.set(symbol, candidate);
+  }
+
+  const missing = (Array.isArray(positions) ? positions : []).filter((position) => {
+    const symbol = String(position?.symbol || "").toUpperCase();
+    return symbol && !contexts.has(symbol);
+  });
+
+  if (!missing.length) {
+    return contexts;
+  }
+
+  let tickerMap = new Map();
+  try {
+    const tickerPayload = await getMarketTickers({ type: "PERP" });
+    const tickers =
+      tickerPayload?.data?.tickers ??
+      tickerPayload?.data ??
+      tickerPayload?.tickers ??
+      [];
+
+    for (const ticker of Array.isArray(tickers) ? tickers : []) {
+      const symbol = String(
+        ticker?.symbol ??
+        ticker?.market ??
+        ""
+      ).toUpperCase();
+      if (symbol) tickerMap.set(symbol, ticker);
+    }
+  } catch (error) {
+    console.warn("Position market ticker lookup failed:", error);
+  }
+
+  await Promise.all(
+    missing.map(async (position) => {
+      const symbol = String(position?.symbol || "").toUpperCase();
+      if (!symbol) return;
+
+      try {
+        const payload = await getMarketKlines({
+          symbol,
+          interval: "15M",
+          limit: 100,
+        });
+        const candles = parsePionexKlines(payload);
+        const candidate = scorePionexCandidate({
+          symbol,
+          candles,
+          ticker: tickerMap.get(symbol) || {},
+          marketType: "PERP",
+          leverage: Number(position?.leverage) || 2,
+          interval: "15M",
+        });
+
+        if (candidate) {
+          contexts.set(symbol, candidate);
+        }
+      } catch (error) {
+        console.warn(
+          `Position market context lookup failed for ${symbol}:`,
+          error?.message || error
+        );
+      }
+    })
+  );
+
+  return contexts;
+}
+
 async function runServerPositionMonitoring(supabase, { marketSnapshot = null } = {}) {
   const raw = await getOpenPositions();
   const positions = normalizePositions(raw);
@@ -991,15 +1066,19 @@ async function runServerPositionMonitoring(supabase, { marketSnapshot = null } =
 
   const monitored = [];
   const maxPositions = Math.min(5, positions.length);
+  const positionList = positions.slice(0, maxPositions);
+  const marketContexts = await getPositionMarketContexts(
+    positionList,
+    candidates
+  );
 
-  for (const position of positions.slice(0, maxPositions)) {
+  for (const position of positionList) {
     const key = normalizedPositionKey(position);
     currentKeys.add(key);
 
-    const market = candidates.find((candidate) =>
-      String(candidate?.symbol || "").toUpperCase() ===
-      String(position?.symbol || "").toUpperCase()
-    ) || {};
+    const market =
+      marketContexts.get(String(position?.symbol || "").toUpperCase()) ||
+      {};
 
     try {
       const result = await analyzePosition(supabase, {
@@ -1020,6 +1099,7 @@ async function runServerPositionMonitoring(supabase, { marketSnapshot = null } =
         symbol: position.symbol,
         direction: positionDirection(position),
         analysis,
+        market,
         provider: result?.provider || null,
         journalId: journal?.position_key || null,
         analyzedAt: new Date().toISOString(),
@@ -1120,8 +1200,13 @@ async function getServerPositionMonitoring(supabase) {
     }
   }
 
+  const marketContexts = await getPositionMarketContexts(positions, []);
+
   const enriched = positions.map((position) => {
     const key = `${String(position.symbol || "").toUpperCase()}:${positionDirection(position)}`;
+    const market =
+      marketContexts.get(String(position?.symbol || "").toUpperCase()) ||
+      {};
     const current = latestByKey.get(key) || null;
     const previous = previousByKey.get(key) || null;
     const confidence = current?.confidence != null ? Number(current.confidence) : null;
@@ -1151,6 +1236,22 @@ async function getServerPositionMonitoring(supabase) {
 
     return {
       ...position,
+      engineScore: Number.isFinite(Number(market?.engineScore ?? market?.score))
+        ? Number(market?.engineScore ?? market?.score)
+        : null,
+      rsi: Number.isFinite(Number(market?.rsi ?? market?.indicators?.rsi14))
+        ? Number(market?.rsi ?? market?.indicators?.rsi14)
+        : null,
+      volumeRatio: Number.isFinite(Number(market?.volumeRatio ?? market?.indicators?.volumeRatio))
+        ? Number(market?.volumeRatio ?? market?.indicators?.volumeRatio)
+        : null,
+      marketConfidence: Number.isFinite(Number(market?.confidence))
+        ? Number(market.confidence)
+        : null,
+      marketRiskReward: Number.isFinite(Number(market?.riskReward))
+        ? Number(market.riskReward)
+        : null,
+      marketUpdatedAt: market?.scannedAt || market?.updatedAt || null,
       monitor: {
         recommendation,
         riskLevel,
