@@ -634,6 +634,62 @@ ${JSON.stringify(market, null, 2)}`,
     Math.round(Number(raw?.holdTimeMaxMinutes) || 0)
   );
 
+  const rawReasoning = String(
+    raw?.reasoning ||
+    "AI did not provide reasoning."
+  );
+  const rawAction = String(
+    raw?.action ||
+    "Continue monitoring."
+  );
+  const rawHoldReason = String(
+    raw?.holdTimeReason ||
+    ""
+  );
+
+  const marketContextLine = hasMarketData
+    ? [
+        Number.isFinite(Number(normalizedMarket.engineScore))
+          ? `Engine Score ${Number(normalizedMarket.engineScore)}/100`
+          : null,
+        Number.isFinite(Number(normalizedMarket.confidence))
+          ? `market confidence ${Number(normalizedMarket.confidence)}%`
+          : null,
+        Number.isFinite(Number(normalizedMarket.riskReward))
+          ? `R/R ${Number(normalizedMarket.riskReward)}:1`
+          : null,
+        Number.isFinite(Number(normalizedMarket.rsi))
+          ? `RSI ${Number(normalizedMarket.rsi)}`
+          : null,
+        Number.isFinite(Number(normalizedMarket.volumeRatio))
+          ? `volume ${Number(normalizedMarket.volumeRatio)}x`
+          : null,
+        Number.isFinite(Number(normalizedMarket.price))
+          ? `market price ${Number(normalizedMarket.price)}`
+          : null,
+      ].filter(Boolean).join(", ")
+    : "";
+
+  const sanitizeMarketText = (value) => {
+    let text = String(value || "");
+    if (!hasMarketData) return text;
+
+    text = text
+      .replace(/market data (?:is )?unavailable/gi, "supplied market data is available")
+      .replace(/market data (?:is )?not available/gi, "supplied market data is available")
+      .replace(/no market data (?:is )?available/gi, "supplied market data is available");
+
+    if (Number.isFinite(Number(normalizedMarket.stopLoss)) ||
+        Number.isFinite(Number(normalizedMarket.takeProfit))) {
+      text = text.replace(
+        /no stop[- ]loss or take[- ]profit (?:levels )?are defined/gi,
+        "no user-defined stop-loss/take-profit levels are attached to the position; market-derived levels are available"
+      );
+    }
+
+    return text;
+  };
+
   const analysis = {
     recommendation:
       recommendations.includes(
@@ -657,17 +713,12 @@ ${JSON.stringify(market, null, 2)}`,
       )
     ),
 
-    reasoning:
-      String(
-        raw?.reasoning ||
-        "AI did not provide reasoning."
-      ),
+    reasoning: [
+      sanitizeMarketText(rawReasoning),
+      marketContextLine ? `Market context: ${marketContextLine}.` : null,
+    ].filter(Boolean).join(" "),
 
-    action:
-      String(
-        raw?.action ||
-        "Continue monitoring."
-      ),
+    action: sanitizeMarketText(rawAction),
 
     holdTimeMinMinutes:
       holdMin,
@@ -676,10 +727,7 @@ ${JSON.stringify(market, null, 2)}`,
       holdMax,
 
     holdTimeReason:
-      String(
-        raw?.holdTimeReason ||
-        ""
-      ),
+      sanitizeMarketText(rawHoldReason),
   };
 
   let history = null;
@@ -1236,7 +1284,7 @@ async function getServerPositionMonitoring(supabase) {
     console.error("Server position feed unavailable:", error);
   }
 
-  const { data: analyses, error: analysisError } = await supabase
+  let { data: analyses, error: analysisError } = await supabase
     .from("position_ai_analysis")
     .select("id,symbol,direction,recommendation,risk_level,confidence,reasoning,action,hold_time_min_minutes,hold_time_max_minutes,hold_time_reason,provider,created_at")
     .order("created_at", { ascending: false })
@@ -1244,6 +1292,39 @@ async function getServerPositionMonitoring(supabase) {
 
   if (analysisError) {
     console.error("Position monitoring analysis query failed:", analysisError);
+  }
+
+  // The market card can be fresh while the stored AI reasoning is old.
+  // If an open position has no recent analysis, refresh it server-side before
+  // returning the monitoring payload so stale reasoning cannot be shown beside
+  // fresh market metrics.
+  const analysisByKey = new Map();
+  for (const row of analyses || []) {
+    const key = `${String(row.symbol || "").toUpperCase()}:${String(row.direction || "").toUpperCase()}`;
+    if (!analysisByKey.has(key)) analysisByKey.set(key, row);
+  }
+
+  const staleOrMissingAnalysis = positions.some((position) => {
+    const key = `${String(position.symbol || "").toUpperCase()}:${positionDirection(position)}`;
+    const row = analysisByKey.get(key);
+    if (!row?.created_at) return true;
+    const ageMs = Date.now() - new Date(row.created_at).getTime();
+    return !Number.isFinite(ageMs) || ageMs > 15 * 60 * 1000;
+  });
+
+  if (staleOrMissingAnalysis && positions.length) {
+    try {
+      await runServerPositionMonitoring(supabase);
+      const refreshed = await supabase
+        .from("position_ai_analysis")
+        .select("id,symbol,direction,recommendation,risk_level,confidence,reasoning,action,hold_time_min_minutes,hold_time_max_minutes,hold_time_reason,provider,created_at")
+        .order("created_at", { ascending: false })
+        .limit(200);
+      analyses = refreshed.data || analyses;
+      analysisError = refreshed.error || analysisError;
+    } catch (refreshError) {
+      console.error("Fresh position AI monitoring refresh failed:", refreshError);
+    }
   }
 
   const latestByKey = new Map();
