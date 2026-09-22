@@ -5938,17 +5938,25 @@ function Positions(){
     const delta = Number(analysis?.confidenceDelta);
 
     // A position without a completed AI analysis is not a warning by itself.
-    const hasAnalysis = Boolean(
+    const hasCompletedServerAnalysis = Boolean(
+      analysis?.serverSide &&
+      analysis?.analyzedAt &&
+      recommendation !== "WAITING"
+    );
+    const hasCompletedLocalAnalysis = Boolean(
       analysis &&
+      !analysis.serverSide &&
       (
-        !analysis.serverSide ||
-        analysis.analyzedAt ||
         Number.isFinite(confidence) ||
         recommendation !== "WATCH"
       )
     );
 
-    if (!hasAnalysis) {
+    if (
+      recommendation === "WAITING" ||
+      (analysis?.serverSide && !hasCompletedServerAnalysis) ||
+      (!analysis?.serverSide && !hasCompletedLocalAnalysis)
+    ) {
       return { label: "WAITING", className: "neutral" };
     }
 
