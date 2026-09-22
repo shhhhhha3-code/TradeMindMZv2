@@ -5707,6 +5707,22 @@ function Positions(){
           source: "MANUAL_PIONEX",
           status: "LIVE",
           readOnly: true,
+          engineScore: Number.isFinite(Number(market?.engineScore ?? market?.score))
+            ? Number(market?.engineScore ?? market?.score)
+            : null,
+          rsi: Number.isFinite(Number(market?.rsi ?? market?.indicators?.rsi14))
+            ? Number(market?.rsi ?? market?.indicators?.rsi14)
+            : null,
+          volumeRatio: Number.isFinite(Number(market?.volumeRatio ?? market?.indicators?.volumeRatio))
+            ? Number(market?.volumeRatio ?? market?.indicators?.volumeRatio)
+            : null,
+          marketConfidence: Number.isFinite(Number(market?.confidence))
+            ? Number(market.confidence)
+            : null,
+          marketRiskReward: Number.isFinite(Number(market?.riskReward))
+            ? Number(market.riskReward)
+            : null,
+          marketUpdatedAt: snapshot?.updatedAt || snapshot?.createdAt || null,
           currentPrice:
             Number.isFinite(Number(trackedPosition.currentPrice))
               ? Number(trackedPosition.currentPrice)
@@ -5729,6 +5745,22 @@ function Positions(){
             trackedPositionId: trackedPosition.id,
             stopLoss: trackedPosition.stopLoss,
             takeProfit: trackedPosition.takeProfit,
+            engineScore: Number.isFinite(Number(trackedPosition.engineScore))
+              ? Number(trackedPosition.engineScore)
+              : merged[liveIndex]?.engineScore ?? enrichedTracked.engineScore,
+            rsi: Number.isFinite(Number(trackedPosition.rsi))
+              ? Number(trackedPosition.rsi)
+              : merged[liveIndex]?.rsi ?? enrichedTracked.rsi,
+            volumeRatio: Number.isFinite(Number(trackedPosition.volumeRatio))
+              ? Number(trackedPosition.volumeRatio)
+              : merged[liveIndex]?.volumeRatio ?? enrichedTracked.volumeRatio,
+            marketConfidence: Number.isFinite(Number(trackedPosition.marketConfidence))
+              ? Number(trackedPosition.marketConfidence)
+              : merged[liveIndex]?.marketConfidence ?? enrichedTracked.marketConfidence,
+            marketRiskReward: Number.isFinite(Number(trackedPosition.marketRiskReward))
+              ? Number(trackedPosition.marketRiskReward)
+              : merged[liveIndex]?.marketRiskReward ?? enrichedTracked.marketRiskReward,
+            marketUpdatedAt: trackedPosition.marketUpdatedAt || merged[liveIndex]?.marketUpdatedAt || enrichedTracked.marketUpdatedAt,
             holdTimeMinMinutes: trackedPosition.holdTimeMinMinutes,
             holdTimeMaxMinutes: trackedPosition.holdTimeMaxMinutes,
             holdTimeReason: trackedPosition.holdTimeReason,
@@ -5987,8 +6019,15 @@ function Positions(){
           const stopLoss = Number(position.stopLoss);
           const takeProfit = Number(position.takeProfit);
 
+          const rawPnl = Number(position.unrealizedPnl);
+          const pnl = Number.isFinite(rawPnl) ? rawPnl : null;
+          const margin = Number(position.margin);
           let pnlPercent = null;
-          if (
+          let pnlPercentType = "PRICE MOVE";
+          if (Number.isFinite(pnl) && Number.isFinite(margin) && margin > 0) {
+            pnlPercent = (pnl / margin) * 100;
+            pnlPercentType = "PNL %";
+          } else if (
             Number.isFinite(entry) &&
             entry > 0 &&
             Number.isFinite(current) &&
@@ -5999,9 +6038,6 @@ function Positions(){
                 ? ((entry-current)/entry)*100
                 : ((current-entry)/entry)*100;
           }
-
-          const rawPnl = Number(position.unrealizedPnl);
-          const pnl = Number.isFinite(rawPnl) ? rawPnl : null;
           const key = String(
             position.trackedPositionId || position.id || position.symbol
           );
@@ -6034,6 +6070,40 @@ function Positions(){
                 ? "warning"
                 : "positive";
 
+          const engineScore = Number(position.engineScore);
+          const positionRsi = Number(position.rsi);
+          const volumeRatio = Number(position.volumeRatio);
+          const marketConfidence = Number(position.marketConfidence);
+          const marketRiskReward = Number(position.marketRiskReward);
+
+          const healthChecks = [
+            {
+              label: "Engine score",
+              value: Number.isFinite(engineScore) ? Math.round(engineScore) + "/100" : "—",
+              state: Number.isFinite(engineScore) ? (engineScore >= 75 ? "PASS" : "WARN") : "UNKNOWN",
+            },
+            {
+              label: "AI confidence",
+              value: Number.isFinite(marketConfidence) ? Math.round(marketConfidence) + "%" : (Number.isFinite(confidence) ? Math.round(confidence) + "%" : "—"),
+              state: Number.isFinite(marketConfidence) ? (marketConfidence >= 80 ? "PASS" : "WARN") : "UNKNOWN",
+            },
+            {
+              label: "Risk / Reward",
+              value: Number.isFinite(marketRiskReward) ? "1:" + marketRiskReward.toFixed(1) : "—",
+              state: Number.isFinite(marketRiskReward) ? (marketRiskReward >= 2 ? "PASS" : "WARN") : "UNKNOWN",
+            },
+            {
+              label: "RSI",
+              value: Number.isFinite(positionRsi) ? positionRsi.toFixed(1) : "—",
+              state: Number.isFinite(positionRsi) ? (positionRsi >= 35 && positionRsi <= 70 ? "PASS" : "WARN") : "UNKNOWN",
+            },
+            {
+              label: "Volume",
+              value: Number.isFinite(volumeRatio) ? volumeRatio.toFixed(2) + "x" : "—",
+              state: Number.isFinite(volumeRatio) ? (volumeRatio >= 0.8 ? "PASS" : "WARN") : "UNKNOWN",
+            },
+          ];
+
           return (
             <div className="panel pos" key={key}>
               <div className="head">
@@ -6062,7 +6132,7 @@ function Positions(){
                   ["ENTRY",formatPrice(entry)],
                   ["CURRENT",formatPrice(current)],
                   ["UNREALIZED PNL",formatPnl(pnl)],
-                  ["PNL %",pnlPercent !== null ? formatPercent(pnlPercent) : "—"]
+                  [pnlPercentType,pnlPercent !== null ? formatPercent(pnlPercent) : "—"]
                 ].map((x,i) =>
                   <div
                     className={i >= 2 && Number.isFinite(pnl) && pnl < 0 ? "danger" : ""}
@@ -6182,6 +6252,23 @@ function Positions(){
                           ? holdMin + "–" + (Number.isFinite(holdMax) && holdMax > 0 ? holdMax : holdMin) + " min"
                           : "—"}
                       </b>
+                    </div>
+
+                    <div
+                      className="meta"
+                      style={{
+                        marginTop:"10px",
+                        display:"grid",
+                        gridTemplateColumns:"repeat(2,minmax(0,1fr))",
+                        gap:"8px"
+                      }}
+                    >
+                      {healthChecks.map(check => (
+                        <span key={check.label}>
+                          {check.state === "PASS" ? "✓" : check.state === "WARN" ? "⚠" : "•"} {check.label}
+                          <b>{check.value}</b>
+                        </span>
+                      ))}
                     </div>
 
                     <div className="meta" style={{marginTop:"10px"}}>
