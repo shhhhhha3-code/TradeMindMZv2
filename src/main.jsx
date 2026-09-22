@@ -5629,19 +5629,15 @@ function Positions(){
     setError("");
 
     try {
-      // Manual purchases must be monitored even before Pionex reports
-      // an open position. The old screen only rendered Pionex positions,
-      // which made the navigation badge show 1 while the monitor was empty.
       const tracked = loadTrackedPositions().filter(
         position => String(position?.status || "LIVE").toUpperCase() === "LIVE"
       );
 
       let pionexPositions = [];
       let pionexError = "";
-      let serverMonitoring = null;
 
       try {
-        serverMonitoring = await fetchServerPositionMonitoring();
+        const serverMonitoring = await fetchServerPositionMonitoring();
         pionexPositions = Array.isArray(serverMonitoring?.positions)
           ? serverMonitoring.positions
           : [];
@@ -5862,7 +5858,69 @@ function Positions(){
   const formatPnl = value => {
     const number = Number(value);
     if (!Number.isFinite(number)) return "—";
-    return `${number >= 0 ? "+" : ""}${number.toFixed(2)}`;
+    return (number >= 0 ? "+" : "") + number.toFixed(2);
+  };
+
+  const formatPercent = value => {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "—";
+    return (number >= 0 ? "+" : "") + number.toFixed(2) + "%";
+  };
+
+  const formatTime = value => {
+    if (!value) return "—";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "—";
+    return date.toLocaleTimeString("nb-NO", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  };
+
+  const distancePercent = (current, target, side, kind) => {
+    const price = Number(current);
+    const level = Number(target);
+    if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(level) || level <= 0) {
+      return null;
+    }
+
+    const direction = String(side || "").toUpperCase();
+    if (kind === "TP") {
+      return direction === "SHORT"
+        ? ((price - level) / price) * 100
+        : ((level - price) / price) * 100;
+    }
+
+    return direction === "SHORT"
+      ? ((level - price) / price) * 100
+      : ((price - level) / price) * 100;
+  };
+
+  const healthState = (analysis, pnlPercent) => {
+    const recommendation = String(analysis?.recommendation || "WATCH").toUpperCase();
+    const risk = String(analysis?.riskLevel || "MEDIUM").toUpperCase();
+    const confidence = Number(analysis?.confidence);
+    const delta = Number(analysis?.confidenceDelta);
+
+    if (
+      recommendation === "EXIT_CONSIDERATION" ||
+      risk === "CRITICAL" ||
+      (Number.isFinite(delta) && delta <= -10)
+    ) {
+      return { label: "ATTENTION", className: "negative" };
+    }
+
+    if (
+      recommendation === "REDUCE_RISK" ||
+      risk === "HIGH" ||
+      (Number.isFinite(confidence) && confidence < 60) ||
+      (Number.isFinite(pnlPercent) && pnlPercent < 0)
+    ) {
+      return { label: "CAUTION", className: "warning" };
+    }
+
+    return { label: "HEALTHY", className: "positive" };
   };
 
   return <>
@@ -5920,33 +5978,61 @@ function Positions(){
             .replace("_USDT"," / USDT")
             .replace("USDT"," / USDT");
 
+          const side = String(
+            position.side || position.direction || "LIVE"
+          ).toUpperCase();
+
           const entry = Number(position.entryPrice);
           const current = Number(position.currentPrice ?? position.markPrice);
-          let pnlPercent = null;
+          const stopLoss = Number(position.stopLoss);
+          const takeProfit = Number(position.takeProfit);
 
-          if (Number.isFinite(entry) && entry > 0 && Number.isFinite(current) && current > 0) {
+          let pnlPercent = null;
+          if (
+            Number.isFinite(entry) &&
+            entry > 0 &&
+            Number.isFinite(current) &&
+            current > 0
+          ) {
             pnlPercent =
-              String(position.side || "").toUpperCase() === "SHORT"
+              side === "SHORT"
                 ? ((entry-current)/entry)*100
                 : ((current-entry)/entry)*100;
           }
 
           const rawPnl = Number(position.unrealizedPnl);
-          const pnl = pnlPercent !== null && Number.isFinite(rawPnl)
-            ? rawPnl
-            : null;
+          const pnl = Number.isFinite(rawPnl) ? rawPnl : null;
           const key = String(
             position.trackedPositionId || position.id || position.symbol
           );
           const analysis = ai[key];
           const analysisLoading = Boolean(aiLoading[key]);
           const isTracked = String(position.source || "").includes("MANUAL");
+
           const holdMin = Number(
             analysis?.holdTimeMinMinutes ?? position.holdTimeMinMinutes
           );
           const holdMax = Number(
             analysis?.holdTimeMaxMinutes ?? position.holdTimeMaxMinutes
           );
+
+          const confidence = Number(analysis?.confidence);
+          const confidenceDelta = Number(analysis?.confidenceDelta);
+          const health = healthState(analysis, pnlPercent);
+
+          const tpDistance = distancePercent(current, takeProfit, side, "TP");
+          const slDistance = distancePercent(current, stopLoss, side, "SL");
+
+          const recommendation = String(
+            analysis?.recommendation || "WATCH"
+          ).toUpperCase();
+
+          const recommendationClass =
+            recommendation === "EXIT_CONSIDERATION"
+              ? "negative"
+              : recommendation === "REDUCE_RISK"
+                ? "warning"
+                : "positive";
 
           return (
             <div className="panel pos" key={key}>
@@ -5965,13 +6051,9 @@ function Positions(){
                   </div>
                 </div>
 
-                <span className={
-                  String(position.side || "").toUpperCase() === "SHORT"
-                    ? "short"
-                    : "long"
-                }>
+                <span className={side === "SHORT" ? "short" : "long"}>
                   <TrendingUp/>
-                  {String(position.side || position.direction || "LIVE").toUpperCase()}
+                  {side}
                 </span>
               </div>
 
@@ -5980,7 +6062,7 @@ function Positions(){
                   ["ENTRY",formatPrice(entry)],
                   ["CURRENT",formatPrice(current)],
                   ["UNREALIZED PNL",formatPnl(pnl)],
-                  ["PNL %",pnlPercent !== null ? `${pnlPercent >= 0 ? "+" : ""}${pnlPercent.toFixed(2)}%` : "—"]
+                  ["PNL %",pnlPercent !== null ? formatPercent(pnlPercent) : "—"]
                 ].map((x,i) =>
                   <div
                     className={i >= 2 && Number.isFinite(pnl) && pnl < 0 ? "danger" : ""}
@@ -5991,6 +6073,31 @@ function Positions(){
                   </div>
                 )}
               </div>
+
+              {(Number.isFinite(stopLoss) || Number.isFinite(takeProfit)) && (
+                <div className="levels">
+                  {[
+                    ["STOP LOSS",formatPrice(stopLoss)],
+                    ["TAKE PROFIT",formatPrice(takeProfit)],
+                    ["DIST. TO SL",slDistance !== null ? formatPercent(slDistance) : "—"],
+                    ["DIST. TO TP",tpDistance !== null ? formatPercent(tpDistance) : "—"]
+                  ].map((x,i) =>
+                    <div
+                      className={
+                        x[0] === "DIST. TO SL" && slDistance !== null && slDistance <= 0
+                          ? "danger"
+                          : x[0] === "DIST. TO TP" && tpDistance !== null && tpDistance <= 0
+                            ? "danger"
+                            : ""
+                      }
+                      key={x[0]}
+                    >
+                      <small>{x[0]}</small>
+                      <b>{x[1]}</b>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="meta">
                 <span>
@@ -6023,9 +6130,9 @@ function Positions(){
                   >
                     <span>EXIT WARNING</span>
                     <b style={{color:"#ff7777"}}>
-                      {analysis.recommendation === "EXIT_CONSIDERATION"
+                      {recommendation === "EXIT_CONSIDERATION"
                         ? "AI EXIT CONSIDERATION"
-                        : analysis.recommendation === "REDUCE_RISK"
+                        : recommendation === "REDUCE_RISK"
                           ? "REDUCE RISK"
                           : "AI CONFIDENCE WEAKENING"}
                     </b>
@@ -6040,25 +6147,58 @@ function Positions(){
                 ) : analysis ? (
                   <>
                     <div className="metric">
-                      <span>Recommendation</span>
-                      <b>{String(analysis.recommendation || "WATCH").replace(/_/g," ")}</b>
+                      <span>AI STATUS</span>
+                      <b className={recommendationClass}>
+                        {recommendation.replace(/_/g," ")}
+                      </b>
                     </div>
+
+                    <div className="metric">
+                      <span>POSITION HEALTH</span>
+                      <b className={health.className}>{health.label}</b>
+                    </div>
+
+                    <div className="metric">
+                      <span>AI Confidence</span>
+                      <b>
+                        {Number.isFinite(confidence) ? confidence + "%" : "—"}
+                        {Number.isFinite(confidenceDelta) ? (
+                          <small style={{marginLeft:"8px"}}>
+                            {confidenceDelta >= 0 ? "↑" : "↓"} {confidenceDelta >= 0 ? "+" : ""}{confidenceDelta.toFixed(0)}
+                          </small>
+                        ) : null}
+                      </b>
+                    </div>
+
                     <div className="metric">
                       <span>Risk</span>
                       <b>{analysis.riskLevel || "—"}</b>
                     </div>
-                    <div className="metric">
-                      <span>AI Confidence</span>
-                      <b>{analysis.confidence ?? "—"}%</b>
-                    </div>
+
                     <div className="metric">
                       <span>Estimated hold time</span>
                       <b>
                         {Number.isFinite(holdMin) && holdMin > 0
-                          ? holdMin + "–" + (Number.isFinite(holdMax) ? holdMax : holdMin) + " min"
+                          ? holdMin + "–" + (Number.isFinite(holdMax) && holdMax > 0 ? holdMax : holdMin) + " min"
                           : "—"}
                       </b>
                     </div>
+
+                    <div className="meta" style={{marginTop:"10px"}}>
+                      <span>
+                        Last AI analysis
+                        <b>{formatTime(analysis.analyzedAt)}</b>
+                      </span>
+                      <span>
+                        Provider
+                        <b>{analysis.provider || "—"}</b>
+                      </span>
+                      <span>
+                        Cycle
+                        <b>~7 min</b>
+                      </span>
+                    </div>
+
                     <p>{analysis.reasoning || "No reasoning returned."}</p>
                     <small className="note">
                       {analysis.action || ""}
