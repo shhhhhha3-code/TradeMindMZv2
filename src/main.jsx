@@ -4609,7 +4609,7 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
   const [learningError,setLearningError] = useState("");
 
   const {
-    data,
+    data: rawData,
     loading,
     refreshing,
     error,
@@ -4660,6 +4660,11 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
       });
     return () => { active = false; };
   }, []);
+
+  // Never display a snapshot from the other market while switching between PERP and SPOT.
+  const data = rawData?.marketType && rawData.marketType !== marketType
+    ? null
+    : rawData;
 
   const recommended = data?.recommended || null;
 
@@ -5166,7 +5171,9 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
           >
             {bought
               ? <><ShieldCheck/> PURCHASE REGISTERED IN PIONEX</>
-              : <><Wallet/> I BOUGHT THIS IN PIONEX</>}
+              : tradeApproved
+                ? <><Wallet/> I BOUGHT THIS IN PIONEX</>
+                : <><ShieldCheck/> WAITING FOR FINAL AI DECISION</>}
           </button>
 
           <small className="note">
