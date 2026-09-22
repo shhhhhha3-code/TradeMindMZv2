@@ -400,8 +400,8 @@ function normalizePositions(payload) {
     const side = position?.side ?? position?.positionSide ?? position?.direction ?? null;
     const sideUpper = side ? String(side).toUpperCase() : null;
     const n = (v) => { const x = Number(v); return Number.isFinite(x) ? x : null; };
-    const quantity = n(position?.quantity ?? position?.qty ?? position?.positionAmt ?? position?.size ?? position?.amount);
-    const rawEntryPrice = n(position?.entryPrice ?? position?.entry_price ?? position?.avgEntryPrice ?? position?.openPrice ?? position?.averageEntryPrice);
+    const quantity = n(position?.quantity ?? position?.qty ?? position?.netSize ?? position?.positionAmt ?? position?.size ?? position?.amount);
+    const rawEntryPrice = n(position?.entryPrice ?? position?.entry_price ?? position?.avgEntryPrice ?? position?.avgPrice ?? position?.averagePrice ?? position?.openPrice ?? position?.averageEntryPrice);
     const rawMarkPrice = n(position?.markPrice ?? position?.mark_price ?? position?.currentPrice ?? position?.lastPrice ?? position?.price);
     const entryPrice = Number.isFinite(rawEntryPrice) && rawEntryPrice > 0 ? rawEntryPrice : null;
     const markPrice = Number.isFinite(rawMarkPrice) && rawMarkPrice > 0 ? rawMarkPrice : null;
