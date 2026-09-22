@@ -4663,13 +4663,33 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
 
   const recommended = data?.recommended || null;
 
-  const symbolRaw = String(recommended?.symbol || "—");
+  const rawCandidates = Array.isArray(data?.candidates)
+    ? data.candidates
+    : Array.isArray(data?.engineTop5)
+      ? data.engineTop5
+      : [];
+
+  const earlyPreviewCandidate = rawCandidates
+    .map(candidate => ({
+      ...candidate,
+      __score: Number(candidate?.engineScore ?? candidate?.score ?? candidate?.aiScore ?? 0),
+      __confidence: Number(candidate?.aiConfidence ?? candidate?.confidence ?? 0)
+    }))
+    .filter(candidate => Number.isFinite(candidate.__score) && candidate.__score >= 70)
+    .sort((a,b) => b.__score - a.__score)[0] || null;
+
+  const signalDisplay = recommended || earlyPreviewCandidate || null;
+
+  const symbolRaw = String(signalDisplay?.symbol || "—");
   const displaySymbol = symbolRaw.includes("_")
     ? symbolRaw.replace("_", " / ")
     : symbolRaw.replace("USDT", " / USDT");
 
   const directionRaw = String(
-    recommended?.direction || ""
+    signalDisplay?.direction ||
+    signalDisplay?.side ||
+    signalDisplay?.trend ||
+    ""
   ).toUpperCase();
 
   const direction = marketType === "SPOT"
@@ -4688,53 +4708,63 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
             : ""
       );
 
-  const score = Number.isFinite(Number(recommended?.engineScore))
-    ? Number(recommended.engineScore)
-    : Number.isFinite(Number(recommended?.score))
-      ? Number(recommended.score)
+  const score = Number.isFinite(Number(signalDisplay?.engineScore))
+    ? Number(signalDisplay.engineScore)
+    : Number.isFinite(Number(signalDisplay?.score))
+      ? Number(signalDisplay.score)
       : 0;
 
-  const confidence = Number.isFinite(Number(recommended?.aiConfidence))
-    ? Number(recommended.aiConfidence)
-    : Number.isFinite(Number(recommended?.confidence))
-      ? Number(recommended.confidence)
+  const confidence = Number.isFinite(Number(signalDisplay?.aiConfidence))
+    ? Number(signalDisplay.aiConfidence)
+    : Number.isFinite(Number(signalDisplay?.confidence))
+      ? Number(signalDisplay.confidence)
       : 0;
 
-  const entry = Number.isFinite(Number(recommended?.entry))
-    ? Number(recommended.entry)
+  const entry = Number.isFinite(Number(signalDisplay?.entry))
+    ? Number(signalDisplay.entry)
     : 0;
 
-  const stop = Number.isFinite(Number(recommended?.stopLoss))
-    ? Number(recommended.stopLoss)
+  const stop = Number.isFinite(Number(signalDisplay?.stopLoss))
+    ? Number(signalDisplay.stopLoss)
     : 0;
 
-  const tp = Number.isFinite(Number(recommended?.takeProfit))
-    ? Number(recommended.takeProfit)
+  const tp = Number.isFinite(Number(signalDisplay?.takeProfit))
+    ? Number(signalDisplay.takeProfit)
     : 0;
 
-  const rr = Number.isFinite(Number(recommended?.riskReward))
-    ? Number(recommended.riskReward)
+  const rr = Number.isFinite(Number(signalDisplay?.riskReward))
+    ? Number(signalDisplay.riskReward)
     : 0;
 
-  const risk = String(recommended?.riskLevel || "—").toUpperCase();
+  const risk = String(signalDisplay?.riskLevel || "—").toUpperCase();
   const marketRegime = data?.marketRegime?.regime || "—";
   const reasoning =
-    recommended?.reasoning ||
+    signalDisplay?.reasoning ||
     data?.summary ||
     "Awaiting live Pionex market analysis.";
 
-  const verdict = String(data?.verdict || "NO_TRADE")
-    .replace("_", " ");
+  const finalDecision = String(data?.finalDecision || "").toUpperCase();
+  const decisionLayerFailed = Boolean(
+    error ||
+    data?.decisionLayerError ||
+    data?.aiDecisionError ||
+    data?.providerError
+  );
+  const evaluating = Boolean(
+    !recommended &&
+    earlyPreviewCandidate &&
+    decisionLayerFailed
+  );
+
+  const verdict = String(
+    evaluating ? "AI_EVALUATING" : (data?.verdict || "NO_TRADE")
+  ).replace("_", " ");
 
   const comparison = Array.isArray(data?.comparison)
     ? data.comparison
     : [];
 
-  const candidates = Array.isArray(data?.candidates)
-    ? data.candidates
-    : Array.isArray(data?.engineTop5)
-      ? data.engineTop5
-      : [];
+  const candidates = rawCandidates;
 
   const earlyCandidates = candidates
     .map((candidate, index) => {
@@ -4898,14 +4928,16 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
   const tradeApproved = Boolean(
     recommended &&
     direction &&
-    String(data?.finalDecision || "").toUpperCase() === "TRADE"
+    finalDecision === "TRADE"
   );
 
   const headerText = loading
     ? "AI is scanning the live market."
     : tradeApproved
       ? "AI has found a qualified setup."
-      : "No confirmed trade yet.";
+      : evaluating
+        ? "AI is evaluating the best early signal."
+        : "No confirmed trade yet.";
 
   return (
     <>
@@ -4970,9 +5002,24 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
       </div>
 
       {error && (
-        <div className="panel" style={{padding:"16px",marginBottom:"18px"}}>
-          <strong>AI signal unavailable</strong>
-          <p style={{margin:"6px 0 0",opacity:.65}}>{error}</p>
+        <div
+          className="panel"
+          style={{
+            padding:"16px",
+            marginBottom:"18px",
+            borderColor: evaluating
+              ? "rgba(255,193,7,.28)"
+              : "rgba(255,107,107,.25)"
+          }}
+        >
+          <strong>
+            {evaluating ? "AI decision layer is evaluating" : "AI signal unavailable"}
+          </strong>
+          <p style={{margin:"6px 0 0",opacity:.65}}>
+            {evaluating
+              ? "The market scanner found early candidates. The final AI decision is not available yet."
+              : error}
+          </p>
         </div>
       )}
 
@@ -5001,12 +5048,18 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
             </div>
 
             <span className={
-              direction === "SELL" || direction === "SHORT"
-                ? "short"
-                : "long"
+              evaluating
+                ? "status"
+                : direction === "SELL" || direction === "SHORT"
+                  ? "short"
+                  : "long"
             }>
               <TrendingUp/>
-              {tradeApproved ? direction : "NO TRADE"}
+              {tradeApproved
+                ? direction
+                : evaluating
+                  ? "AI EVALUATING"
+                  : "NO TRADE"}
             </span>
           </div>
 
@@ -5057,14 +5110,24 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
               display:"block",
               marginTop:"4px",
               fontSize:"22px",
-              color: tradeApproved ? "#35e0a1" : "#ff7777"
+              color: tradeApproved
+                ? "#35e0a1"
+                : evaluating
+                  ? "#ffc857"
+                  : "#ff7777"
             }}>
-              {tradeApproved ? direction : "NO TRADE"}
+              {tradeApproved
+                ? direction
+                : evaluating
+                  ? "AI EVALUATING"
+                  : "NO TRADE"}
             </strong>
             <span style={{display:"block",marginTop:"4px",fontSize:"12px",opacity:.62}}>
               {tradeApproved
                 ? "AI approved this setup after the final trade checks."
-                : "Candidate data can be strong without becoming a confirmed trade."}
+                : evaluating
+                  ? "Early candidate found. Waiting for the final AI decision."
+                  : "Candidate data can be strong without becoming a confirmed trade."}
             </span>
           </div>
 
