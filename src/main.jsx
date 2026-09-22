@@ -4858,6 +4858,10 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
   ].filter(Boolean);
 
   useEffect(() => {
+    setSignalHistory([]);
+  }, [marketType]);
+
+  useEffect(() => {
     if (!data || data.marketType !== marketType) return;
 
     const timestamp = data.updatedAt || data.persistedAt;
