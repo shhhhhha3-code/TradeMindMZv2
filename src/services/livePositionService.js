@@ -68,6 +68,7 @@ function normalizePionexPosition(position, index) {
     toNumber(
       position?.quantity ??
       position?.qty ??
+      position?.netSize ??
       position?.positionAmt ??
       position?.size ??
       position?.amount
@@ -78,6 +79,8 @@ function normalizePionexPosition(position, index) {
       position?.entryPrice ??
       position?.entry_price ??
       position?.avgEntryPrice ??
+      position?.avgPrice ??
+      position?.averagePrice ??
       position?.openPrice ??
       position?.averageEntryPrice
     );
