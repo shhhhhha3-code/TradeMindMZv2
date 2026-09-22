@@ -66,7 +66,11 @@ export function useLiveAiSignal(
           return initial;
         }
 
-        setLoading(false);
+        if (mountedRef.current) {
+          setData(null);
+          setLoading(false);
+          setError(null);
+        }
         return null;
       } catch (err) {
         if (!mountedRef.current) {
