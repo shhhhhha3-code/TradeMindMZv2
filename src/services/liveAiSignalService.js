@@ -131,7 +131,9 @@ export async function fetchLatestAiSignal(options = {}) {
   );
 
   const data = await readJson(response, "Latest AI snapshot");
-  if (!data?.available || !data?.snapshot) return null;
+  if (!data?.available || !data?.snapshot || data?.stale === true || data?.snapshot?.stale === true) {
+    return null;
+  }
 
   const result = buildSignalResponse(data.snapshot, options.preferredProvider || "groq");
   return {
