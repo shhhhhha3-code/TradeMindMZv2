@@ -5318,7 +5318,8 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
           </div>
         )}
       </div>
-  </>
+    </>
+  );
 }
 
 function formatPrice(value) {
