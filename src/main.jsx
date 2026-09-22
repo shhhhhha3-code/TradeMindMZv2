@@ -6288,6 +6288,18 @@ function Positions(){
                         </b>
                       </span>
                       <span>
+                        Market data age
+                        <b>
+                          {(() => {
+                            const stamp = position.marketUpdatedAt || marketSnapshot?.updatedAt || marketSnapshot?.persistedAt;
+                            const ts = stamp ? new Date(stamp).getTime() : NaN;
+                            if (!Number.isFinite(ts)) return "—";
+                            const seconds = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+                            return seconds < 60 ? seconds + "s" : Math.floor(seconds / 60) + "m";
+                          })()}
+                        </b>
+                      </span>
+                      <span>
                         Provider
                         <b>{analysis.provider || "—"}</b>
                       </span>
