@@ -4753,7 +4753,10 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
     error ||
     data?.decisionLayerError ||
     data?.aiDecisionError ||
-    data?.providerError
+    data?.providerError ||
+    data?.aiDecision?.success === false ||
+    String(data?.aiDecision?.reason || "").toLowerCase().includes("providers failed") ||
+    String(data?.aiDecision?.reason || "").toLowerCase().includes("provider is available")
   );
   const evaluating = Boolean(
     !recommended &&
