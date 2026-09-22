@@ -65,13 +65,25 @@ export async function getLatestLiveAiSnapshot(supabase, options = {}) {
     scanned: Number(data.scanned || 0),
   };
 
+  const persistedAt = data.created_at || null;
+  const ageMs = persistedAt
+    ? Math.max(0, Date.now() - new Date(persistedAt).getTime())
+    : null;
+  const maxFreshMs = 15 * 60 * 1000;
+  const stale = !Number.isFinite(ageMs) || ageMs > maxFreshMs;
+
   return {
     available: true,
+    stale,
+    ageSeconds: Number.isFinite(ageMs) ? Math.round(ageMs / 1000) : null,
+    maxFreshSeconds: Math.round(maxFreshMs / 1000),
     snapshot: {
       ...payload,
-      persistedAt: data.created_at,
+      persistedAt,
       snapshotId: data.id,
       cached: true,
+      stale,
+      snapshotAgeSeconds: Number.isFinite(ageMs) ? Math.round(ageMs / 1000) : null,
       nextAnalysisAt:
         data.next_analysis_at ||
         payload.nextAnalysisAt ||
