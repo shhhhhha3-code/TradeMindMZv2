@@ -40,6 +40,260 @@ function sanitizeLimit(value, fallback = 50) {
   return Math.max(1, Math.min(100, Number(value) || fallback));
 }
 
+function parseSchedulerSecretState(rawSecret) {
+  const raw = String(rawSecret || "").trim();
+  if (!raw) {
+    return { schedulerSecret: "", fcmToken: null, lastQualifiedTradeKey: null };
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && parsed.schedulerSecret) {
+      return {
+        schedulerSecret: String(parsed.schedulerSecret),
+        fcmToken: parsed.fcmToken ? String(parsed.fcmToken) : null,
+        lastQualifiedTradeKey: parsed.lastQualifiedTradeKey
+          ? String(parsed.lastQualifiedTradeKey)
+          : null,
+      };
+    }
+  } catch {}
+
+  return {
+    schedulerSecret: raw,
+    fcmToken: null,
+    lastQualifiedTradeKey: null,
+  };
+}
+
+async function getSchedulerSecretState(supabase) {
+  const { data, error } = await supabase
+    .from("trademind_scheduler_secrets")
+    .select("secret")
+    .eq("id", true)
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !data?.secret) {
+    throw new Error("TradeMindMZ scheduler secret is not configured.");
+  }
+
+  return parseSchedulerSecretState(data.secret);
+}
+
+async function saveSchedulerSecretState(supabase, state) {
+  const secret = String(state?.schedulerSecret || "").trim();
+  if (!secret) throw new Error("TradeMindMZ scheduler secret is empty.");
+
+  const value = JSON.stringify({
+    schedulerSecret: secret,
+    fcmToken: state?.fcmToken || null,
+    lastQualifiedTradeKey: state?.lastQualifiedTradeKey || null,
+  });
+
+  const { error } = await supabase
+    .from("trademind_scheduler_secrets")
+    .update({ secret: value })
+    .eq("id", true);
+
+  if (error) throw new Error("Failed to save TradeMindMZ notification state: " + error.message);
+}
+
+function base64UrlEncode(bytes) {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
+}
+
+function utf8Base64UrlEncode(value) {
+  return base64UrlEncode(new TextEncoder().encode(String(value)));
+}
+
+function pemToArrayBuffer(pem) {
+  const base64 = String(pem || "")
+    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
+    .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/\\s+/g, "");
+  const binary = atob(base64);
+  const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  return bytes.buffer;
+}
+
+async function getFcmAccessToken(serviceAccount) {
+  const now = Math.floor(Date.now() / 1000);
+  const header = utf8Base64UrlEncode(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const claim = utf8Base64UrlEncode(JSON.stringify({
+    iss: serviceAccount.client_email,
+    scope: "https://www.googleapis.com/auth/firebase.messaging",
+    aud: "https://oauth2.googleapis.com/token",
+    iat: now,
+    exp: now + 3600,
+  }));
+  const unsigned = header + "." + claim;
+
+  const privateKey = await crypto.subtle.importKey(
+    "pkcs8",
+    pemToArrayBuffer(serviceAccount.private_key),
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+    false,
+    ["sign"]
+  );
+
+  const signature = await crypto.subtle.sign(
+    "RSASSA-PKCS1-v1_5",
+    privateKey,
+    new TextEncoder().encode(unsigned)
+  );
+
+  const assertion = unsigned + "." + base64UrlEncode(new Uint8Array(signature));
+  const tokenResponse = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body:
+      "grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer" +
+      "&assertion=" + encodeURIComponent(assertion),
+  });
+
+  const tokenText = await tokenResponse.text();
+  if (!tokenResponse.ok) {
+    throw new Error("Google OAuth token request failed: " + tokenText.slice(0, 300));
+  }
+
+  const tokenPayload = JSON.parse(tokenText);
+  if (!tokenPayload?.access_token) {
+    throw new Error("Google OAuth response did not contain an access token.");
+  }
+
+  return tokenPayload.access_token;
+}
+
+async function sendQualifiedTradePush(supabase, payload, marketType = "PERP") {
+  if (String(payload?.finalDecision || "").toUpperCase() !== "TRADE") {
+    return { sent: false, skipped: true, reason: "NOT_QUALIFIED" };
+  }
+
+  const serviceAccountRaw = Deno.env.get("FCM_SERVICE_ACCOUNT_JSON");
+  if (!serviceAccountRaw) {
+    return { sent: false, skipped: true, reason: "FCM_SERVICE_ACCOUNT_NOT_CONFIGURED" };
+  }
+
+  const state = await getSchedulerSecretState(supabase);
+  if (!state.fcmToken) {
+    return { sent: false, skipped: true, reason: "NO_REGISTERED_DEVICE" };
+  }
+
+  const candidates = Array.isArray(payload?.candidates)
+    ? payload.candidates
+    : Array.isArray(payload?.engineTop5)
+      ? payload.engineTop5
+      : [];
+
+  const symbol = String(payload?.aiDecision?.symbol || "").toUpperCase();
+  const candidate =
+    candidates.find((item) => String(item?.symbol || "").toUpperCase() === symbol) ||
+    candidates[0] ||
+    {};
+
+  const direction = String(
+    candidate?.direction || payload?.aiDecision?.direction || "TRADE"
+  ).toUpperCase();
+  const entry = Number(candidate?.entry ?? candidate?.price);
+  const takeProfit = Number(candidate?.takeProfit);
+  const stopLoss = Number(candidate?.stopLoss);
+  const engineScore = Number(candidate?.engineScore ?? candidate?.score);
+  const confidence = Number(
+    payload?.aiDecision?.confidence ?? candidate?.confidence
+  );
+
+  const tradeKey = [
+    String(marketType || "PERP").toUpperCase(),
+    symbol || String(candidate?.symbol || "").toUpperCase(),
+    direction,
+    Number.isFinite(entry) ? entry.toFixed(4) : "NA",
+    Number.isFinite(takeProfit) ? takeProfit.toFixed(4) : "NA",
+    Number.isFinite(stopLoss) ? stopLoss.toFixed(4) : "NA",
+  ].join("|");
+
+  if (state.lastQualifiedTradeKey === tradeKey) {
+    return { sent: false, skipped: true, reason: "DUPLICATE_QUALIFIED_TRADE", tradeKey };
+  }
+
+  let serviceAccount;
+  try {
+    serviceAccount = JSON.parse(serviceAccountRaw);
+  } catch {
+    return { sent: false, skipped: true, reason: "INVALID_FCM_SERVICE_ACCOUNT_JSON" };
+  }
+
+  if (!serviceAccount?.project_id || !serviceAccount?.client_email || !serviceAccount?.private_key) {
+    return { sent: false, skipped: true, reason: "INVALID_FCM_SERVICE_ACCOUNT_JSON" };
+  }
+
+  const accessToken = await getFcmAccessToken(serviceAccount);
+  const title = "🔥 QUALIFIED TRADE";
+  const body = [
+    symbol || "TradeMindMZ",
+    direction,
+    Number.isFinite(engineScore) ? "Engine " + Math.round(engineScore) : null,
+    Number.isFinite(confidence) ? "AI " + Math.round(confidence) + "%" : null,
+    Number.isFinite(entry) ? "Entry " + entry : null,
+    "TP +3% / SL -3%",
+  ].filter(Boolean).join(" • ");
+
+  const fcmResponse = await fetch(
+    "https://fcm.googleapis.com/v1/projects/" +
+      encodeURIComponent(serviceAccount.project_id) +
+      "/messages:send",
+    {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + accessToken,
+        "Content-Type": "application/json; UTF-8",
+      },
+      body: JSON.stringify({
+        message: {
+          token: state.fcmToken,
+          notification: { title, body },
+          data: {
+            type: "QUALIFIED_TRADE",
+            symbol: symbol || String(candidate?.symbol || ""),
+            direction,
+            marketType: String(marketType || "PERP").toUpperCase(),
+            entry: Number.isFinite(entry) ? String(entry) : "",
+            takeProfit: Number.isFinite(takeProfit) ? String(takeProfit) : "",
+            stopLoss: Number.isFinite(stopLoss) ? String(stopLoss) : "",
+          },
+          android: {
+            priority: "HIGH",
+            notification: {
+              channelId: "qualified-trades",
+              sound: "default",
+            },
+          },
+        },
+      }),
+    }
+  );
+
+  const responseText = await fcmResponse.text();
+  if (!fcmResponse.ok) {
+    if (fcmResponse.status === 404 || responseText.includes("UNREGISTERED")) {
+      await saveSchedulerSecretState(supabase, {
+        ...state,
+        fcmToken: null,
+      });
+    }
+    throw new Error("FCM send failed: " + fcmResponse.status + " " + responseText.slice(0, 300));
+  }
+
+  await saveSchedulerSecretState(supabase, {
+    ...state,
+    lastQualifiedTradeKey: tradeKey,
+  });
+
+  return { sent: true, tradeKey, provider: "FCM" };
+}
+
 const LIVE_AI_INTERVAL_MS = 7 * 60 * 1000;
 const liveAiInFlight = new Map();
 
@@ -62,19 +316,13 @@ async function authorizeSchedulerRequest(req, supabase) {
     return false;
   }
 
-  const { data, error } = await supabase
-    .from("trademind_scheduler_secrets")
-    .select("secret")
-    .eq("id", true)
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !data?.secret) {
+  try {
+    const state = await getSchedulerSecretState(supabase);
+    return provided === state.schedulerSecret;
+  } catch (error) {
     console.error("Scheduler authorization lookup failed:", error);
     return false;
   }
-
-  return provided === String(data.secret);
 }
 
 function liveAiOptionsFromUrl(url) {
@@ -1896,6 +2144,18 @@ async function handle(req) {
         }, 500);
       }
 
+      let pushNotification = null;
+      try {
+        pushNotification = await sendQualifiedTradePush(admin, payload, "PERP");
+      } catch (pushError) {
+        console.error("Qualified trade push failed:", pushError);
+        pushNotification = {
+          sent:false,
+          skipped:false,
+          error:pushError?.message || String(pushError),
+        };
+      }
+
       let spotSnapshot = null;
       let spotMonitoring = null;
       try {
@@ -1910,6 +2170,12 @@ async function handle(req) {
           persist:true,
         });
         spotMonitoring = await runServerSpotMonitoring(admin);
+        try {
+          const spotPush = await sendQualifiedTradePush(admin, spotSnapshot, "SPOT");
+          spotMonitoring = { ...spotMonitoring, pushNotification: spotPush };
+        } catch (spotPushError) {
+          console.error("Qualified Spot trade push failed:", spotPushError);
+        }
       } catch (spotError) {
         console.error("Scheduled Spot monitoring failed:", spotError);
         spotMonitoring = { success:false, error:spotError?.message || String(spotError), readOnly:true };
@@ -1947,6 +2213,7 @@ async function handle(req) {
         cadenceMinutes: 7,
         snapshot: payload,
         spotSnapshot,
+        pushNotification,
         spotMonitoring,
         positionMonitoring,
       });
@@ -1982,6 +2249,36 @@ async function handle(req) {
           error?.message ||
           "Scheduled AI scan failed.",
       }, rateLimited ? 429 : 502);
+    }
+  }
+
+  if (path === "/api/notifications/register" && method === "POST") {
+    try {
+      const token = String(body?.token || "").trim();
+      if (!token || token.length > 4096) {
+        return response({ success:false, error:"A valid push registration token is required." },400);
+      }
+
+      const admin = supabaseAdmin();
+      const state = await getSchedulerSecretState(admin);
+      await saveSchedulerSecretState(admin, {
+        ...state,
+        fcmToken: token,
+      });
+
+      return response({
+        success:true,
+        registered:true,
+        provider:"FCM",
+        platform: body?.platform || "android",
+        readOnly:true,
+      });
+    } catch (error) {
+      return response({
+        success:false,
+        registered:false,
+        error:error?.message || "Push registration failed.",
+      },500);
     }
   }
 
