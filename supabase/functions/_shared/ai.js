@@ -90,7 +90,7 @@ function buildTradeExplanation(candidate, aiDecision) {
   }
 
   if (Number.isFinite(rr)) {
-    invalidation.push(`Risk/reward falling below 2:1 removes the trade-quality edge.`);
+    invalidation.push(`TradeMindMZ uses a fixed 1:1 plan: +3% TP / -3% SL.`);
   }
   if (Number.isFinite(rsi)) {
     invalidation.push(direction === "SHORT"
@@ -127,9 +127,8 @@ function hardBlocks(candidate, { marketType = "PERP" } = {}) {
   const direction = String(candidate?.direction || "").toUpperCase();
   const normalizedMarketType = String(marketType || "PERP").toUpperCase();
   const reasons = [];
-  if (Number.isFinite(score) && score < 75) reasons.push("ENGINE_SCORE_BELOW_MINIMUM");
+  if (Number.isFinite(score) && score < 90) reasons.push("ENGINE_SCORE_BELOW_MINIMUM");
   if (Number.isFinite(confidence) && confidence < 80) reasons.push("CONFIDENCE_BELOW_MINIMUM");
-  if (Number.isFinite(rr) && rr < 2) reasons.push("RISK_REWARD_BELOW_MINIMUM");
   if (Number.isFinite(rsi) && (rsi < 35 || rsi > 70)) reasons.push("RSI_OUTSIDE_RANGE");
   if (Number.isFinite(volume) && volume < 0.8) reasons.push("VOLUME_BELOW_MINIMUM");
   if (risk === "HIGH") reasons.push("ENGINE_HIGH_RISK");
@@ -191,7 +190,7 @@ async function runDecision(candidates = [], preferredProvider = "groq", options 
   }));
 
   const payload = {
-    systemPrompt: `You are the TradeMindMZ AI Decision Layer. A deterministic TradeMindMZ Engine has already evaluated the market candidates. Evaluate ONLY the supplied candidates. Never invent market data. Engine rules are hard: score >= 75, confidence >= 80, risk/reward >= 2, RSI 35-70, volume ratio >= 0.8, and HIGH risk cannot be selected. For SPOT, only BUY is actionable because Spot does not create a short position. Return JSON only: {"decision":"TRADE|WATCH|NO_TRADE","symbol":"SYMBOL","confidence":0,"risk":"LOW|MEDIUM|HIGH","reason":"short explanation","holdTimeMinMinutes":0,"holdTimeMaxMinutes":0,"holdTimeReason":"brief reason based only on supplied timeframe, volatility, entry/TP distance and momentum"}. Only provide a meaningful hold-time range when decision is TRADE; otherwise use 0/0 and an empty reason. Hold time is an estimate, not a guarantee.`,
+    systemPrompt: `You are the TradeMindMZ AI Decision Layer. A deterministic TradeMindMZ Engine has already evaluated the market candidates. Evaluate ONLY the supplied candidates. Never invent market data. Strategy rules are hard: score >= 90, confidence >= 80, RSI 35-70, volume ratio >= 0.8, and HIGH risk cannot be selected. Execution is fixed at +3% TP / -3% SL; 1:1 risk/reward is intentional and must not reject a score-90+ setup. For SPOT, only BUY is actionable because Spot does not create a short position. For score-90+ candidates that pass the deterministic checks, prefer TRADE unless the supplied data contains a concrete contradiction. Return JSON only: {"decision":"TRADE|WATCH|NO_TRADE","symbol":"SYMBOL","confidence":0,"risk":"LOW|MEDIUM|HIGH","reason":"short explanation","holdTimeMinMinutes":0,"holdTimeMaxMinutes":0,"holdTimeReason":"brief reason based only on supplied timeframe, volatility, entry/TP distance and momentum"}. Only provide a meaningful hold-time range when decision is TRADE; otherwise use 0/0 and an empty reason. Hold time is an estimate, not a guarantee.`,
     userPrompt: `Market type: ${marketType}. TradeMindMZ Engine TOP 5:\n\n${JSON.stringify(aiCandidates)}`,
   };
 
@@ -210,6 +209,9 @@ async function runDecision(candidates = [], preferredProvider = "groq", options 
       if (!["TRADE", "WATCH", "NO_TRADE"].includes(decision)) decision = "NO_TRADE";
       const confidence = Math.max(0, Math.min(100, Number(raw?.confidence ?? selected?.confidence ?? 0) || 0));
       if (decision === "TRADE" && confidence < 80) decision = "WATCH";
+      const selectedScore = Number(selected?.engineScore ?? selected?.score);
+      const selectedEngineConfidence = Number(selected?.confidence);
+      if (decision === "NO_TRADE" && Number.isFinite(selectedScore) && selectedScore >= 90 && Number.isFinite(selectedEngineConfidence) && selectedEngineConfidence >= 80) decision = "TRADE";
       return {
         success: true,
         decision,

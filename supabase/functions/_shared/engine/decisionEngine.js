@@ -20,7 +20,7 @@ export function evaluateCandidate(candidate) {
   const reasons = [];
 
   if (
-    candidate.engineScore < 75
+    candidate.engineScore < 90
   ) {
     reasons.push(
       "ENGINE_SCORE_BELOW_MINIMUM"
@@ -33,15 +33,6 @@ export function evaluateCandidate(candidate) {
   ) {
     reasons.push(
       "CONFIDENCE_BELOW_MINIMUM"
-    );
-  }
-
-  if (
-    candidate.riskReward !== null &&
-    candidate.riskReward < 2
-  ) {
-    reasons.push(
-      "RISK_REWARD_BELOW_MINIMUM"
     );
   }
 
@@ -83,8 +74,8 @@ export function evaluateCandidate(candidate) {
   }
 
   if (
-    candidate.engineScore >= 65 &&
-    candidate.engineScore < 75
+    candidate.engineScore >= 75 &&
+    candidate.engineScore < 90
   ) {
     return {
       decision:

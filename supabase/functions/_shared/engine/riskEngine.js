@@ -5,7 +5,6 @@ function finite(value) {
 
 export function evaluateRisk(market) {
   const rsi = finite(market?.rsi);
-  const rr = finite(market?.riskReward);
   const volumeRatio = finite(
     market?.volumeRatio
   );
@@ -22,14 +21,6 @@ export function evaluateRisk(market) {
   ) {
     points += 3;
     reasons.push("EXTREME_RSI");
-  }
-
-  if (
-    rr !== null &&
-    rr < 2
-  ) {
-    points += 2;
-    reasons.push("LOW_RISK_REWARD");
   }
 
   if (

@@ -30,6 +30,10 @@ function number(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
+const STRATEGY_TP_PCT = 0.03;
+const STRATEGY_SL_PCT = 0.03;
+const STRATEGY_LEVERAGE = 3;
+
 function average(values) {
   const valid = values
     .map(Number)
@@ -208,7 +212,7 @@ export function scorePionexCandidate({
   candles,
   ticker = {},
   marketType = "PERP",
-  leverage = 2,
+  leverage = STRATEGY_LEVERAGE,
   interval = "15M",
 }) {
   if (candles.length < 40) {
@@ -377,14 +381,9 @@ export function scorePionexCandidate({
       Math.min(100, Math.round(rawScore))
     );
 
-  const stopDistance =
-    Math.max(
-      atrValue * 1.5,
-      price * 0.01
-    );
-
-  const targetDistance =
-    stopDistance * 2;
+  // User strategy: fixed +3% TP / -3% SL. Volatility still affects the score.
+  const stopDistance = price * STRATEGY_SL_PCT;
+  const targetDistance = price * STRATEGY_TP_PCT;
 
   const entry =
     price;
@@ -510,7 +509,8 @@ export function scorePionexCandidate({
     openInterest: number(ticker?.openInterest ?? ticker?.open_interest),
     marketType,
     contractType: marketType === "PERP" ? "USDT-M PERPETUAL" : "SPOT",
-    leverage: marketType === "PERP" ? Number(leverage) || 2 : 1,
+    leverage: marketType === "PERP" ? Number(leverage) || STRATEGY_LEVERAGE : 1,
+    strategy: { allocationPercent: 100, takeProfitPercent: 3, stopLossPercent: 3 },
     marginAsset: marketType === "PERP" ? "USDT" : null,
     timeframe: interval,
 
@@ -573,7 +573,7 @@ export async function scanPionexMarket({
   candleLimit = 100,
   maxMarkets = 25,
   marketType = "PERP",
-  leverage = 2,
+  leverage = STRATEGY_LEVERAGE,
 } = {}) {
   const normalizedMarketType =
     String(marketType || "PERP").toUpperCase() === "SPOT"
@@ -729,7 +729,7 @@ export async function scanPionexMarket({
         : "SPOT",
     leverage:
       normalizedMarketType === "PERP"
-        ? Number(leverage) || 2
+        ? Number(leverage) || STRATEGY_LEVERAGE
         : 1,
     scanInterval: interval,
   };
