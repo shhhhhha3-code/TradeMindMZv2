@@ -88,6 +88,51 @@ function liveAiOptionsFromUrl(url) {
   };
 }
 
+function applyFixedTradePlan(candidates = [], { marketType = "PERP" } = {}) {
+  const normalizedMarketType =
+    String(marketType || "PERP").toUpperCase() === "SPOT"
+      ? "SPOT"
+      : "PERP";
+
+  return (Array.isArray(candidates) ? candidates : []).map((candidate) => {
+    const entry = Number(candidate?.entry ?? candidate?.price);
+    const direction = String(
+      candidate?.direction || candidate?.side || candidate?.trend || ""
+    ).toUpperCase();
+
+    if (!Number.isFinite(entry) || entry <= 0) {
+      return candidate;
+    }
+
+    const isShort =
+      normalizedMarketType === "PERP" &&
+      (direction === "SHORT" || direction === "SELL");
+
+    const stopLoss = isShort
+      ? entry * 1.03
+      : entry * 0.97;
+    const takeProfit = isShort
+      ? entry * 0.97
+      : entry * 1.03;
+
+    return {
+      ...candidate,
+      entry,
+      stopLoss,
+      takeProfit,
+      riskReward: 1,
+      strategyPlan: {
+        allocationPercent: 100,
+        takeProfitPercent: 3,
+        stopLossPercent: 3,
+        leverage: normalizedMarketType === "PERP"
+          ? Number(candidate?.leverage) || 3
+          : 1,
+      },
+    };
+  });
+}
+
 function deriveMarketRegime(candidates = []) {
   const rows = Array.isArray(candidates) ? candidates : [];
   const btc = rows.find(row => /^(BTC|BTC_USDT)/i.test(String(row?.symbol || "")));
@@ -163,13 +208,18 @@ async function runLiveAiAnalysis({
         throw new Error("Pionex scanner returned no Engine TOP 5 candidates.");
       }
 
-      const aiDecision = await runDecision(
+      const strategyCandidates = applyFixedTradePlan(
         result.engineTop5,
+        { marketType }
+      );
+
+      const aiDecision = await runDecision(
+        strategyCandidates,
         provider,
         { marketType }
       );
 
-      const selectedCandidate = result.engineTop5.find(
+      const selectedCandidate = strategyCandidates.find(
         (candidate) =>
           String(candidate?.symbol || "").toUpperCase() ===
           String(aiDecision?.symbol || "").toUpperCase()
@@ -179,7 +229,7 @@ async function runLiveAiAnalysis({
         ? evaluateCandidate(selectedCandidate, { marketType })
         : null;
 
-      const marketRegime = deriveMarketRegime(result.engineTop5);
+      const marketRegime = deriveMarketRegime(strategyCandidates);
 
       const finalDecision =
         aiDecision?.success &&
@@ -209,6 +259,8 @@ async function runLiveAiAnalysis({
 
       const payload = {
         ...result,
+        engineTop5: strategyCandidates,
+        candidates: strategyCandidates,
         aiDecision,
         tradeQuality,
         whyNoTrade,
@@ -223,11 +275,11 @@ async function runLiveAiAnalysis({
           ai: "TradeMindMZ AI Decision Layer V1",
           aiInput: "ENGINE TOP 5 ONLY",
           aiCadence: "7 MINUTES",
-          leverage: result.leverage || 2,
+          leverage: result.leverage || 3,
           automaticTrading: false,
           readOnly: true,
           persistedServerSide: true,
-          riskFilter: "ENGINE SCORE + AI CONFIDENCE + R/R + RSI + VOLUME + NET EDGE",
+          riskFilter: "ENGINE SCORE 90+ + AI CONFIDENCE + RSI + VOLUME + NET EDGE + FIXED 3% TP/SL",
           marketRegime: marketRegime.regime,
           actionableOnlyWhen: marketType === "SPOT"
             ? "AI TRADE + BUY ONLY + RISK FILTER PASS"
