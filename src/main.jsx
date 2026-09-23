@@ -5905,13 +5905,11 @@ function Positions(){
 
         const serverAnalysis = position?.monitor || null;
 
-        if (serverAnalysis) {
+        if (serverAnalysis?.analyzedAt) {
           setAi(prev => ({
             ...prev,
             [key]: {
-              recommendation: serverAnalysis.analyzedAt
-                ? (serverAnalysis.recommendation || "WATCH")
-                : "WAITING",
+              recommendation: serverAnalysis.recommendation || "WATCH",
               riskLevel: serverAnalysis.riskLevel || "MEDIUM",
               confidence: serverAnalysis.confidence ?? 0,
               confidenceDelta: serverAnalysis.confidenceDelta,
@@ -5921,13 +5919,78 @@ function Positions(){
               holdTimeMaxMinutes: serverAnalysis.holdTimeMaxMinutes || 0,
               holdTimeReason: serverAnalysis.holdTimeReason || "",
               provider: serverAnalysis.provider || "groq",
-              analyzedAt: serverAnalysis.analyzedAt || null,
+              analyzedAt: serverAnalysis.analyzedAt,
+              analysisAgeSeconds: serverAnalysis.analysisAgeSeconds,
+              analysisFresh: serverAnalysis.analysisFresh,
               exitWarning: serverAnalysis.exitWarning === true,
               serverSide: true,
             }
           }));
           continue;
         }
+
+        // The server monitor can exist before its first completed AI result.
+        // Start the read-only server analysis immediately instead of leaving
+        // the position stuck on WAITING.
+        try {
+          setAiLoading(prev => ({ ...prev, [key]: true }));
+
+          const symbolForMarket =
+            String(position.symbol || "").trim().toUpperCase();
+
+          const market = marketCandidates.find(candidate =>
+            String(candidate?.symbol || "").toUpperCase() === symbolForMarket
+          ) || {};
+
+          const result = await analyzePositionWithAI(position, market);
+
+          if (result?.success && result?.analysis) {
+            setAi(prev => ({
+              ...prev,
+              [key]: {
+                ...result.analysis,
+                provider: result.provider || "groq",
+                analyzedAt: result.analyzedAt || new Date().toISOString(),
+                analysisAgeSeconds: 0,
+                analysisFresh: true,
+                serverSide: true,
+                historySaved: result.historySaved === true,
+                historyId: result.historyId || null
+              }
+            }));
+          } else {
+            throw new Error(result?.error || "Server AI analysis returned no result.");
+          }
+        } catch (analysisError) {
+          console.error("Server position AI analysis failed:", analysisError);
+          setAi(prev => ({
+            ...prev,
+            [key]: {
+              recommendation: "WAITING",
+              riskLevel: "MEDIUM",
+              confidence: 0,
+              reasoning: "Server AI analysis failed: " + (
+                analysisError instanceof Error
+                  ? analysisError.message
+                  : "Unknown server error."
+              ),
+              action: "",
+              holdTimeMinMinutes: 0,
+              holdTimeMaxMinutes: 0,
+              holdTimeReason: "",
+              provider: "groq",
+              analyzedAt: null,
+              analysisAgeSeconds: null,
+              analysisFresh: false,
+              serverSide: true,
+              error: true,
+            }
+          }));
+        } finally {
+          setAiLoading(prev => ({ ...prev, [key]: false }));
+        }
+
+        continue;
 
         if (ai[key]) continue;
 
