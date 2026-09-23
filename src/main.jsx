@@ -5020,7 +5020,8 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
           normalizeSignalSymbol(candidate?.symbol) === technicalSymbol
         )
       : null) ||
-    (normalizeSignalSymbol(data?.recommended?.symbol) === technicalSymbol
+    (data &&
+      normalizeSignalSymbol(data?.recommended?.symbol) === technicalSymbol
       ? data.recommended
       : null) ||
     (normalizeSignalSymbol(earlyPreviewCandidate?.symbol) === technicalSymbol
