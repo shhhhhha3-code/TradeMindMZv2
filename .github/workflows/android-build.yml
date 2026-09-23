@@ -29,7 +29,7 @@ jobs:
           java-version: "21"
 
       - name: Install web dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build web app
         env:
@@ -87,6 +87,17 @@ jobs:
             convert resources/icon.svg -background none -resize "${size}x${size}" "android/app/src/main/res/mipmap-${density}/ic_launcher.png"
             cp "android/app/src/main/res/mipmap-${density}/ic_launcher.png" "android/app/src/main/res/mipmap-${density}/ic_launcher_round.png"
           done
+
+      - name: Configure Firebase Cloud Messaging
+        env:
+          FIREBASE_GOOGLE_SERVICES_JSON: ${{ secrets.FIREBASE_GOOGLE_SERVICES_JSON }}
+        run: |
+          if [ -n "$FIREBASE_GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$FIREBASE_GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            echo "Firebase google-services.json configured for push notifications."
+          else
+            echo "::warning::FIREBASE_GOOGLE_SERVICES_JSON is not configured. Android build will continue, but push notifications will not be active until Firebase is configured."
+          fi
 
       - name: Sync Capacitor
         run: npx cap sync android
