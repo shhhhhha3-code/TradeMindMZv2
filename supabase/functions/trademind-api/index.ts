@@ -754,6 +754,7 @@ ${JSON.stringify(market, null, 2)}`,
     analysis,
     historySaved: Boolean(history),
     historyId: history?.id || null,
+    analyzedAt: history?.created_at || new Date().toISOString(),
     error: null,
   };
 }
@@ -1144,7 +1145,10 @@ async function getPositionMarketContexts(positions = [], fallbackCandidates = []
         });
 
         if (candidate) {
-          contexts.set(symbol, candidate);
+          contexts.set(symbol, {
+            ...candidate,
+            scannedAt: candidate.scannedAt || new Date().toISOString(),
+          });
         }
       } catch (error) {
         console.warn(
@@ -1163,12 +1167,25 @@ async function runServerPositionMonitoring(supabase, { marketSnapshot = null } =
   const positions = normalizePositions(raw);
   const currentKeys = new Set();
 
-  const candidates =
+  const snapshotTimestamp =
+    marketSnapshot?.snapshot?.updatedAt ||
+    marketSnapshot?.snapshot?.persistedAt ||
+    marketSnapshot?.updatedAt ||
+    marketSnapshot?.persistedAt ||
+    null;
+
+  const rawCandidates =
     Array.isArray(marketSnapshot?.snapshot?.candidates)
       ? marketSnapshot.snapshot.candidates
       : Array.isArray(marketSnapshot?.candidates)
         ? marketSnapshot.candidates
         : [];
+
+  const candidates = rawCandidates.map(candidate => (
+    candidate && typeof candidate === "object" && snapshotTimestamp && !candidate.scannedAt
+      ? { ...candidate, scannedAt: snapshotTimestamp }
+      : candidate
+  ));
 
   const monitored = [];
   const maxPositions = Math.min(5, positions.length);
