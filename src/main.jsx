@@ -17,6 +17,7 @@ import { fetchSignalHistory } from "./services/signalHistoryService.js";
 import { fetchLatestAiSignal } from "./services/liveAiSignalService.js";
 import { calculateRiskSizing } from "./services/riskSizingService.js";
 import { fetchDashboardData } from "./services/dashboardService.js";
+import { initTradePushNotifications } from "./services/pushNotificationService.js";
 import { fetchServerPositionMonitoring } from "./services/serverPositionMonitoringService.js";
 import "./ui/trademind-v3.css";
 import "./ui/trademind-v4.css";
@@ -88,6 +89,10 @@ class SignalsErrorBoundary extends React.Component {
 }
 
 function App(){
+  useEffect(() => {
+    initTradePushNotifications().catch((error) => console.warn("TradeMindMZ push init failed:", error));
+  }, []);
+
 const[tab,setTab]=useState('dashboard'),[bought,setBought]=useState(false),[manualPurchaseOpen,setManualPurchaseOpen]=useState(false),[trackedPositions,setTrackedPositions]=useState(()=>loadTrackedPositions()),[open,setOpen]=useState(false),[purchaseDefaults,setPurchaseDefaults]=useState({symbol:"BTCUSDT",side:"LONG",entryPrice:0,quantity:0,stopLoss:0,takeProfit:0,holdTimeMinMinutes:0,holdTimeMaxMinutes:0,holdTimeReason:"",suggestedNotionalUsdt:0,maxLossUsdt:0,allocationPercent:100,riskPercent:3,leverage:3,takeProfitPercent:3,stopLossPercent:3}),[aiSettings,setAiSettings]=useState(()=>{try{return JSON.parse(localStorage.getItem('trademindmz-ai-settings'))||{ai:true,openai:true,groq:true,learning:true}}catch{return{ai:true,openai:true,groq:true,learning:true}}});const handleManualPurchase=(purchase)=>{
   const result=registerManualPurchase(purchase);
 
