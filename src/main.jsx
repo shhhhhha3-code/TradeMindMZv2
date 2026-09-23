@@ -5627,7 +5627,7 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
               .slice(0,3)
           : []
         ).filter(Boolean).map(x =>
-          <div className="panel opp" key={String(x.symbol || Math.random())}>
+          <div className="panel opp" key={String(x.symbol || "unknown") + "-" + String(x.direction || x.side || "watch")}>
             <div>
               <b>{String(x.symbol || "").replace("_"," / ")}</b>
               <span>
