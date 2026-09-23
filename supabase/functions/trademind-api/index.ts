@@ -102,7 +102,7 @@ async function saveSchedulerSecretState(supabase, state) {
 function base64UrlEncode(bytes) {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\\+/g, "-").replace(/\\//g, "_").replace(/=+$/g, "");
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
 }
 
 function utf8Base64UrlEncode(value) {
@@ -113,7 +113,7 @@ function pemToArrayBuffer(pem) {
   const base64 = String(pem || "")
     .replace(/-----BEGIN PRIVATE KEY-----/g, "")
     .replace(/-----END PRIVATE KEY-----/g, "")
-    .replace(/\\s+/g, "");
+    .replace(/\s+/g, "");
   const binary = atob(base64);
   const bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
   return bytes.buffer;
