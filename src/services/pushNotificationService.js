@@ -67,6 +67,16 @@ export async function initTradePushNotifications() {
       }
     );
 
+    await PushNotifications.createChannel({
+      id: "qualified-trades",
+      name: "Qualified trades",
+      description: "TradeMindMZ qualified trade alerts",
+      importance: 5,
+      visibility: 1,
+      sound: "default",
+      vibration: true,
+    });
+
     const permission = await PushNotifications.checkPermissions();
     if (permission.receive !== "granted") {
       const requested = await PushNotifications.requestPermissions();
