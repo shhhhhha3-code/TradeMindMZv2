@@ -53,6 +53,40 @@ function Logo(){
 }
 function Ring({score}){return <div className="ring" style={{'--p':score*3.6+'deg'}}><div><b>{score}</b><small>ENGINE SCORE</small></div></div>}
 
+class SignalsErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, message: "" };
+  }
+
+  static getDerivedStateFromError(error) {
+    return {
+      hasError: true,
+      message: error instanceof Error ? error.message : "AI Signals could not be rendered."
+    };
+  }
+
+  componentDidCatch(error) {
+    console.error("AI Signals render error:", error);
+  }
+
+  render() {
+    if (!this.state.hasError) return this.props.children;
+    return (
+      <div className="panel" style={{marginTop:"18px", padding:"24px"}}>
+        <h3><BrainCircuit/> AI SIGNALS</h3>
+        <strong>AI Signals kunne ikke vises.</strong>
+        <p style={{marginTop:"8px", opacity:.65}}>
+          Appen er fortsatt aktiv. Gå tilbake til Dashboard og åpne AI Signals på nytt.
+        </p>
+        {this.state.message && (
+          <small style={{display:"block", marginTop:"10px", opacity:.4}}>{this.state.message}</small>
+        )}
+      </div>
+    );
+  }
+}
+
 function App(){
 const[tab,setTab]=useState('dashboard'),[bought,setBought]=useState(false),[manualPurchaseOpen,setManualPurchaseOpen]=useState(false),[trackedPositions,setTrackedPositions]=useState(()=>loadTrackedPositions()),[open,setOpen]=useState(false),[purchaseDefaults,setPurchaseDefaults]=useState({symbol:"BTCUSDT",side:"LONG",entryPrice:0,stopLoss:0,takeProfit:0,holdTimeMinMinutes:0,holdTimeMaxMinutes:0,holdTimeReason:""}),[aiSettings,setAiSettings]=useState(()=>{try{return JSON.parse(localStorage.getItem('trademindmz-ai-settings'))||{ai:true,openai:true,groq:true,learning:true}}catch{return{ai:true,openai:true,groq:true,learning:true}}});const handleManualPurchase=(purchase)=>{
   const result=registerManualPurchase(purchase);
@@ -104,7 +138,7 @@ const handleDashboardTradeSelect=(recommendation)=>{
 const updateAiSetting=(key,value)=>{const next={...aiSettings,[key]:value};setAiSettings(next);localStorage.setItem('trademindmz-ai-settings',JSON.stringify(next));};const nav=[['dashboard','Dashboard',LayoutDashboard],['signals','AI Signals',BrainCircuit],['positions','Live Positions',Activity],['market','Market Overview',LineChart],['history','Signal History',History]];return <div className="app"><aside className={open?'side open':'side'}><div className="sidehead"><Logo/><button onClick={()=>setOpen(false)}><X/></button></div><div className="online"><i/> <div><b>AI ENGINE ONLINE</b><small>Learning from market history</small></div></div><nav>{nav.map(([id,label,I])=><button className={tab===id?'active':''} onClick={()=>{setTab(id);setOpen(false)}} key={id}><I/><span>{label}</span>{id==='positions'&&<em>{trackedPositions.filter(p=>p.status==='LIVE').length}</em>}</button>)}</nav><div className="bottom"><button><ShieldCheck/><span>Pionex Connection</span><i/></button><button onClick={()=>{setTab('settings');setOpen(false)}}><Settings/><span>Settings</span></button></div></aside>{open&&<div className="back" onClick={()=>setOpen(false)}/>}
 <main><header><button className="hamb" onClick={()=>setOpen(true)}><Menu/></button><div className="mobilelogo"><Logo/></div><div className="title"><small>TRADEMINDMZ</small><b>{tab==='signals'?'AI Signals':tab==='positions'?'Live Positions':tab==='market'?'Market Overview':tab==='history'?'Signal History':tab==='settings'?'Settings':'Dashboard'}</b></div><div className="actions"><span className="live"><i/> AI LIVE</span><button className="bell"><Bell/></button><button className="avatar">MZ</button></div></header><section>
 {tab==='signals'
-  ? <Signals bought={bought} setBought={setBought} setManualPurchaseOpen={setManualPurchaseOpen} setPurchaseDefaults={setPurchaseDefaults}/>
+  ? <SignalsErrorBoundary><Signals bought={bought} setBought={setBought} setManualPurchaseOpen={setManualPurchaseOpen} setPurchaseDefaults={setPurchaseDefaults}/></SignalsErrorBoundary>
   : tab==='positions'
     ? <Positions/>
     : tab==='settings'
@@ -4620,7 +4654,10 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
     maxMarkets: 25,
     preferredProvider: "groq",
     marketType,
-    refreshInterval: 60000
+    refreshInterval: 60000,
+    // The server scheduler owns the 7-minute AI cycle. Do not start a heavy
+    // Pionex+AI scan automatically when the Android tab is opened.
+    initialScan: false
   });
 
   useEffect(() => {
@@ -4842,6 +4879,35 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
   };
 
   const signalAge = formatSignalAge(data?.updatedAt || data?.persistedAt);
+
+  const [nextAnalysisSeconds, setNextAnalysisSeconds] = useState(null);
+
+  useEffect(() => {
+    const updateCountdown = () => {
+      if (!data?.nextAnalysisAt) {
+        setNextAnalysisSeconds(null);
+        return;
+      }
+
+      const target = new Date(data.nextAnalysisAt).getTime();
+      if (!Number.isFinite(target)) {
+        setNextAnalysisSeconds(null);
+        return;
+      }
+
+      setNextAnalysisSeconds(Math.max(0, Math.ceil((target - Date.now()) / 1000)));
+    };
+
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 1000);
+    return () => clearInterval(timer);
+  }, [data?.nextAnalysisAt]);
+
+  const nextAnalysisLabel = nextAnalysisSeconds == null
+    ? "—"
+    : nextAnalysisSeconds <= 0
+      ? "NOW"
+      : Math.floor(nextAnalysisSeconds / 60) + ":" + String(nextAnalysisSeconds % 60).padStart(2, "0");
 
   const noTradeReasons = [
     ...signalFailedChecks.map(check => {
@@ -5100,6 +5166,13 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
           <RefreshCw className={refreshing ? "spin" : ""}/>
           {refreshing ? " Scanning..." : " Refresh analysis"}
         </button>
+      </div>
+
+      <div className="panel" style={{padding:"10px 14px", marginBottom:"18px"}}>
+        <div className="metric" style={{padding:"0"}}>
+          <span>Next server AI analysis</span>
+          <b>{nextAnalysisLabel}</b>
+        </div>
       </div>
 
       <div
