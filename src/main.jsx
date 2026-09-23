@@ -4713,6 +4713,7 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
       : [];
 
   const earlyPreviewCandidate = rawCandidates
+    .filter(candidate => candidate && typeof candidate === "object")
     .map(candidate => ({
       ...candidate,
       __score: Number(candidate?.engineScore ?? candidate?.score ?? candidate?.aiScore ?? 0),
@@ -4807,10 +4808,10 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
   ).replace("_", " ");
 
   const comparison = Array.isArray(data?.comparison)
-    ? data.comparison
+    ? data.comparison.filter(item => item && typeof item === "object")
     : [];
 
-  const candidates = rawCandidates;
+  const candidates = rawCandidates.filter(candidate => candidate && typeof candidate === "object");
 
   const earlyCandidates = candidates
     .map((candidate, index) => {
@@ -5618,14 +5619,15 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
         {(comparison.length
           ? comparison
               .filter(x => {
+                if (!x || typeof x !== "object") return false;
                 if (x.symbol === symbolRaw) return false;
                 const side = String(x.direction || x.side || "").toUpperCase();
                 return side === "BUY" || side === "SELL" || side === "LONG" || side === "SHORT";
               })
               .slice(0,3)
           : []
-        ).map(x =>
-          <div className="panel opp" key={x.symbol}>
+        ).filter(Boolean).map(x =>
+          <div className="panel opp" key={String(x.symbol || Math.random())}>
             <div>
               <b>{String(x.symbol || "").replace("_"," / ")}</b>
               <span>
