@@ -4941,22 +4941,64 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
     return () => { active = false; };
   }, [recommended?.symbol, entry, stop, marketType, accountBalanceUsdt]);
 
-  const technicalSource = data?.candidates?.find(
-    candidate => candidate?.symbol === recommended?.symbol
-  ) || {};
+  const normalizeSignalSymbol = value =>
+    String(value || "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "");
 
-  const ema9 = Number(technicalSource?.ema9 ?? technicalSource?.indicators?.ema9);
-  const ema21 = Number(technicalSource?.ema21 ?? technicalSource?.indicators?.ema21);
-  const rsi = Number(technicalSource?.rsi ?? technicalSource?.indicators?.rsi14);
-  const macd = Number(technicalSource?.macd ?? technicalSource?.indicators?.macd);
+  const technicalSymbol = normalizeSignalSymbol(recommended?.symbol);
+  const technicalSource =
+    (Array.isArray(data?.candidates)
+      ? data.candidates.find(candidate =>
+          normalizeSignalSymbol(candidate?.symbol) === technicalSymbol
+        )
+      : null) ||
+    (normalizeSignalSymbol(data?.recommended?.symbol) === technicalSymbol
+      ? data.recommended
+      : null) ||
+    (normalizeSignalSymbol(earlyPreviewCandidate?.symbol) === technicalSymbol
+      ? earlyPreviewCandidate
+      : null) ||
+    {};
+
+  const technicalIndicators = technicalSource?.indicators || {};
+
+  const ema9 = Number(
+    technicalSource?.ema9 ??
+    technicalIndicators?.ema9
+  );
+  const ema21 = Number(
+    technicalSource?.ema21 ??
+    technicalIndicators?.ema21
+  );
+  const rsi = Number(
+    technicalSource?.rsi ??
+    technicalSource?.RSI ??
+    technicalSource?.rsi14 ??
+    technicalIndicators?.rsi ??
+    technicalIndicators?.rsi14
+  );
+  const macd = Number(
+    technicalSource?.macd ??
+    technicalSource?.MACD ??
+    technicalIndicators?.macd
+  );
   const atrPercent = Number(
-    technicalSource?.atrPercent ?? technicalSource?.atrPct
+    technicalSource?.atrPercent ??
+    technicalSource?.atrPct ??
+    technicalSource?.atr_percent ??
+    technicalIndicators?.atrPercent ??
+    technicalIndicators?.atrPct
   );
   const volumeRatio = Number(
-    technicalSource?.volumeRatio ?? technicalSource?.indicators?.volumeRatio
+    technicalSource?.volumeRatio ??
+    technicalSource?.volume_ratio ??
+    technicalIndicators?.volumeRatio ??
+    technicalIndicators?.volume_ratio
   );
   const change24h = Number(
-    technicalSource?.change24h ?? technicalSource?.indicators?.change24h
+    technicalSource?.change24h ??
+    technicalIndicators?.change24h
   );
 
   const technicalMetrics = [
