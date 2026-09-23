@@ -88,7 +88,7 @@ class SignalsErrorBoundary extends React.Component {
 }
 
 function App(){
-const[tab,setTab]=useState('dashboard'),[bought,setBought]=useState(false),[manualPurchaseOpen,setManualPurchaseOpen]=useState(false),[trackedPositions,setTrackedPositions]=useState(()=>loadTrackedPositions()),[open,setOpen]=useState(false),[purchaseDefaults,setPurchaseDefaults]=useState({symbol:"BTCUSDT",side:"LONG",entryPrice:0,stopLoss:0,takeProfit:0,holdTimeMinMinutes:0,holdTimeMaxMinutes:0,holdTimeReason:""}),[aiSettings,setAiSettings]=useState(()=>{try{return JSON.parse(localStorage.getItem('trademindmz-ai-settings'))||{ai:true,openai:true,groq:true,learning:true}}catch{return{ai:true,openai:true,groq:true,learning:true}}});const handleManualPurchase=(purchase)=>{
+const[tab,setTab]=useState('dashboard'),[bought,setBought]=useState(false),[manualPurchaseOpen,setManualPurchaseOpen]=useState(false),[trackedPositions,setTrackedPositions]=useState(()=>loadTrackedPositions()),[open,setOpen]=useState(false),[purchaseDefaults,setPurchaseDefaults]=useState({symbol:"BTCUSDT",side:"LONG",entryPrice:0,quantity:0,stopLoss:0,takeProfit:0,holdTimeMinMinutes:0,holdTimeMaxMinutes:0,holdTimeReason:"",suggestedNotionalUsdt:0,maxLossUsdt:0,allocationPercent:100,riskPercent:3,leverage:3,takeProfitPercent:3,stopLossPercent:3}),[aiSettings,setAiSettings]=useState(()=>{try{return JSON.parse(localStorage.getItem('trademindmz-ai-settings'))||{ai:true,openai:true,groq:true,learning:true}}catch{return{ai:true,openai:true,groq:true,learning:true}}});const handleManualPurchase=(purchase)=>{
   const result=registerManualPurchase(purchase);
 
   if(!result?.success){
@@ -811,9 +811,8 @@ function TopFiveCommandCenter() {
     const rr = candidateRR(item);
 
     if (
-      score >= 85 &&
-      confidence >= 90 &&
-      rr >= 2
+      score >= 90 &&
+      confidence >= 80
     ) {
       return {
         label: "TRADE",
@@ -823,8 +822,7 @@ function TopFiveCommandCenter() {
 
     if (
       score >= 75 &&
-      confidence >= 80 &&
-      rr >= 2
+      confidence >= 80
     ) {
       return {
         label: "WATCH",
@@ -1298,17 +1296,15 @@ function MarketRegimeRiskCenter() {
     riskClass = "high";
   } else if (
     avgScore >= 80 &&
-    avgConfidence >= 82 &&
-    (avgRR === null || avgRR >= 2)
+    avgConfidence >= 82
   ) {
     risk = "LOW";
     riskClass = "low";
   }
 
   const tradeQuality =
-    avgScore >= 85 &&
-    avgConfidence >= 90 &&
-    (avgRR === null || avgRR >= 2);
+    avgScore >= 90 &&
+    avgConfidence >= 80;
 
   const marketBreadthLabel =
     breadth >= 30
@@ -2529,9 +2525,9 @@ function Dashboard(){
 
 
           {[
-            ["Minimum AI score","75","PASS"],
+            ["Minimum AI score","90","PASS"],
             ["Minimum confidence","80%","PASS"],
-            ["Minimum risk / reward","2.0","PASS"],
+            ["Risk / Reward","1.0","STRATEGY"],
             ["RSI range","35–70","CHECK"]
 
           ].map(
@@ -4999,6 +4995,9 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
       entryPrice: entry,
       stopLoss: stop,
       marketType,
+      riskPercent: 3,
+      maxAllocationPercent: 100,
+      leverage: 3,
     }).then(result => {
       if (active) setRiskSizing(result);
     }).catch(() => {
@@ -5119,12 +5118,28 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
 
     if (!freshRecommendation || !freshDirection) return;
 
+    const freshEntry = Number(freshRecommendation.entry) || 0;
+    const freshStop = Number(freshRecommendation.stopLoss) || 0;
+    const freshLeverage = marketType === "PERP" ? (Number(freshRecommendation.leverage) || 3) : 1;
+    const plannedMargin = Number(accountBalanceUsdt) > 0 ? Number(accountBalanceUsdt) : 0;
+    const plannedNotional = marketType === "PERP" ? plannedMargin * freshLeverage : plannedMargin;
+    const plannedQuantity = freshEntry > 0 ? plannedNotional / freshEntry : 0;
+    const plannedMaxLoss = freshEntry > 0 && freshStop > 0 ? plannedNotional * (Math.abs(freshEntry - freshStop) / freshEntry) : 0;
+
     setPurchaseDefaults({
       symbol: String(freshRecommendation.symbol || "").replace("_",""),
       side: freshDirection === "SHORT" || freshDirection === "SELL" ? "SHORT" : "LONG",
-      entryPrice: Number(freshRecommendation.entry) || 0,
-      stopLoss: Number(freshRecommendation.stopLoss) || 0,
+      entryPrice: freshEntry,
+      quantity: plannedQuantity,
+      stopLoss: freshStop,
       takeProfit: Number(freshRecommendation.takeProfit) || 0,
+      suggestedNotionalUsdt: plannedNotional,
+      maxLossUsdt: plannedMaxLoss,
+      allocationPercent: 100,
+      riskPercent: 3,
+      leverage: freshLeverage,
+      takeProfitPercent: 3,
+      stopLossPercent: 3,
       holdTimeMinMinutes: Number(freshRecommendation.holdTimeMinMinutes) || 0,
       holdTimeMaxMinutes: Number(freshRecommendation.holdTimeMaxMinutes) || 0,
       holdTimeReason: freshRecommendation.holdTimeReason || "",
@@ -5371,8 +5386,10 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
 
           {riskSizing ? (
             <div className="meta" style={{marginTop:"10px"}}>
-              <span>Suggested size <b>{Number(riskSizing.suggestedNotionalUsdt).toFixed(2)} USDT</b></span>
-              <span>Max loss <b>{Number(riskSizing.maxLossUsdt).toFixed(2)} USDT</b></span>
+              <span>Allocation <b>{Number(riskSizing.allocationPercent ?? 100).toFixed(0)}% USDT</b></span>
+              <span>Position value <b>{Number(riskSizing.suggestedNotionalUsdt).toFixed(2)} USDT</b></span>
+              <span>TP / SL <b>+3% / -3%</b></span>
+              <span>Max loss at SL <b>{Number(riskSizing.maxLossUsdt).toFixed(2)} USDT</b></span>
             </div>
           ) : null}
 

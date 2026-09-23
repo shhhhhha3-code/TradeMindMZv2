@@ -17,7 +17,7 @@ export default function ManualPurchaseModal({
     useState(initialValues.entryPrice ?? "");
 
   const [quantity, setQuantity] =
-    useState("");
+    useState(initialValues.quantity ?? "");
 
   const [stopLoss, setStopLoss] =
     useState(initialValues.stopLoss ?? "");
@@ -57,6 +57,10 @@ export default function ManualPurchaseModal({
       setTakeProfit(initialValues.takeProfit);
     }
 
+    if (initialValues.quantity !== undefined) {
+      setQuantity(initialValues.quantity);
+    }
+
     setHoldTimeMinMinutes(initialValues.holdTimeMinMinutes ?? 0);
     setHoldTimeMaxMinutes(initialValues.holdTimeMaxMinutes ?? 0);
     setHoldTimeReason(initialValues.holdTimeReason ?? "");
@@ -67,6 +71,7 @@ export default function ManualPurchaseModal({
     initialValues.entryPrice,
     initialValues.stopLoss,
     initialValues.takeProfit,
+    initialValues.quantity,
     initialValues.holdTimeMinMinutes,
     initialValues.holdTimeMaxMinutes,
     initialValues.holdTimeReason,
@@ -124,7 +129,12 @@ export default function ManualPurchaseModal({
           ? Number(takeProfit)
           : null,
 
-      
+      plannedNotionalUsdt: Number.isFinite(Number(initialValues.suggestedNotionalUsdt)) ? Number(initialValues.suggestedNotionalUsdt) : null,
+      plannedMaxLossUsdt: Number.isFinite(Number(initialValues.maxLossUsdt)) ? Number(initialValues.maxLossUsdt) : null,
+      allocationPercent: Number.isFinite(Number(initialValues.allocationPercent)) ? Number(initialValues.allocationPercent) : 100,
+      leverage: Number.isFinite(Number(initialValues.leverage)) ? Number(initialValues.leverage) : 3,
+      takeProfitPercent: Number.isFinite(Number(initialValues.takeProfitPercent)) ? Number(initialValues.takeProfitPercent) : 3,
+      stopLossPercent: Number.isFinite(Number(initialValues.stopLossPercent)) ? Number(initialValues.stopLossPercent) : 3,
 
       holdTimeMinMinutes:
         Number.isFinite(Number(holdTimeMinMinutes))
@@ -298,7 +308,14 @@ export default function ManualPurchaseModal({
 
           <div className="manual-purchase-warning">
             <ShieldCheck size={16} />
+            <span>
+              Trade plan: {Number(initialValues.allocationPercent ?? 100)}% USDT · TP +{Number(initialValues.takeProfitPercent ?? 3).toFixed(0)}% · SL -{Number(initialValues.stopLossPercent ?? 3).toFixed(0)}% · {String(initialValues.marketType || "PERP").toUpperCase() === "PERP" ? Number(initialValues.leverage ?? 3) + "x" : "SPOT"}.
+              {Number(initialValues.suggestedNotionalUsdt) > 0 ? " Planned position value: " + Number(initialValues.suggestedNotionalUsdt).toFixed(2) + " USDT." : ""}
+            </span>
+          </div>
 
+          <div className="manual-purchase-warning">
+            <ShieldCheck size={16} />
             <span>
               This does NOT place a Pionex
               order. It only records a position

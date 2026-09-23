@@ -5,8 +5,9 @@ export async function calculateRiskSizing({
   entryPrice,
   stopLoss,
   marketType = "PERP",
-  riskPercent = 1,
-  maxAllocationPercent = 10,
+  riskPercent = 3,
+  maxAllocationPercent = 100,
+  leverage = 3,
 } = {}) {
   const response = await fetch(apiUrl("/api/ai/risk-size"), {
     method: "POST",
@@ -21,6 +22,7 @@ export async function calculateRiskSizing({
       marketType,
       riskPercent,
       maxAllocationPercent,
+      leverage,
     }),
   });
 

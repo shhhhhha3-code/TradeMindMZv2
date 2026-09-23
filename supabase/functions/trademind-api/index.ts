@@ -83,7 +83,7 @@ function liveAiOptionsFromUrl(url) {
     candleLimit: Number(url.searchParams.get("limit") || 100),
     maxMarkets: Number(url.searchParams.get("maxMarkets") || 25),
     marketType: url.searchParams.get("marketType") || "PERP",
-    leverage: Number(url.searchParams.get("leverage") || 2),
+    leverage: Number(url.searchParams.get("leverage") || 3),
     provider: url.searchParams.get("provider") || "groq",
   };
 }
@@ -1593,9 +1593,9 @@ function normalizeTradeCriteria(input = {}) {
     : globalThis.__tradeMindCriteria || {};
   const n = (v, d) => Number.isFinite(Number(v)) ? Number(v) : d;
   return {
-    minimumScore: Math.round(Math.max(0, Math.min(100, n(source.minimumScore,75)))),
+    minimumScore: Math.round(Math.max(0, Math.min(100, n(source.minimumScore,90)))),
     minimumConfidence: Math.round(Math.max(0, Math.min(100, n(source.minimumConfidence,80)))),
-    minimumRiskReward: Number(Math.max(.1, Math.min(20, n(source.minimumRiskReward,2))).toFixed(2)),
+    minimumRiskReward: Number(Math.max(.1, Math.min(20, n(source.minimumRiskReward,1))).toFixed(2)),
     minimumRsi: Number(Math.max(0, Math.min(100, n(source.minimumRsi,35))).toFixed(2)),
     maximumRsi: Number(Math.max(0, Math.min(100, n(source.maximumRsi,70))).toFixed(2)),
     minimumVolumeRatio: Number(Math.max(0, Math.min(20, n(source.minimumVolumeRatio,.8))).toFixed(2)),
@@ -1625,7 +1625,6 @@ function evaluateCandidate(candidate, { marketType = "PERP" } = {}) {
   const checks = [
     { key:"score",label:"Score",actual:score,target:criteria.minimumScore,operator:">=",passed:Number.isFinite(score)&&score>=criteria.minimumScore },
     { key:"confidence",label:"Confidence",actual:confidence,target:criteria.minimumConfidence,operator:">=",passed:Number.isFinite(confidence)&&confidence>=criteria.minimumConfidence },
-    { key:"riskReward",label:"Risk / Reward",actual:rr,target:criteria.minimumRiskReward,operator:">=",passed:Number.isFinite(rr)&&rr>=criteria.minimumRiskReward },
     { key:"rsi",label:"RSI",actual:rsi,target:String(criteria.minimumRsi)+"–"+String(criteria.maximumRsi),operator:"RANGE",passed:Number.isFinite(rsi)&&rsi>=criteria.minimumRsi&&rsi<=criteria.maximumRsi },
     { key:"volumeRatio",label:"Volume ratio",actual:volume,target:criteria.minimumVolumeRatio,operator:">=",passed:Number.isFinite(volume)&&volume>=criteria.minimumVolumeRatio },
     { key:"tradeLevels",label:"Trade levels",actual:"",target:direction==="BUY"?"SL < Entry < TP":direction==="SELL"?"SL > Entry > TP":"Valid direction",operator:"STRUCTURE",passed:direction==="BUY"?sl<entry&&entry<tp:direction==="SELL"?sl>entry&&entry>tp:false },
@@ -1640,17 +1639,19 @@ function calculateRiskSizing(body = {}) {
   const balance = Number(body?.balanceUsdt);
   const entry = Number(body?.entryPrice);
   const stop = Number(body?.stopLoss);
-  const riskPercent = Math.max(0.1, Math.min(5, Number(body?.riskPercent) || 1));
-  const maxAllocationPercent = Math.max(1, Math.min(100, Number(body?.maxAllocationPercent) || 10));
+  const riskPercent = Math.max(0.1, Math.min(10, Number(body?.riskPercent) || 3));
+  const maxAllocationPercent = Math.max(1, Math.min(100, Number(body?.maxAllocationPercent) || 100));
+  const leverage = Math.max(1, Math.min(10, Number(body?.leverage) || 3));
   const marketType = String(body?.marketType || "PERP").toUpperCase() === "SPOT" ? "SPOT" : "PERP";
   if (![balance, entry, stop].every(Number.isFinite) || balance <= 0 || entry <= 0 || stop <= 0 || entry === stop) {
     throw new Error("balanceUsdt, entryPrice and stopLoss are required.");
   }
   const stopDistancePct = Math.abs(entry - stop) / entry;
-  const maxLoss = balance * (riskPercent / 100);
-  const riskBasedNotional = stopDistancePct > 0 ? maxLoss / stopDistancePct : 0;
   const allocationCap = balance * (maxAllocationPercent / 100);
-  const suggestedNotional = Math.min(riskBasedNotional, allocationCap);
+  const suggestedMargin = Math.min(balance, allocationCap);
+  const suggestedNotional = marketType === "PERP" ? suggestedMargin * leverage : suggestedMargin;
+  const riskBasedNotional = suggestedNotional;
+  const maxLoss = suggestedNotional * stopDistancePct;
   const quantity = suggestedNotional / entry;
   const feeRate = marketType === "SPOT"
     ? Number(Deno.env.get("PIONEX_SPOT_FEE_RATE") || 0.001)
@@ -1661,8 +1662,13 @@ function calculateRiskSizing(body = {}) {
     balanceUsdt: balance,
     riskPercent,
     maxAllocationPercent,
+    leverage: marketType === "PERP" ? leverage : 1,
+    allocationUsdt: suggestedMargin,
+    allocationPercent: maxAllocationPercent,
     maxLossUsdt: maxLoss,
     stopDistancePct: stopDistancePct * 100,
+    takeProfitPercent: 3,
+    stopLossPercent: 3,
     riskBasedNotionalUsdt: riskBasedNotional,
     allocationCapUsdt: allocationCap,
     suggestedNotionalUsdt: suggestedNotional,
@@ -1695,7 +1701,7 @@ async function handle(req) {
         candleLimit: Number(url.searchParams.get("limit") || 100),
         maxMarkets: Number(url.searchParams.get("maxMarkets") || 25),
         marketType: url.searchParams.get("marketType") || "PERP",
-        leverage: Number(url.searchParams.get("leverage") || 2),
+        leverage: Number(url.searchParams.get("leverage") || 3),
       });
       return response({
         ...result,
@@ -1725,7 +1731,7 @@ async function handle(req) {
           interval:
             url.searchParams.get("interval") || "15M",
           leverage:
-            Number(url.searchParams.get("leverage") || 2),
+            Number(url.searchParams.get("leverage") || 3),
         }
       );
 
@@ -1823,7 +1829,7 @@ async function handle(req) {
         candleLimit: 100,
         maxMarkets: 25,
         marketType: "PERP",
-        leverage: 2,
+        leverage: 3,
         provider: "groq",
         force: true,
         persist: true,
@@ -2116,7 +2122,7 @@ async function handle(req) {
             {
               marketType: "PERP",
               interval: "15M",
-              leverage: 2,
+              leverage: 3,
             }
           );
       } catch (error) {

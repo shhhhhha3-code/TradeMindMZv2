@@ -85,7 +85,7 @@ export async function fetchLiveAiSignal(options = {}) {
 
   const response = await fetch(
     apiUrl(
-      `/api/ai/live-scan?limit=100&maxMarkets=${maxMarkets}&interval=${encodeURIComponent(interval)}&marketType=${marketType}&leverage=2${force}`
+      `/api/ai/live-scan?limit=100&maxMarkets=${maxMarkets}&interval=${encodeURIComponent(interval)}&marketType=${marketType}&leverage=3${force}`
     ),
     {
       method: "GET",
@@ -140,7 +140,7 @@ export async function fetchLatestAiSignal(options = {}) {
     ...result,
     marketType,
     contractType: data.snapshot?.contractType || (marketType === "SPOT" ? "SPOT" : "USDT-M PERPETUAL"),
-    leverage: Number(data.snapshot?.leverage) || (marketType === "SPOT" ? 1 : 2),
+    leverage: Number(data.snapshot?.leverage) || (marketType === "SPOT" ? 1 : 3),
     nextAnalysisAt: data.snapshot?.nextAnalysisAt || null,
     cached: true,
     serverSide: true,
