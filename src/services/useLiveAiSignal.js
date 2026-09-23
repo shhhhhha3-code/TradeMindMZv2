@@ -16,7 +16,8 @@ export function useLiveAiSignal(
   options = {}
 ) {
   const {
-    refreshInterval = DEFAULT_REFRESH_INTERVAL
+    refreshInterval = DEFAULT_REFRESH_INTERVAL,
+    initialScan = true
   } = options;
 
   const [data, setData] = useState(null);
@@ -199,7 +200,7 @@ export function useLiveAiSignal(
      * initial live scan.
      */
     loadLatest({
-      allowInitialScan: true
+      allowInitialScan: initialScan
     });
 
     /*
@@ -230,7 +231,8 @@ export function useLiveAiSignal(
     };
   }, [
     loadLatest,
-    refreshInterval
+    refreshInterval,
+    initialScan
   ]);
 
   return {
