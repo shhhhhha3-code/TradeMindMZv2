@@ -119,9 +119,11 @@ export async function fetchLatestAiSignal(options = {}) {
   const maxMarkets = Number(options.maxMarkets) > 0 ? Number(options.maxMarkets) : 25;
   const marketType = normalizeMarketType(options.marketType);
 
+  const latestLeverage = marketType === "SPOT" ? 1 : 3;
+
   const response = await fetch(
     apiUrl(
-      `/api/ai/latest?interval=${encodeURIComponent(interval)}&marketType=${marketType}&leverage=2&maxMarkets=${maxMarkets}`
+      `/api/ai/latest?interval=${encodeURIComponent(interval)}&marketType=${marketType}&leverage=${latestLeverage}&maxMarkets=${maxMarkets}`
     ),
     {
       method: "GET",
