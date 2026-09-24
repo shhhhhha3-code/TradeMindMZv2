@@ -58,7 +58,7 @@ jobs:
           cat /tmp/trademind-diagnostics.json
           echo
           curl -sS -w "\nHTTP_STATUS:%{http_code}\n" \
-            "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/latest?interval=15M&marketType=PERP&leverage=2" \
+            "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/latest?interval=15M&marketType=PERP&leverage=3" \
             -o /tmp/trademind-latest-sanity.json
           echo "=== ai/latest ==="
           cat /tmp/trademind-latest-sanity.json
@@ -150,7 +150,7 @@ jobs:
       - name: Verify persisted latest snapshot
         run: |
           curl --fail-with-body -sS \
-            "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/latest?interval=15M&marketType=PERP&leverage=2" \
+            "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/latest?interval=15M&marketType=PERP&leverage=3" \
             -o /tmp/trademind-latest.json
           python - <<'PY'
           import json
