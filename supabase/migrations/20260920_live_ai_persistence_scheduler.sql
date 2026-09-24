@@ -64,6 +64,8 @@ begin
     raise exception 'TradeMindMZ scheduler secret is not configured';
   end if;
 
+  raise log 'TradeMindMZ scheduler trigger fired at %', now();
+
   select net.http_post(
     url := 'https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/scheduled-scan',
     headers := jsonb_build_object(
@@ -74,7 +76,7 @@ begin
       'source', 'supabase-cron',
       'scheduledAt', now()
     ),
-    timeout_milliseconds := 10000
+    timeout_milliseconds := 120000
   )
   into request_id;
 
