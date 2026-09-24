@@ -76,7 +76,7 @@ export async function setQualifiedTradeNotificationsEnabled(enabled) {
 }
 
 export async function initTradePushNotifications() {
-  if (initialized || !Capacitor.isNativePlatform() || !isEnabled()) return;
+  if (initialized || !Capacitor.isNativePlatform()) return;
   initialized = true;
 
   try {
@@ -128,6 +128,8 @@ export async function initTradePushNotifications() {
       const requested = await PushNotifications.requestPermissions();
       if (requested.receive !== "granted") return;
     }
+
+    if (!isEnabled()) return;
 
     await PushNotifications.register();
   } catch (error) {
