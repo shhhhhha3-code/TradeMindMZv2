@@ -545,3 +545,210 @@ input:focus,select:focus,textarea:focus{border-color:#657d36!important;box-shado
  .hero h1{font-size:29px!important}.core{gap:13px!important}.ring{width:112px!important;height:112px!important}
  .stack .panel{padding:16px!important}.settingspage{padding:20px 14px 50px!important}
 }
+
+
+/* ==========================================================
+   TRADEMINDMZ — COLOR THEMES + PREMIUM TERMINAL FINISH
+   UI-only layer. No trading, API, AI or notification logic.
+   ========================================================== */
+
+.app[data-tm-theme="lime"]{
+  --tmz-accent:#d6ff3f;
+  --tmz-accent-2:#9be51b;
+  --tmz-accent-rgb:214,255,63;
+  --future-lime:#d6ff3f;
+  --future-lime-2:#9be51b;
+  --tmz-red:#ff4f5f;
+}
+.app[data-tm-theme="blue"]{
+  --tmz-accent:#45b8ff;
+  --tmz-accent-2:#168de0;
+  --tmz-accent-rgb:69,184,255;
+  --future-lime:#45b8ff;
+  --future-lime-2:#168de0;
+  --tmz-red:#ff6078;
+}
+.app[data-tm-theme="purple"]{
+  --tmz-accent:#b56cff;
+  --tmz-accent-2:#7b35dc;
+  --tmz-accent-rgb:181,108,255;
+  --future-lime:#b56cff;
+  --future-lime-2:#7b35dc;
+  --tmz-red:#ff5f88;
+}
+.app[data-tm-theme="red"]{
+  --tmz-accent:#ff5368;
+  --tmz-accent-2:#d52e47;
+  --tmz-accent-rgb:255,83,104;
+  --future-lime:#ff5368;
+  --future-lime-2:#d52e47;
+  --tmz-red:#ff5368;
+}
+
+.app[data-tm-theme] .side nav button.active,
+.app[data-tm-theme] .tm42-best{
+  color:var(--tmz-accent)!important;
+  box-shadow:inset 3px 0 var(--tmz-accent)!important;
+}
+.app[data-tm-theme] .side nav button.active svg,
+.app[data-tm-theme] .online>i,
+.app[data-tm-theme] .bottom button i,
+.app[data-tm-theme] .live i,
+.app[data-tm-theme] .tmz-brand-copy strong span,
+.app[data-tm-theme] .hero label svg,
+.app[data-tm-theme] .tmz-eyebrow,
+.app[data-tm-theme] .tmz-section-label,
+.app[data-tm-theme] .tm43-label,
+.app[data-tm-theme] .tm43-section-label,
+.app[data-tm-theme] .tm43-title,
+.app[data-tm-theme] .tm43-eyebrow{
+  color:var(--tmz-accent)!important;
+}
+.app[data-tm-theme] .online>i,
+.app[data-tm-theme] .bottom button i,
+.app[data-tm-theme] .live i{
+  background:var(--tmz-accent)!important;
+  box-shadow:0 0 11px rgba(var(--tmz-accent-rgb),.78)!important;
+}
+.app[data-tm-theme] .actions .live,
+.app[data-tm-theme] .side .online,
+.app[data-tm-theme] .tm42-live-pill{
+  color:var(--tmz-accent)!important;
+  border-color:rgba(var(--tmz-accent-rgb),.28)!important;
+  background:rgba(var(--tmz-accent-rgb),.055)!important;
+}
+.app[data-tm-theme] .refresh,
+.app[data-tm-theme] .tmz-refresh,
+.app[data-tm-theme] .buy,
+.app[data-tm-theme] .long,
+.app[data-tm-theme] .tmz-badge.green,
+.app[data-tm-theme] .tm42-trade{
+  background:var(--tmz-accent)!important;
+  border-color:var(--tmz-accent)!important;
+  color:#07100b!important;
+  box-shadow:0 0 26px rgba(var(--tmz-accent-rgb),.12)!important;
+}
+.app[data-tm-theme] .ring{
+  background:conic-gradient(var(--tmz-accent) var(--p),#29322d 0)!important;
+}
+.app[data-tm-theme] .meter i,
+.app[data-tm-theme] .tm43-bar i,
+.app[data-tm-theme] .tm42-best{
+  border-color:rgba(var(--tmz-accent-rgb),.42)!important;
+}
+.app[data-tm-theme] .meter i,
+.app[data-tm-theme] .tm43-bar i{
+  background:var(--tmz-accent)!important;
+}
+.app[data-tm-theme] .metric b,
+.app[data-tm-theme] .mini b,
+.app[data-tm-theme] .costgrid b,
+.app[data-tm-theme] .status.on,
+.app[data-tm-theme] .toggle.on{
+  color:var(--tmz-accent)!important;
+}
+.app[data-tm-theme] .status.on i,
+.app[data-tm-theme] .toggle.on i{
+  background:var(--tmz-accent)!important;
+  box-shadow:0 0 9px rgba(var(--tmz-accent-rgb),.7)!important;
+}
+.app[data-tm-theme] .tmz-status-dot.live{
+  background:var(--tmz-accent)!important;
+  box-shadow:0 0 11px rgba(var(--tmz-accent-rgb),.75)!important;
+}
+.app[data-tm-theme] input:focus,
+.app[data-tm-theme] select:focus,
+.app[data-tm-theme] textarea:focus{
+  border-color:rgba(var(--tmz-accent-rgb),.58)!important;
+  box-shadow:0 0 0 2px rgba(var(--tmz-accent-rgb),.08)!important;
+}
+.app[data-tm-theme] .panel:hover,
+.app[data-tm-theme] .tmz-market-card:hover{
+  border-color:rgba(var(--tmz-accent-rgb),.28)!important;
+}
+.app[data-tm-theme] .panel::before{
+  background:linear-gradient(90deg,transparent,rgba(var(--tmz-accent-rgb),.20),transparent)!important;
+}
+.app[data-tm-theme] .tmz-ai-panel .tmz-decision{
+  color:var(--tmz-accent)!important;
+  border-color:rgba(var(--tmz-accent-rgb),.28)!important;
+  background:rgba(var(--tmz-accent-rgb),.055)!important;
+}
+
+/* Settings theme picker */
+.tmz-theme-panel{overflow:hidden!important}
+.tmz-theme-grid{
+  display:grid!important;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+  margin-top:18px;
+}
+.tmz-theme-option{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  min-height:112px;
+  padding:15px!important;
+  border:1px solid #29332d!important;
+  border-radius:12px!important;
+  background:linear-gradient(145deg,#111714,#090d0b)!important;
+  color:#e9eee9!important;
+  text-align:left;
+  cursor:pointer;
+  transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;
+}
+.tmz-theme-option:hover{transform:translateY(-2px)!important}
+.tmz-theme-option.active{
+  border-color:var(--tmz-accent)!important;
+  box-shadow:0 0 0 1px rgba(var(--tmz-accent-rgb),.18),0 12px 32px rgba(var(--tmz-accent-rgb),.08)!important;
+}
+.tmz-theme-swatch{
+  width:100%;
+  height:34px;
+  border-radius:8px;
+  margin-bottom:12px;
+  border:1px solid rgba(255,255,255,.08);
+  background:linear-gradient(135deg,#07100c 15%,var(--swatch,#d6ff3f) 100%);
+  box-shadow:inset 0 0 18px rgba(255,255,255,.03);
+}
+.tmz-theme-option[data-theme-option="lime"] .tmz-theme-swatch{--swatch:#d6ff3f}
+.tmz-theme-option[data-theme-option="blue"] .tmz-theme-swatch{--swatch:#45b8ff}
+.tmz-theme-option[data-theme-option="purple"] .tmz-theme-swatch{--swatch:#b56cff}
+.tmz-theme-option[data-theme-option="red"] .tmz-theme-swatch{--swatch:#ff5368}
+.tmz-theme-option strong{font-size:13px;letter-spacing:.02em}
+.tmz-theme-option small{margin-top:4px;color:#68736d;font-size:10px}
+.tmz-theme-option.active::after{
+  content:"✓";
+  position:absolute;
+  right:11px;
+  top:10px;
+  display:grid;
+  place-items:center;
+  width:22px;height:22px;
+  border-radius:50%;
+  background:var(--tmz-accent);
+  color:#081009;
+  font-size:12px;
+  font-weight:900;
+}
+
+/* More premium spacing and hierarchy across the terminal */
+main>section{scroll-behavior:smooth}
+main>header{position:sticky;top:0;z-index:40}
+.panel,.tmz-command-panel,.tmz-market-card,.tm42-row,.tm43-card{
+  transition:border-color .18s ease,box-shadow .18s ease,transform .18s ease!important;
+}
+.panel{overflow:hidden}
+.panel .head{padding-top:2px}
+.actions .bell,.actions .avatar{transition:border-color .18s ease,background .18s ease,transform .18s ease}
+.actions .bell:hover,.actions .avatar:hover{transform:translateY(-1px);border-color:rgba(var(--tmz-accent-rgb),.25)!important}
+.settingrow{min-height:66px!important}
+.settingrow + .settingrow{border-top-color:#202923!important}
+.settingspage{max-width:1100px!important;margin:0 auto!important}
+.settingshero{padding-bottom:18px!important}
+.settingshero label{color:var(--tmz-accent)!important;letter-spacing:.16em!important}
+.settingshero h1{letter-spacing:-.04em!important}
+.settinghead h2{letter-spacing:.04em!important}
+.costgrid span{background:#0b100e!important;border-color:#29332d!important;border-radius:11px!important}
+.costgrid span:hover{border-color:rgba(var(--tmz-accent-rgb),.22)!important}
