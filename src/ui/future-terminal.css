@@ -752,3 +752,9 @@ main>header{position:sticky;top:0;z-index:40}
 .settinghead h2{letter-spacing:.04em!important}
 .costgrid span{background:#0b100e!important;border-color:#29332d!important;border-radius:11px!important}
 .costgrid span:hover{border-color:rgba(var(--tmz-accent-rgb),.22)!important}
+
+/* Theme variable bridge for the existing visual layers */
+.app[data-tm-theme="lime"]{--tmz-lime:#d6ff3f;--tmz-lime2:#9be51b}
+.app[data-tm-theme="blue"]{--tmz-lime:#45b8ff;--tmz-lime2:#168de0}
+.app[data-tm-theme="purple"]{--tmz-lime:#b56cff;--tmz-lime2:#7b35dc}
+.app[data-tm-theme="red"]{--tmz-lime:#ff5368;--tmz-lime2:#d52e47}
