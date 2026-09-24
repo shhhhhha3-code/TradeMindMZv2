@@ -2228,3 +2228,178 @@ body{
     animation:none!important;
   }
 }
+
+/* ==========================================================
+   TRADEMINDMZ — NEURAL AI CORE / HOLOGRAPHIC SIGNAL LAYER
+   Visual-only enhancement. No trading, API, AI or push logic changed.
+   ========================================================== */
+
+.app[data-tm-theme] .tmz-ai-panel{
+  overflow:hidden!important;
+  isolation:isolate!important;
+}
+.app[data-tm-theme] .tmz-ai-panel::before{
+  z-index:0!important;
+}
+.app[data-tm-theme] .tmz-ai-panel > *{
+  position:relative;
+  z-index:2;
+}
+
+/* Neural field behind the AI decision core */
+.app[data-tm-theme] .tmz-ai-panel::after{
+  content:""!important;
+  position:absolute!important;
+  inset:14%!important;
+  border:1px solid rgba(85,223,255,.11)!important;
+  border-radius:50%!important;
+  background:
+    radial-gradient(circle at 22% 35%,rgba(85,223,255,.28) 0 1px,transparent 2px),
+    radial-gradient(circle at 76% 24%,rgba(155,124,255,.25) 0 1px,transparent 2px),
+    radial-gradient(circle at 68% 72%,rgba(85,223,255,.22) 0 1px,transparent 2px),
+    radial-gradient(circle at 30% 78%,rgba(155,124,255,.20) 0 1px,transparent 2px),
+    conic-gradient(from 0deg,transparent 0 24%,rgba(85,223,255,.08) 25%,transparent 31% 57%,rgba(155,124,255,.07) 58%,transparent 66% 100%)!important;
+  box-shadow:
+    0 0 0 18px rgba(85,223,255,.018),
+    0 0 0 36px rgba(155,124,255,.014),
+    inset 0 0 45px rgba(85,223,255,.035)!important;
+  pointer-events:none!important;
+  animation:tmz-neural-field 12s linear infinite!important;
+  z-index:1!important;
+}
+@keyframes tmz-neural-field{
+  from{transform:rotate(0deg) scale(.98)}
+  50%{transform:rotate(180deg) scale(1.02)}
+  to{transform:rotate(360deg) scale(.98)}
+}
+
+/* Turn the orb into a layered AI nucleus */
+.app[data-tm-theme] .tmz-ai-orb{
+  position:relative!important;
+  isolation:isolate!important;
+}
+.app[data-tm-theme] .tmz-ai-orb::before,
+.app[data-tm-theme] .tmz-ai-orb::after{
+  content:""!important;
+  position:absolute!important;
+  inset:-15%!important;
+  border:1px solid rgba(85,223,255,.20)!important;
+  border-radius:50%!important;
+  pointer-events:none!important;
+}
+.app[data-tm-theme] .tmz-ai-orb::before{
+  border-left-color:rgba(85,223,255,.78)!important;
+  border-right-color:rgba(155,124,255,.55)!important;
+  animation:tmz-orbit-a 5s linear infinite!important;
+}
+.app[data-tm-theme] .tmz-ai-orb::after{
+  inset:-28%!important;
+  border-color:rgba(155,124,255,.13)!important;
+  border-top-color:rgba(155,124,255,.58)!important;
+  border-bottom-color:rgba(85,223,255,.35)!important;
+  animation:tmz-orbit-b 8s linear infinite reverse!important;
+}
+@keyframes tmz-orbit-a{
+  to{transform:rotate(360deg)}
+}
+@keyframes tmz-orbit-b{
+  to{transform:rotate(360deg)}
+}
+
+/* Animated data pulse crossing the command panels */
+.app[data-tm-theme] .tmz-command-panel{
+  overflow:hidden!important;
+}
+.app[data-tm-theme] .tmz-command-panel::after{
+  content:""!important;
+  position:absolute!important;
+  top:0!important;
+  bottom:0!important;
+  left:-35%!important;
+  width:20%!important;
+  background:linear-gradient(90deg,transparent,rgba(85,223,255,.08),transparent)!important;
+  transform:skewX(-18deg)!important;
+  animation:tmz-data-pulse 7s ease-in-out infinite!important;
+  pointer-events:none!important;
+}
+@keyframes tmz-data-pulse{
+  0%,65%{left:-35%;opacity:0}
+  72%{opacity:1}
+  88%,100%{left:120%;opacity:0}
+}
+
+/* Small neural status nodes */
+.app[data-tm-theme] .tmz-statusbar{
+  position:relative!important;
+  overflow:hidden!important;
+}
+.app[data-tm-theme] .tmz-statusbar::after{
+  content:"AI  •  SIGNAL  •  RISK  •  PIONEX  •  FCM"!important;
+  position:absolute!important;
+  right:14px!important;
+  bottom:5px!important;
+  color:rgba(85,223,255,.18)!important;
+  font:700 6px/8px Inter,system-ui,sans-serif!important;
+  letter-spacing:.18em!important;
+  pointer-events:none!important;
+}
+
+/* Give telemetry cards a subtle neural connection feel */
+.app[data-tm-theme] .tmz-market-card{
+  position:relative!important;
+  overflow:hidden!important;
+}
+.app[data-tm-theme] .tmz-market-card::after{
+  content:""!important;
+  position:absolute!important;
+  width:70px!important;
+  height:70px!important;
+  right:-28px!important;
+  bottom:-28px!important;
+  border:1px solid rgba(85,223,255,.09)!important;
+  border-radius:50%!important;
+  box-shadow:
+    0 0 0 10px rgba(85,223,255,.012),
+    0 0 0 20px rgba(155,124,255,.010)!important;
+  pointer-events:none!important;
+}
+
+/* Make the AI decision feel like the primary intelligence surface */
+.app[data-tm-theme] .tmz-ai-panel .tmz-decision{
+  position:relative!important;
+  overflow:hidden!important;
+  text-shadow:0 0 12px rgba(85,223,255,.18)!important;
+}
+.app[data-tm-theme] .tmz-ai-panel .tmz-decision::after{
+  content:"AI ANALYSIS"!important;
+  position:absolute!important;
+  top:5px!important;
+  right:9px!important;
+  font:800 5px/8px Inter,system-ui,sans-serif!important;
+  letter-spacing:.2em!important;
+  color:rgba(85,223,255,.28)!important;
+  pointer-events:none!important;
+}
+
+/* Mobile: keep the AI effect cinematic but lightweight */
+@media(max-width:560px){
+  .app[data-tm-theme] .tmz-ai-panel::after{
+    inset:18%!important;
+  }
+  .app[data-tm-theme] .tmz-ai-orb::after{
+    inset:-20%!important;
+  }
+  .app[data-tm-theme] .tmz-statusbar::after{
+    display:none!important;
+  }
+}
+
+/* Reduced motion */
+@media(prefers-reduced-motion:reduce){
+  .app[data-tm-theme] .tmz-ai-panel::after,
+  .app[data-tm-theme] .tmz-ai-orb::before,
+  .app[data-tm-theme] .tmz-ai-orb::after,
+  .app[data-tm-theme] .tmz-command-panel::after{
+    animation:none!important;
+  }
+}
