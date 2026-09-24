@@ -3,11 +3,35 @@ import { PushNotifications } from "@capacitor/push-notifications";
 import { apiUrl } from "./apiBase.js";
 
 const TOKEN_KEY = "trademindmz-push-token";
+const ENABLED_KEY = "trademindmz-push-enabled";
 let initialized = false;
+
+function isEnabled() {
+  return localStorage.getItem(ENABLED_KEY) !== "false";
+}
+
+async function updateServerPreference(enabled) {
+  try {
+    await fetch(apiUrl("/api/notifications/preferences"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        enabled: Boolean(enabled),
+        platform: Capacitor.getPlatform(),
+        appId: "com.trademindmz.app",
+      }),
+    });
+  } catch (error) {
+    console.warn("TradeMindMZ push preference update failed:", error);
+  }
+}
 
 async function registerToken(token) {
   const value = String(token || "").trim();
-  if (!value) return;
+  if (!value || !isEnabled()) return;
 
   localStorage.setItem(TOKEN_KEY, value);
 
@@ -29,8 +53,30 @@ async function registerToken(token) {
   }
 }
 
+export async function setQualifiedTradeNotificationsEnabled(enabled) {
+  const value = Boolean(enabled);
+  localStorage.setItem(ENABLED_KEY, String(value));
+
+  if (!Capacitor.isNativePlatform()) return;
+
+  await updateServerPreference(value);
+
+  if (value) {
+    try {
+      const permission = await PushNotifications.checkPermissions();
+      if (permission.receive !== "granted") {
+        const requested = await PushNotifications.requestPermissions();
+        if (requested.receive !== "granted") return;
+      }
+      await PushNotifications.register();
+    } catch (error) {
+      console.warn("TradeMindMZ push re-enable failed:", error);
+    }
+  }
+}
+
 export async function initTradePushNotifications() {
-  if (initialized || !Capacitor.isNativePlatform()) return;
+  if (initialized || !Capacitor.isNativePlatform() || !isEnabled()) return;
   initialized = true;
 
   try {
