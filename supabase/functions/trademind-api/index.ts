@@ -43,7 +43,7 @@ function sanitizeLimit(value, fallback = 50) {
 function parseSchedulerSecretState(rawSecret) {
   const raw = String(rawSecret || "").trim();
   if (!raw) {
-    return { schedulerSecret: "", fcmToken: null, lastQualifiedTradeKey: null };
+    return { schedulerSecret: "", fcmToken: null, lastQualifiedTradeKey: null, notificationsEnabled: true };
   }
 
   try {
@@ -55,6 +55,7 @@ function parseSchedulerSecretState(rawSecret) {
         lastQualifiedTradeKey: parsed.lastQualifiedTradeKey
           ? String(parsed.lastQualifiedTradeKey)
           : null,
+        notificationsEnabled: parsed.notificationsEnabled !== false,
       };
     }
   } catch {}
@@ -63,6 +64,7 @@ function parseSchedulerSecretState(rawSecret) {
     schedulerSecret: raw,
     fcmToken: null,
     lastQualifiedTradeKey: null,
+    notificationsEnabled: true,
   };
 }
 
@@ -89,6 +91,7 @@ async function saveSchedulerSecretState(supabase, state) {
     schedulerSecret: secret,
     fcmToken: state?.fcmToken || null,
     lastQualifiedTradeKey: state?.lastQualifiedTradeKey || null,
+    notificationsEnabled: state?.notificationsEnabled !== false,
   });
 
   const { error } = await supabase
@@ -178,6 +181,9 @@ async function sendQualifiedTradePush(supabase, payload, marketType = "PERP") {
   }
 
   const state = await getSchedulerSecretState(supabase);
+  if (state.notificationsEnabled === false) {
+    return { sent: false, skipped: true, reason: "NOTIFICATIONS_DISABLED" };
+  }
   if (!state.fcmToken) {
     return { sent: false, skipped: true, reason: "NO_REGISTERED_DEVICE" };
   }
@@ -2264,6 +2270,7 @@ async function handle(req) {
       await saveSchedulerSecretState(admin, {
         ...state,
         fcmToken: token,
+        notificationsEnabled: true,
       });
 
       return response({
@@ -2271,6 +2278,7 @@ async function handle(req) {
         registered:true,
         provider:"FCM",
         platform: body?.platform || "android",
+        notificationsEnabled:true,
         readOnly:true,
       });
     } catch (error) {
@@ -2279,6 +2287,32 @@ async function handle(req) {
         registered:false,
         error:error?.message || "Push registration failed.",
       },500);
+    }
+  }
+
+  if (path === "/api/notifications/preferences" && method === "POST") {
+    try {
+      const enabled = body?.enabled !== false;
+      const admin = supabaseAdmin();
+      const state = await getSchedulerSecretState(admin);
+
+      await saveSchedulerSecretState(admin, {
+        ...state,
+        notificationsEnabled: enabled,
+      });
+
+      return response({
+        success: true,
+        notificationsEnabled: enabled,
+        provider: "FCM",
+        platform: body?.platform || "android",
+      });
+    } catch (error) {
+      return response({
+        success: false,
+        notificationsEnabled: false,
+        error: error?.message || "Push preference update failed.",
+      }, 500);
     }
   }
 
