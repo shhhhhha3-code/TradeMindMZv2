@@ -758,3 +758,110 @@ main>header{position:sticky;top:0;z-index:40}
 .app[data-tm-theme="blue"]{--tmz-lime:#45b8ff;--tmz-lime2:#168de0}
 .app[data-tm-theme="purple"]{--tmz-lime:#b56cff;--tmz-lime2:#7b35dc}
 .app[data-tm-theme="red"]{--tmz-lime:#ff5368;--tmz-lime2:#d52e47}
+
+
+/* ==========================================================
+   TRADEMINDMZ — CINEMATIC COMMAND-CENTER BACKDROP
+   UI-only visual layer. No trading/API/AI logic changed.
+   ========================================================== */
+.app[data-tm-theme]{
+  position:relative!important;
+  isolation:isolate!important;
+  min-height:100vh!important;
+  overflow-x:hidden!important;
+  --tmz-bg-glow:rgba(var(--tmz-accent-rgb),.075);
+}
+.app[data-tm-theme]::before{
+  content:"";
+  position:fixed;
+  inset:0;
+  z-index:-3;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at 72% 6%,var(--tmz-bg-glow),transparent 25%),
+    radial-gradient(circle at 8% 92%,rgba(var(--tmz-accent-rgb),.035),transparent 28%),
+    linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px),
+    linear-gradient(180deg,#030605 0%,#070b09 48%,#030605 100%);
+  background-size:auto,auto,48px 48px,48px 48px,auto;
+  background-position:center;
+}
+.app[data-tm-theme]::after{
+  content:"";
+  position:fixed;
+  left:0;
+  right:0;
+  top:-20vh;
+  height:28vh;
+  z-index:-2;
+  pointer-events:none;
+  background:linear-gradient(180deg,transparent,rgba(var(--tmz-accent-rgb),.045),transparent);
+  filter:blur(18px);
+  animation:tmz-scan-drift 13s ease-in-out infinite alternate;
+}
+@keyframes tmz-scan-drift{
+  from{transform:translateY(0);opacity:.45}
+  to{transform:translateY(105vh);opacity:.95}
+}
+.app[data-tm-theme] main,
+.app[data-tm-theme] .side,
+.app[data-tm-theme] header{backdrop-filter:blur(10px)!important}
+.app[data-tm-theme] .side{
+  background:rgba(3,7,5,.88)!important;
+  box-shadow:18px 0 60px rgba(0,0,0,.24)!important;
+}
+.app[data-tm-theme] header{
+  background:linear-gradient(180deg,rgba(4,8,6,.94),rgba(4,8,6,.72))!important;
+  box-shadow:0 10px 40px rgba(0,0,0,.18)!important;
+}
+
+/* New glass wordmark treatment */
+.app[data-tm-theme] .brand{
+  position:relative!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  min-height:52px!important;
+}
+.app[data-tm-theme] .tmz-brand-logo{
+  width:205px!important;
+  max-width:100%!important;
+  height:auto!important;
+  display:block!important;
+  filter:drop-shadow(0 0 10px rgba(var(--tmz-accent-rgb),.18)) drop-shadow(0 10px 24px rgba(0,0,0,.3))!important;
+  transition:filter .25s ease,transform .25s ease!important;
+}
+.app[data-tm-theme] .brand:hover .tmz-brand-logo{
+  transform:translateY(-1px)!important;
+  filter:drop-shadow(0 0 16px rgba(var(--tmz-accent-rgb),.28)) drop-shadow(0 12px 28px rgba(0,0,0,.35))!important;
+}
+/* The SVG is now the complete wordmark; prevent duplicate legacy copy. */
+.app[data-tm-theme] .tmz-brand-copy{display:none!important}
+
+/* Header logo is compact but keeps the same command-center identity. */
+.app[data-tm-theme] .mobilelogo .tmz-brand-logo{width:150px!important}
+
+/* Add a subtle active-theme edge to the command center itself. */
+.app[data-tm-theme] main>section::before{
+  content:"";
+  display:block;
+  position:fixed;
+  left:50%;
+  top:70px;
+  width:min(760px,78vw);
+  height:1px;
+  transform:translateX(-50%);
+  background:linear-gradient(90deg,transparent,rgba(var(--tmz-accent-rgb),.3),transparent);
+  pointer-events:none;
+  z-index:0;
+}
+
+@media(max-width:900px){
+  .app[data-tm-theme] .tmz-brand-logo{width:150px!important}
+  .app[data-tm-theme] .mobilelogo .tmz-brand-logo{width:142px!important}
+  .app[data-tm-theme]::before{background-size:auto,auto,34px 34px,34px 34px,auto}
+}
+@media(max-width:520px){
+  .app[data-tm-theme] .tmz-brand-logo{width:165px!important}
+  .app[data-tm-theme] .mobilelogo .tmz-brand-logo{width:132px!important}
+}
