@@ -1,22 +1,37 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 240" role="img" aria-labelledby="t d">
 <defs>
- <linearGradient id="lime" x1="0" y1="1" x2="1" y2="0"><stop stop-color="#9be51b"/><stop offset=".5" stop-color="#d6ff3f"/><stop offset="1" stop-color="#7dff2b"/></linearGradient>
- <filter id="glow"><feGaussianBlur stdDeviation="6" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <linearGradient id="lime" x1="0" y1="1" x2="1" y2="0">
+    <stop stop-color="#9be51b"/><stop offset=".5" stop-color="#d6ff3f"/><stop offset="1" stop-color="#7dff2b"/>
+  </linearGradient>
+  <linearGradient id="line" x1="0" x2="1">
+    <stop stop-color="#d6ff3f" stop-opacity=".05"/><stop offset=".5" stop-color="#d6ff3f" stop-opacity=".9"/><stop offset="1" stop-color="#d6ff3f" stop-opacity=".05"/>
+  </linearGradient>
+  <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+    <feGaussianBlur stdDeviation="5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
 </defs>
-<title id="t">TradeMindMZ</title><desc id="d">TradeMindMZ neon lime trading terminal logo</desc>
-<rect width="900" height="240" rx="42" fill="#050807"/>
-<g transform="translate(28,22)" filter="url(#glow)">
- <rect x="8" y="8" width="174" height="174" rx="42" fill="#090d0b" stroke="#273329" stroke-width="3"/>
- <path d="M40 118 L40 82 L70 101 L104 58 L137 79 L166 43" fill="none" stroke="url(#lime)" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
- <path d="M146 43 H166 V63" fill="none" stroke="url(#lime)" stroke-width="13" stroke-linecap="round"/>
- <path d="M48 128 H157" stroke="#263128" stroke-width="5"/>
- <text x="48" y="158" font-family="Arial,sans-serif" font-size="31" font-weight="900" fill="#f7faf7">MZ</text>
+<title id="t">TradeMindMZ</title><desc id="d">TradeMindMZ AI market intelligence logo</desc>
+
+<!-- glass signal core -->
+<g transform="translate(24,22)" filter="url(#glow)">
+  <rect x="3" y="3" width="174" height="174" rx="42" fill="#07100b" fill-opacity=".94" stroke="#2d3b30" stroke-width="2"/>
+  <path d="M23 48H157M23 78H157M23 108H157M23 138H157M53 23V157M83 23V157M113 23V157M143 23V157"
+        stroke="#d6ff3f" stroke-opacity=".055" stroke-width="1"/>
+  <circle cx="139" cy="38" r="4" fill="#d6ff3f"/>
+  <circle cx="139" cy="38" r="10" fill="none" stroke="#d6ff3f" stroke-opacity=".18"/>
+  <path d="M28 124 L28 91 L59 108 L92 65 L123 84 L153 46" fill="none" stroke="url(#lime)" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M135 46 H153 V64" fill="none" stroke="url(#lime)" stroke-width="11" stroke-linecap="round"/>
+  <path d="M31 143 H149" stroke="#5f705f" stroke-opacity=".55" stroke-width="2"/>
+  <text x="31" y="165" font-family="Arial,sans-serif" font-size="18" font-weight="900" letter-spacing="4" fill="#f7faf7">MZ</text>
 </g>
-<g transform="translate(236,48)">
- <text x="0" y="70" font-family="Arial,sans-serif" font-size="66" font-weight="900" letter-spacing="3" fill="#f7faf7">TRADEMIND</text>
- <text x="525" y="70" font-family="Arial,sans-serif" font-size="66" font-weight="900" letter-spacing="1" fill="url(#lime)">MZ</text>
- <text x="3" y="116" font-family="Arial,sans-serif" font-size="19" font-weight="700" letter-spacing="7" fill="#8d9991">AI MARKET INTELLIGENCE</text>
- <rect x="3" y="137" width="535" height="3" rx="2" fill="url(#lime)"/>
- <text x="3" y="173" font-family="Arial,sans-serif" font-size="18" font-weight="800" letter-spacing="5" fill="#cfff45">TRADE SMARTER. LIVE BETTER.</text>
+
+<!-- wordmark -->
+<g transform="translate(226,44)">
+  <text x="0" y="70" font-family="Arial,sans-serif" font-size="64" font-weight="900" letter-spacing="2.5" fill="#f7faf7">TRADEMIND</text>
+  <text x="526" y="70" font-family="Arial,sans-serif" font-size="64" font-weight="900" letter-spacing="1" fill="url(#lime)">MZ</text>
+  <text x="2" y="112" font-family="Arial,sans-serif" font-size="17" font-weight="700" letter-spacing="6.2" fill="#7f8b84">AI MARKET INTELLIGENCE</text>
+  <rect x="2" y="130" width="544" height="2" rx="1" fill="url(#line)"/>
+  <circle cx="3" cy="151" r="3" fill="#d6ff3f"/>
+  <text x="14" y="156" font-family="Arial,sans-serif" font-size="13" font-weight="800" letter-spacing="3.5" fill="#b9c9b8">LIVE MARKET COMMAND SYSTEM</text>
 </g>
 </svg>
