@@ -88,7 +88,10 @@ export async function runCopilot({markets=[],position=null,preferredProvider=nul
   const selected=candidates.find(c=>String(c.symbol).toUpperCase()===String(ai.symbol??"").toUpperCase())??candidates[0]??null;
   const learning = getPaperLearning({ limit: 5000 });
   const evidence = calculateCopilotEvidence(selected, learning.history);
-  const result={success:true,copilotVersion:"2.1",action,symbol:selected?.symbol??null,regime:regime(candidates),confidence:ai.confidence??0,risk:ai.risk??selected?.risk?.level??"HIGH",evidence,deterministic:{engineScore:selected?.engineScore??null,reasons:selected?.risk?.reasons??[],factors:factorState(selected)},ai,positionReview,explanation:buildExplanation(selected,action),candidates,generatedAt:new Date().toISOString(),execution:"READ_ONLY"};
+  const rawConfidence = finite(ai.confidence, 0);
+  const evidenceConfidence = Math.max(0, Math.min(100, rawConfidence + finite(evidence.adjustment, 0)));
+  if (action === ACTIONS.TRADE && evidenceConfidence < 80) action = ACTIONS.WATCH;
+  const result={success:true,copilotVersion:"2.1",action,symbol:selected?.symbol??null,regime:regime(candidates),confidence:Number(evidenceConfidence.toFixed(2)),confidenceRaw:Number(rawConfidence.toFixed(2)),risk:ai.risk??selected?.risk?.level??"HIGH",evidence,deterministic:{engineScore:selected?.engineScore??null,reasons:selected?.risk?.reasons??[],factors:factorState(selected)},ai,positionReview,explanation:buildExplanation(selected,action),candidates,generatedAt:new Date().toISOString(),execution:"READ_ONLY"};
   result.historySaved=await saveCopilotDecision(result);
   return result;
 }
