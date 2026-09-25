@@ -711,7 +711,32 @@ function normalizePositions(payload) {
     const rawMarkPrice = n(position?.markPrice ?? position?.mark_price ?? position?.currentPrice ?? position?.lastPrice ?? position?.price);
     const entryPrice = Number.isFinite(rawEntryPrice) && rawEntryPrice > 0 ? rawEntryPrice : null;
     const markPrice = Number.isFinite(rawMarkPrice) && rawMarkPrice > 0 ? rawMarkPrice : null;
-    const unrealizedPnl = n(position?.unrealizedPnl ?? position?.unrealizedPNL ?? position?.unrealized_profit ?? position?.pnl ?? position?.profit);
+    const reportedUnrealizedPnl = n(
+      position?.unrealizedPnl ??
+      position?.unrealizedPNL ??
+      position?.unrealizedProfit ??
+      position?.unrealized_profit ??
+      position?.unrealizedProfitLoss ??
+      position?.unrealized_pnl ??
+      position?.pnl ??
+      position?.profit
+    );
+    const calculatedUnrealizedPnl =
+      reportedUnrealizedPnl == null &&
+      Number.isFinite(entryPrice) &&
+      Number.isFinite(markPrice) &&
+      Number.isFinite(quantity)
+        ? (sideUpper === "SHORT" ? entryPrice - markPrice : markPrice - entryPrice) * Math.abs(quantity)
+        : null;
+    const unrealizedPnl = reportedUnrealizedPnl ?? calculatedUnrealizedPnl;
+    const unrealizedPnlPercent =
+      Number.isFinite(entryPrice) &&
+      entryPrice > 0 &&
+      Number.isFinite(markPrice)
+        ? (sideUpper === "SHORT"
+            ? ((entryPrice - markPrice) / entryPrice) * 100
+            : ((markPrice - entryPrice) / entryPrice) * 100)
+        : null;
     return {
       id: position?.id ?? position?.positionId ?? `pionex-${index}-${symbol || "unknown"}`,
       source: "PIONEX",
@@ -723,6 +748,7 @@ function normalizePositions(payload) {
       markPrice,
       currentPrice: markPrice,
       unrealizedPnl,
+      unrealizedPnlPercent,
       leverage: n(position?.leverage ?? position?.leverageValue),
       margin: n(position?.margin ?? position?.initialMargin ?? position?.marginUsed),
       liquidationPrice: n(position?.liquidationPrice ?? position?.liquidation_price),
