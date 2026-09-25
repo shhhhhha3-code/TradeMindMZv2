@@ -3993,3 +3993,134 @@ body{
 @media(prefers-reduced-motion:reduce){
   .app[data-tm-theme] .tmz-signals-shell .hero::after{animation:none!important}
 }
+
+
+/* ==========================================================
+   TRADEMIND AI COPILOT — LIVE MARKET INTELLIGENCE
+   ========================================================== */
+@keyframes tmzCopilotOrbit{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes tmzCopilotBreath{0%,100%{box-shadow:0 0 0 0 rgba(114,246,255,.12),0 12px 34px rgba(0,0,0,.28)}50%{box-shadow:0 0 0 7px rgba(114,246,255,.025),0 14px 44px rgba(0,0,0,.38)}}
+@keyframes tmzCopilotScan{0%{transform:translateX(-130%);opacity:0}20%{opacity:.8}80%{opacity:.15}100%{transform:translateX(620%);opacity:0}}
+@keyframes tmzCopilotTyping{0%,100%{opacity:.25}50%{opacity:1}}
+.app[data-tm-theme] .tmz-copilot-fab{
+  position:fixed;right:20px;bottom:82px;z-index:120;
+  width:62px;height:62px;padding:5px;border-radius:20px;
+  border:1px solid rgba(114,246,255,.34);
+  background:linear-gradient(145deg,rgba(10,18,25,.96),rgba(5,9,14,.94));
+  box-shadow:0 12px 40px rgba(0,0,0,.42),0 0 25px rgba(114,246,255,.08);
+  cursor:pointer;animation:tmzCopilotBreath 2.8s ease-in-out infinite;
+}
+.app[data-tm-theme] .tmz-copilot-fab img{width:100%;height:100%;display:block;border-radius:16px}
+.app[data-tm-theme] .tmz-copilot-fab-ring{
+  position:absolute;inset:-5px;border:1px solid rgba(114,246,255,.12);border-radius:24px;pointer-events:none
+}
+.app[data-tm-theme] .tmz-copilot-fab-ring::after{
+  content:"";position:absolute;inset:7px;border:1px dashed rgba(125,124,255,.16);border-radius:18px;animation:tmzCopilotOrbit 7s linear infinite
+}
+.app[data-tm-theme] .tmz-copilot-fab>i{
+  position:absolute;right:-5px;top:-5px;display:flex;align-items:center;justify-content:center;
+  width:19px;height:19px;border-radius:7px;border:1px solid rgba(114,246,255,.35);
+  background:#071018;color:#72f6ff;font-size:6px;font-style:normal;font-weight:900;letter-spacing:.05em
+}
+.app[data-tm-theme] .tmz-copilot-fab.open{border-color:rgba(255,83,104,.5)}
+.app[data-tm-theme] .tmz-copilot-panel{
+  position:fixed;right:20px;bottom:154px;z-index:119;width:min(420px,calc(100vw - 28px));
+  overflow:hidden;border:1px solid rgba(114,246,255,.16);border-radius:18px;
+  background:
+    radial-gradient(circle at 88% 0%,rgba(114,246,255,.10),transparent 27%),
+    radial-gradient(circle at 10% 100%,rgba(125,124,255,.07),transparent 30%),
+    rgba(4,9,14,.97);
+  box-shadow:0 30px 90px rgba(0,0,0,.58),0 0 45px rgba(114,246,255,.06);
+  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px)
+}
+.app[data-tm-theme] .tmz-copilot-panel::before{
+  content:"";position:absolute;left:-20%;top:0;width:16%;height:1px;
+  background:linear-gradient(90deg,transparent,#72f6ff,transparent);animation:tmzCopilotScan 5s linear infinite
+}
+.app[data-tm-theme] .tmz-copilot-head{
+  display:flex;align-items:center;justify-content:space-between;padding:14px 14px 11px;
+  border-bottom:1px solid rgba(255,255,255,.055)
+}
+.app[data-tm-theme] .tmz-copilot-identity{display:flex;align-items:center;gap:10px}
+.app[data-tm-theme] .tmz-copilot-avatar{width:43px;height:43px;padding:3px;border-radius:13px;border:1px solid rgba(114,246,255,.25);background:#071018}
+.app[data-tm-theme] .tmz-copilot-avatar img{width:100%;height:100%;display:block}
+.app[data-tm-theme] .tmz-copilot-identity>div:last-child{display:flex;flex-direction:column;gap:2px}
+.app[data-tm-theme] .tmz-copilot-identity span{color:#72f6ff;font-size:7px;font-weight:900;letter-spacing:.18em}
+.app[data-tm-theme] .tmz-copilot-identity strong{color:#eef9ff;font-size:11px;letter-spacing:.06em}
+.app[data-tm-theme] .tmz-copilot-identity small{color:rgba(114,246,255,.55);font-size:6px;font-weight:800;letter-spacing:.11em}
+.app[data-tm-theme] .tmz-copilot-identity small i,.tmz-copilot-footer i{
+  display:inline-block;width:5px;height:5px;margin-right:4px;border-radius:50%;background:#55e5a5;box-shadow:0 0 8px rgba(85,229,165,.7)
+}
+.app[data-tm-theme] .tmz-copilot-close{
+  width:31px;height:31px;border:1px solid rgba(255,255,255,.07);border-radius:9px;
+  background:rgba(255,255,255,.025);color:rgba(255,255,255,.55);cursor:pointer
+}
+.app[data-tm-theme] .tmz-copilot-close svg{width:14px}
+.app[data-tm-theme] .tmz-copilot-mode{
+  display:flex;align-items:center;gap:5px;padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.045);
+  color:rgba(255,255,255,.28);font-size:6px;font-weight:900;letter-spacing:.15em
+}
+.app[data-tm-theme] .tmz-copilot-mode button{
+  padding:6px 9px;border:1px solid rgba(255,255,255,.06);border-radius:7px;background:rgba(255,255,255,.025);
+  color:rgba(255,255,255,.45);font-size:7px;font-weight:900;letter-spacing:.08em;cursor:pointer
+}
+.app[data-tm-theme] .tmz-copilot-mode button.active{border-color:rgba(114,246,255,.28);background:rgba(114,246,255,.08);color:#72f6ff}
+.app[data-tm-theme] .tmz-copilot-quick{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:10px 12px}
+.app[data-tm-theme] .tmz-copilot-quick button{
+  display:grid;grid-template-columns:14px 1fr 12px;align-items:center;gap:6px;
+  min-height:36px;padding:7px 8px;border:1px solid rgba(255,255,255,.055);border-radius:9px;
+  background:rgba(255,255,255,.022);color:rgba(238,249,255,.65);cursor:pointer;text-align:left
+}
+.app[data-tm-theme] .tmz-copilot-quick button:hover{border-color:rgba(114,246,255,.25);background:rgba(114,246,255,.05)}
+.app[data-tm-theme] .tmz-copilot-quick button:disabled{opacity:.4;cursor:wait}
+.app[data-tm-theme] .tmz-copilot-quick svg:first-child{width:12px;color:#72f6ff}
+.app[data-tm-theme] .tmz-copilot-quick svg:last-child{width:11px;opacity:.4}
+.app[data-tm-theme] .tmz-copilot-quick span{font-size:7px;font-weight:900;letter-spacing:.08em}
+.app[data-tm-theme] .tmz-copilot-response{
+  position:relative;min-height:118px;margin:0 12px;padding:13px;border:1px solid rgba(114,246,255,.06);
+  border-radius:11px;background:rgba(255,255,255,.018)
+}
+.app[data-tm-theme] .tmz-copilot-response.has-answer{border-color:rgba(114,246,255,.12)}
+.app[data-tm-theme] .tmz-copilot-response.warning{border-color:rgba(255,200,87,.18)}
+.app[data-tm-theme] .tmz-copilot-response.error{border-color:rgba(255,83,104,.20)}
+.app[data-tm-theme] .tmz-copilot-welcome{display:grid;grid-template-columns:44px 1fr;column-gap:10px;align-items:center}
+.app[data-tm-theme] .tmz-copilot-welcome img{width:42px;height:42px;grid-row:span 2}
+.app[data-tm-theme] .tmz-copilot-welcome strong{color:#eef9ff;font-size:10px}
+.app[data-tm-theme] .tmz-copilot-welcome p{grid-column:2;margin:2px 0 0;color:rgba(255,255,255,.36);font-size:8px;line-height:1.5}
+.app[data-tm-theme] .tmz-copilot-response-head{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.app[data-tm-theme] .tmz-copilot-response-head span{display:flex;align-items:center;gap:5px;color:#72f6ff;font-size:7px;font-weight:900;letter-spacing:.13em}
+.app[data-tm-theme] .tmz-copilot-response-head svg{width:12px}
+.app[data-tm-theme] .tmz-copilot-response-head small{color:rgba(255,255,255,.25);font-size:6px;letter-spacing:.09em}
+.app[data-tm-theme] .tmz-copilot-response>p{margin:9px 0 0;color:rgba(239,247,250,.76);font-size:10px;line-height:1.55;white-space:pre-wrap}
+.app[data-tm-theme] .tmz-copilot-decision{display:inline-block;margin-top:10px;padding:5px 8px;border-radius:7px;border:1px solid rgba(255,255,255,.08);font-size:7px;letter-spacing:.12em}
+.app[data-tm-theme] .tmz-copilot-decision.trade{color:#55e5a5;border-color:rgba(85,229,165,.25);background:rgba(85,229,165,.06)}
+.app[data-tm-theme] .tmz-copilot-decision.no_trade{color:#ff7d8f;border-color:rgba(255,83,104,.20);background:rgba(255,83,104,.05)}
+.app[data-tm-theme] .tmz-copilot-input{
+  display:grid;grid-template-columns:15px 1fr 30px;align-items:center;gap:7px;margin:9px 12px 0;
+  padding:6px 6px 6px 10px;border:1px solid rgba(255,255,255,.07);border-radius:10px;background:rgba(255,255,255,.025)
+}
+.app[data-tm-theme] .tmz-copilot-input>svg{width:12px;color:rgba(114,246,255,.45)}
+.app[data-tm-theme] .tmz-copilot-input input{
+  width:100%;border:0;outline:0;background:transparent;color:#eef9ff;font-size:9px
+}
+.app[data-tm-theme] .tmz-copilot-input input::placeholder{color:rgba(255,255,255,.25)}
+.app[data-tm-theme] .tmz-copilot-input button{
+  width:30px;height:30px;border:1px solid rgba(114,246,255,.22);border-radius:8px;background:rgba(114,246,255,.08);color:#72f6ff
+}
+.app[data-tm-theme] .tmz-copilot-input button:disabled{opacity:.3}
+.app[data-tm-theme] .tmz-copilot-footer{
+  display:flex;justify-content:space-between;gap:6px;padding:8px 12px 10px;color:rgba(255,255,255,.20);font-size:5px;font-weight:900;letter-spacing:.10em
+}
+.app[data-tm-theme] .tmz-copilot-footer span:first-child{color:rgba(85,229,165,.48)}
+@media(max-width:700px){
+  .app[data-tm-theme] .tmz-copilot-fab{right:13px;bottom:86px;width:56px;height:56px;border-radius:18px}
+  .app[data-tm-theme] .tmz-copilot-panel{right:8px;bottom:148px;width:calc(100vw - 16px);max-height:calc(100dvh - 172px);overflow:auto;border-radius:16px}
+  .app[data-tm-theme] .tmz-copilot-head{padding:12px}
+  .app[data-tm-theme] .tmz-copilot-quick{gap:6px;padding:8px}
+  .app[data-tm-theme] .tmz-copilot-response{min-height:108px;margin:0 8px}
+  .app[data-tm-theme] .tmz-copilot-input{margin:8px}
+  .app[data-tm-theme] .tmz-copilot-footer{padding:7px 8px 9px}
+}
+@media(prefers-reduced-motion:reduce){
+  .app[data-tm-theme] .tmz-copilot-fab,.app[data-tm-theme] .tmz-copilot-fab-ring::after,.app[data-tm-theme] .tmz-copilot-panel::before{animation:none!important}
+}
