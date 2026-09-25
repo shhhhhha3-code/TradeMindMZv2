@@ -2601,6 +2601,8 @@ async function handle(req) {
     const schedulerAgeMs = schedulerFinishedAt
       ? Math.max(0, Date.now() - new Date(schedulerFinishedAt).getTime())
       : null;
+    const schedulerDurationMs = Number(schedulerHeartbeat?.duration_ms);
+    const schedulerSlow = Number.isFinite(schedulerDurationMs) && schedulerDurationMs >= 90000;
     const schedulerFresh = Boolean(
       schedulerHeartbeat?.status === "SUCCESS" &&
       Number.isFinite(schedulerAgeMs) &&
@@ -2681,7 +2683,13 @@ async function handle(req) {
         },
         {
           name: "Scheduler",
-          status: schedulerFresh ? "OK" : schedulerHeartbeat?.status === "ERROR" ? "ERROR" : "STALE",
+          status: schedulerHeartbeat?.status === "ERROR"
+            ? "ERROR"
+            : schedulerFresh
+              ? schedulerSlow
+                ? "SLOW"
+                : "OK"
+              : "STALE",
           httpStatus: schedulerFresh ? 200 : 503,
           details: {
             lastRun: schedulerFinishedAt,
@@ -2695,7 +2703,12 @@ async function handle(req) {
             currentStage: schedulerHeartbeat?.current_stage || null,
             cadenceMinutes: 7,
           },
-          error: schedulerFresh ? null : "Server scheduler heartbeat is missing, stale, or failed.",
+          error:
+            schedulerFresh
+              ? schedulerSlow
+                ? "Scheduler completed, but runtime is approaching the 120s request budget."
+                : null
+              : "Server scheduler heartbeat is missing, stale, or failed.",
         },
         {
           name: "Market AI",
