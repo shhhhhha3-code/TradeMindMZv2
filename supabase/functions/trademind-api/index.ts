@@ -1844,6 +1844,175 @@ async function getServerPositionMonitoring(supabase) {
   };
 }
 
+function buildPerformanceWindow(rows = [], days = 7) {
+  const cutoff = Date.now() - Number(days) * 24 * 60 * 60 * 1000;
+  const scoped = rows.filter((row) => {
+    const closedAt = new Date(row.closed_at || row.updated_at || row.created_at || 0).getTime();
+    return Number.isFinite(closedAt) && closedAt >= cutoff;
+  });
+
+  let wins = 0;
+  let losses = 0;
+  let netPnl = 0;
+  let grossProfit = 0;
+  let grossLoss = 0;
+  let pnlSamples = 0;
+  let confidenceSum = 0;
+  let confidenceSamples = 0;
+  let stopLossLike = 0;
+
+  const confidenceBuckets = {
+    "<60": { trades: 0, wins: 0, netPnl: 0 },
+    "60-74": { trades: 0, wins: 0, netPnl: 0 },
+    "75-89": { trades: 0, wins: 0, netPnl: 0 },
+    "90+": { trades: 0, wins: 0, netPnl: 0 },
+  };
+
+  for (const row of scoped) {
+    const pnl = Number(row.net_pnl ?? row.realized_pnl);
+    const entry = Number(row.entry_price);
+    const quantity = Number(row.quantity);
+    const pnlPercent = Number(row.last_pnl_percent);
+    const fallbackPercent = Number.isFinite(pnl) && Number.isFinite(entry) && entry > 0 && Number.isFinite(quantity) && quantity > 0
+      ? (pnl / (entry * quantity)) * 100
+      : pnlPercent;
+
+    if (Number.isFinite(pnl)) {
+      netPnl += pnl;
+      pnlSamples += 1;
+      if (pnl > 0) { wins += 1; grossProfit += pnl; }
+      else if (pnl < 0) { losses += 1; grossLoss += Math.abs(pnl); }
+    } else if (Number.isFinite(fallbackPercent)) {
+      if (fallbackPercent > 0) wins += 1;
+      else if (fallbackPercent < 0) losses += 1;
+    }
+
+    const confidence = Number(row.ai_confidence_at_entry);
+    if (Number.isFinite(confidence)) {
+      confidenceSum += confidence;
+      confidenceSamples += 1;
+      const bucket = confidence < 60 ? confidenceBuckets["<60"] : confidence < 75 ? confidenceBuckets["60-74"] : confidence < 90 ? confidenceBuckets["75-89"] : confidenceBuckets["90+"];
+      bucket.trades += 1;
+      if (Number.isFinite(pnl) && pnl > 0) bucket.wins += 1;
+      if (Number.isFinite(pnl)) bucket.netPnl += pnl;
+    }
+
+    const reason = String(row.close_reason || "").toLowerCase();
+    const stop = Number(row.stop_loss);
+    const exit = Number(row.exit_price);
+    const nearStop = Number.isFinite(stop) && stop > 0 && Number.isFinite(exit) && Math.abs(exit - stop) / stop <= 0.003;
+    if (reason.includes("stop-loss") || reason.includes("stop loss") || reason.includes("stop_loss") || nearStop) {
+      stopLossLike += 1;
+    }
+  }
+
+  const closed = scoped.length;
+  const winRate = closed ? Math.round((wins / closed) * 1000) / 10 : null;
+  const avgPnl = pnlSamples ? netPnl / pnlSamples : null;
+  const profitFactor = grossLoss > 0 ? grossProfit / grossLoss : grossProfit > 0 ? null : 0;
+  const averageConfidence = confidenceSamples ? confidenceSum / confidenceSamples : null;
+
+  for (const bucket of Object.values(confidenceBuckets)) {
+    bucket.winRate = bucket.trades ? Math.round((bucket.wins / bucket.trades) * 1000) / 10 : null;
+    bucket.avgPnl = bucket.trades ? bucket.netPnl / bucket.trades : null;
+  }
+
+  return {
+    days,
+    closed,
+    wins,
+    losses,
+    winRate,
+    netPnl,
+    avgPnl,
+    grossProfit,
+    grossLoss,
+    profitFactor,
+    averageConfidence,
+    stopLossLike,
+    confidenceBuckets,
+  };
+}
+
+async function getTradePerformanceSummary(supabase) {
+  const { data, error } = await supabase
+    .from("trade_journal")
+    .select("position_key,symbol,side,entry_price,quantity,stop_loss,take_profit,ai_confidence_at_entry,last_pnl_percent,realized_pnl,net_pnl,exit_price,closed_at,close_reason,created_at,updated_at,status")
+    .eq("status", "CLOSED")
+    .gte("closed_at", new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+    .order("closed_at", { ascending: false })
+    .limit(1000);
+
+  if (error) throw new Error("Performance summary query failed: " + error.message);
+
+  const rows = Array.isArray(data) ? data : [];
+  const windows = {
+    "24h": buildPerformanceWindow(rows, 1),
+    "7d": buildPerformanceWindow(rows, 7),
+    "30d": buildPerformanceWindow(rows, 30),
+  };
+
+  const recent = windows["7d"];
+  const priorCutoff = Date.now() - 14 * 24 * 60 * 60 * 1000;
+  const priorRows = rows.filter((row) => {
+    const closedAt = new Date(row.closed_at || 0).getTime();
+    return Number.isFinite(closedAt) && closedAt < Date.now() - 7 * 24 * 60 * 60 * 1000 && closedAt >= priorCutoff;
+  });
+  const prior = buildPerformanceWindow(priorRows, 7);
+
+  const trend = recent.closed < 3 || prior.closed < 3
+    ? "INSUFFICIENT_DATA"
+    : recent.netPnl > prior.netPnl * 1.05
+      ? "IMPROVING"
+      : recent.netPnl < prior.netPnl * 0.95
+        ? "WEAKENING"
+        : "STABLE";
+
+  const status = recent.closed < 3
+    ? "INSUFFICIENT_DATA"
+    : recent.netPnl > 0 && recent.winRate >= 50
+      ? "POSITIVE"
+      : recent.netPnl < 0 && recent.winRate < 50
+        ? "UNDER_PRESSURE"
+        : "MIXED";
+
+  const learning = {
+    mode: "OBSERVE_ONLY",
+    signalOverride: false,
+    automaticTrading: false,
+    samples: recent.closed,
+    averageConfidence: recent.averageConfidence,
+    actualWinRate: recent.winRate,
+    confidenceGap: Number.isFinite(recent.averageConfidence) && Number.isFinite(recent.winRate)
+      ? Math.round((recent.averageConfidence - recent.winRate) * 10) / 10
+      : null,
+    confidenceBuckets: recent.confidenceBuckets,
+    trend,
+    note: "TradeMindMZ uses closed trade outcomes as feedback for calibration and analysis. This layer does not automatically change signal thresholds or place trades.",
+  };
+
+  return {
+    success: true,
+    updatedAt: new Date().toISOString(),
+    status,
+    trend,
+    windows,
+    learning,
+    recentLosses: rows.filter((row) => {
+      const t = new Date(row.closed_at || 0).getTime();
+      const pnl = Number(row.net_pnl ?? row.realized_pnl);
+      return Number.isFinite(t) && t >= Date.now() - 24 * 60 * 60 * 1000 && Number.isFinite(pnl) && pnl < 0;
+    }).slice(0, 8).map((row) => ({
+      symbol: row.symbol,
+      side: row.side,
+      pnl: Number(row.net_pnl ?? row.realized_pnl),
+      confidence: Number.isFinite(Number(row.ai_confidence_at_entry)) ? Number(row.ai_confidence_at_entry) : null,
+      closeReason: row.close_reason || null,
+      closedAt: row.closed_at,
+    })),
+  };
+}
+
 async function getLearningStats(supabase) {
   const { data, error } = await supabase.from("position_ai_analysis").select("recommendation,confidence,provider,created_at");
   if (error) throw new Error(`Learning stats query failed: ${error.message}`);
@@ -2231,9 +2400,41 @@ async function handle(req) {
         "AI confidence describes model confidence, not trade approval.",
         "Distinguish engine score, AI confidence, and final decision.",
         "For system questions, use scheduler telemetry and explicitly say when a value is unavailable.",
+        "When performance or learning data is supplied, summarize the 24h, 7d, and 30d results factually. Treat the learning layer as observational calibration only; never claim it has changed the trading engine unless the context explicitly says so.",
+        "Distinguish closed-trade results from current unrealized positions and never invent stop-loss events.",
         "Keep answers concise, practical, and suitable for a mobile trading cockpit.",
         'Return JSON only: {"answer":"...","headline":"...","severity":"INFO|SUCCESS|WARNING|ERROR","action":"NONE|LIVE_SIGNAL|STATUS|DIAGNOSTICS"}.'
       ].join("\n");
+
+      let performanceSummary = null;
+      try {
+        performanceSummary = await getTradePerformanceSummary(supabaseAdmin());
+      } catch (performanceError) {
+        console.warn("Copilot performance summary unavailable:", performanceError?.message || performanceError);
+      }
+
+      const compactPerformance = performanceSummary ? {
+        status: performanceSummary.status,
+        trend: performanceSummary.trend,
+        windows: Object.fromEntries(Object.entries(performanceSummary.windows || {}).map(([key, value]) => [key, {
+          closed: value.closed,
+          wins: value.wins,
+          losses: value.losses,
+          winRate: value.winRate,
+          netPnl: value.netPnl,
+          profitFactor: value.profitFactor,
+          averageConfidence: value.averageConfidence,
+          stopLossLike: value.stopLossLike,
+        }])),
+        learning: performanceSummary.learning ? {
+          mode: performanceSummary.learning.mode,
+          samples: performanceSummary.learning.samples,
+          actualWinRate: performanceSummary.learning.actualWinRate,
+          averageConfidence: performanceSummary.learning.averageConfidence,
+          confidenceGap: performanceSummary.learning.confidenceGap,
+          trend: performanceSummary.learning.trend,
+        } : null,
+      } : null;
 
       const context = {
         action,
@@ -2241,6 +2442,7 @@ async function handle(req) {
         userMessage,
         snapshot: compactSnapshot,
         scheduler: compactScheduler,
+        performance: compactPerformance,
         safety: { readOnly:true, automaticTrading:false },
       };
 
@@ -2733,6 +2935,18 @@ async function handle(req) {
 
   if ((path === "/api/ai/position-analyze" || path === "/api/positions/analyze") && method === "POST") {
     try { return response(await analyzePosition(supabaseAdmin(), body)); } catch(error){ return response({success:false,status:"POSITION_AI_ERROR",error:error?.message||"Position AI analysis failed."},500); }
+  }
+
+  if (path === "/api/ai/performance-summary" && method === "GET") {
+    try {
+      return response(await getTradePerformanceSummary(supabaseAdmin()));
+    } catch (error) {
+      return response({
+        success:false,
+        status:"PERFORMANCE_UNAVAILABLE",
+        error:error?.message || "Performance summary failed.",
+      }, 500);
+    }
   }
 
   if (path === "/api/ai/learning-stats" && method === "GET") {
