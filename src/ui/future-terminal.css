@@ -4124,3 +4124,34 @@ body{
 @media(prefers-reduced-motion:reduce){
   .app[data-tm-theme] .tmz-copilot-fab,.app[data-tm-theme] .tmz-copilot-fab-ring::after,.app[data-tm-theme] .tmz-copilot-panel::before{animation:none!important}
 }
+
+
+/* ==========================================================
+   COPILOT VISIBILITY HOTFIX
+   Keep the AI Copilot above the mobile command dock and safe-area.
+   ========================================================== */
+.app[data-tm-theme] .tmz-copilot-fab{
+  z-index:5000!important;
+  right:16px!important;
+  bottom:calc(82px + env(safe-area-inset-bottom))!important;
+  visibility:visible!important;
+  opacity:1!important;
+  pointer-events:auto!important;
+}
+.app[data-tm-theme] .tmz-copilot-panel{
+  z-index:4999!important;
+  bottom:calc(154px + env(safe-area-inset-bottom))!important;
+}
+@media(max-width:700px){
+  .app[data-tm-theme] .tmz-copilot-fab{
+    right:12px!important;
+    bottom:calc(78px + env(safe-area-inset-bottom))!important;
+    width:60px!important;
+    height:60px!important;
+  }
+  .app[data-tm-theme] .tmz-copilot-panel{
+    right:8px!important;
+    bottom:calc(146px + env(safe-area-inset-bottom))!important;
+    width:calc(100vw - 16px)!important;
+  }
+}
