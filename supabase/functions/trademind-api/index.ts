@@ -2681,7 +2681,7 @@ async function handle(req) {
         headline:String(raw?.headline || "TRADEMIND AI"),
         answer:String(raw?.answer || outputText || "I could not produce an answer from the available TradeMindMZ data."),
         severity:["INFO","SUCCESS","WARNING","ERROR"].includes(raw?.severity) ? raw.severity : "INFO",
-        suggestedAction:allowedActions.has(String(raw?.action || "").toUpperCase()) ? String(raw.action).toUpperCase() : action,
+        suggestedAction:allowedSuggestedActions.has(String(raw?.action || "").toUpperCase()) ? String(raw.action).toUpperCase() : action,
         advice:allowedAdvice.has(String(raw?.advice || "").toUpperCase()) ? String(raw.advice).toUpperCase() : "NO_ACTION",
         confidence,
         keyFactors:Array.isArray(raw?.keyFactors) ? raw.keyFactors.slice(0,4).map(String) : [],
