@@ -2157,6 +2157,78 @@ async function handle(req) {
         : Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
 
       const snapshotPayload = snapshot?.payload || snapshot || null;
+
+      // Keep Copilot context deliberately small. The persisted snapshot contains
+      // full market/candle/candidate payloads that can exceed provider TPM limits.
+      const compactCandidate = (candidate) => {
+        if (!candidate || typeof candidate !== "object") return null;
+        return {
+          symbol: candidate.symbol || candidate.market || null,
+          direction: candidate.direction || candidate.side || null,
+          score: candidate.engineScore ?? candidate.score ?? null,
+          confidence: candidate.confidence ?? null,
+          entry: candidate.entry ?? null,
+          stopLoss: candidate.stopLoss ?? null,
+          takeProfit: candidate.takeProfit ?? null,
+          riskReward: candidate.riskReward ?? null,
+          change24h: candidate.change24h ?? candidate.priceChange24h ?? null,
+        };
+      };
+
+      const compactSnapshot = snapshotPayload ? {
+        marketType: snapshotPayload.marketType || snapshot?.market_type || marketType,
+        interval: snapshotPayload.interval || snapshot?.interval || "15M",
+        leverage: snapshotPayload.leverage ?? snapshot?.leverage ?? (marketType === "SPOT" ? 1 : 3),
+        scanned: snapshotPayload.scanned ?? snapshot?.scanned ?? null,
+        createdAt: snapshot?.created_at || snapshotPayload.createdAt || snapshotPayload.updatedAt || null,
+        persistedAt: snapshotPayload.persistedAt || null,
+        updatedAt: snapshotPayload.updatedAt || null,
+        finalDecision: snapshotPayload.finalDecision || snapshot?.final_decision || "NO_TRADE",
+        aiDecision: snapshotPayload.aiDecision ? {
+          decision: snapshotPayload.aiDecision.decision || null,
+          confidence: snapshotPayload.aiDecision.confidence ?? null,
+          provider: snapshotPayload.aiDecision.provider || snapshot?.provider || null,
+          reasoning: String(snapshotPayload.aiDecision.reasoning || "").slice(0, 900),
+        } : {
+          decision: snapshot?.ai_decision || null,
+          provider: snapshot?.provider || null,
+        },
+        recommended: compactCandidate(snapshotPayload.recommended),
+        topCandidates: Array.isArray(snapshotPayload.candidates)
+          ? snapshotPayload.candidates.slice(0, 5).map(compactCandidate).filter(Boolean)
+          : [],
+        criteria: snapshotPayload.criteria ? {
+          passed: snapshotPayload.criteria.passed ?? null,
+          failedChecks: Array.isArray(snapshotPayload.criteria.failedChecks)
+            ? snapshotPayload.criteria.failedChecks.slice(0, 8).map(String)
+            : [],
+        } : null,
+      } : null;
+
+      const compactScheduler = diagnostics ? {
+        status: diagnostics.status,
+        currentStage: diagnostics.current_stage,
+        startedAt: diagnostics.started_at,
+        finishedAt: diagnostics.finished_at,
+        durationMs: diagnostics.duration_ms,
+        perpDurationMs: diagnostics.perp_duration_ms,
+        spotDurationMs: diagnostics.spot_duration_ms,
+        monitoringDurationMs: diagnostics.monitoring_duration_ms,
+        perpScanned: diagnostics.perp_scanned,
+        perpCandidates: diagnostics.perp_candidates,
+        perpProvider: diagnostics.perp_provider,
+        perpDecision: diagnostics.perp_decision,
+        perpPushStatus: diagnostics.perp_push_status,
+        spotScanned: diagnostics.spot_scanned,
+        spotCandidates: diagnostics.spot_candidates,
+        spotProvider: diagnostics.spot_provider,
+        spotDecision: diagnostics.spot_decision,
+        spotPushStatus: diagnostics.spot_push_status,
+        positionMonitoringCount: diagnostics.position_monitoring_count,
+        spotMonitoringCount: diagnostics.spot_monitoring_count,
+        error: diagnostics.error ? String(diagnostics.error).slice(0, 700) : null,
+      } : null;
+
       const systemPrompt = [
         "You are TradeMind AI Copilot inside TradeMindMZ.",
         "You are a real-time market intelligence and system operations assistant.",
@@ -2171,9 +2243,11 @@ async function handle(req) {
       ].join("\n");
 
       const context = {
-        action, marketType, userMessage,
-        snapshot: snapshotPayload,
-        scheduler: diagnostics,
+        action,
+        marketType,
+        userMessage,
+        snapshot: compactSnapshot,
+        scheduler: compactScheduler,
         safety: { readOnly:true, automaticTrading:false },
       };
 
