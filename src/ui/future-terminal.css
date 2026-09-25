@@ -3698,3 +3698,298 @@ body{
 .app[data-tm-theme] .tmz-neural-feed-foot b{color:rgba(85,223,255,.65);font-weight:800}
 @media(max-width:700px){.app[data-tm-theme] .tmz-neural-feed{padding:13px 12px 11px}.app[data-tm-theme] .tmz-neural-feed-list{grid-template-columns:1fr 1fr;gap:10px 8px}.app[data-tm-theme] .tmz-neural-feed-link{display:none}.app[data-tm-theme] .tmz-neural-feed-copy strong{font-size:7px}.app[data-tm-theme] .tmz-neural-feed-foot{gap:7px 12px}}
 @media(prefers-reduced-motion:reduce){.app[data-tm-theme] .tmz-neural-feed::before,.app[data-tm-theme] .tmz-neural-feed-state i,.app[data-tm-theme] .tmz-neural-feed-item.active .tmz-neural-feed-node i,.app[data-tm-theme] .tmz-neural-feed-link.done::after{animation:none!important}}
+
+
+/* ==========================================================
+   TRADEMINDMZ — MOBILE AI COCKPIT POLISH
+   Visual hierarchy only. Trading/API/AI behavior unchanged.
+   ========================================================== */
+.app[data-tm-theme] .tmz-signals-shell{
+  position:relative;
+  isolation:isolate;
+}
+.app[data-tm-theme] .tmz-signals-shell::before{
+  content:"AI SIGNAL PROCESSING";
+  position:absolute;
+  top:-8px;
+  right:2px;
+  z-index:-1;
+  color:rgba(var(--tmz-accent-rgb),.035);
+  font-size:42px;
+  font-weight:900;
+  letter-spacing:.08em;
+  pointer-events:none;
+}
+.app[data-tm-theme] .tmz-signals-shell .hero{
+  position:relative!important;
+  overflow:hidden!important;
+  border:1px solid rgba(var(--tmz-accent-rgb),.10)!important;
+  border-radius:16px!important;
+  padding:20px!important;
+  background:
+    radial-gradient(circle at 88% 15%,rgba(var(--tmz-accent-rgb),.10),transparent 32%),
+    linear-gradient(145deg,rgba(16,23,20,.92),rgba(5,9,7,.90))!important;
+  box-shadow:0 20px 55px rgba(0,0,0,.22)!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .hero::after{
+  content:"";
+  position:absolute;
+  left:-30%;
+  top:0;
+  width:24%;
+  height:1px;
+  background:linear-gradient(90deg,transparent,var(--tmz-accent),transparent);
+  opacity:.45;
+  animation:tmzSignalSweep 5.5s linear infinite;
+}
+@keyframes tmzSignalSweep{
+  from{transform:translateX(0)}
+  to{transform:translateX(620%)}
+}
+.app[data-tm-theme] .tmz-signals-shell .hero label{
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:7px!important;
+  color:var(--tmz-accent)!important;
+  font-size:8px!important;
+  font-weight:900!important;
+  letter-spacing:.18em!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .hero h1{
+  max-width:720px!important;
+  margin-top:9px!important;
+  font-size:clamp(29px,4.5vw,52px)!important;
+  line-height:.98!important;
+  letter-spacing:-.045em!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .hero p{
+  max-width:680px!important;
+  margin-top:10px!important;
+  color:#718078!important;
+  font-size:11px!important;
+  line-height:1.55!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .tmz-signal-refresh{
+  position:relative!important;
+  min-width:154px!important;
+  min-height:44px!important;
+  border:1px solid rgba(var(--tmz-accent-rgb),.28)!important;
+  border-radius:10px!important;
+  background:linear-gradient(135deg,rgba(var(--tmz-accent-rgb),.13),rgba(var(--tmz-accent-rgb),.035))!important;
+  color:var(--tmz-accent)!important;
+  box-shadow:0 8px 28px rgba(var(--tmz-accent-rgb),.06)!important;
+  font-weight:850!important;
+  letter-spacing:.08em!important;
+  text-transform:uppercase!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .tmz-signal-refresh:hover{
+  border-color:rgba(var(--tmz-accent-rgb),.5)!important;
+  box-shadow:0 0 25px rgba(var(--tmz-accent-rgb),.10)!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .tmz-market-switch{
+  position:relative!important;
+  border-color:rgba(var(--tmz-accent-rgb),.10)!important;
+  background:rgba(4,9,7,.72)!important;
+  box-shadow:0 12px 35px rgba(0,0,0,.16)!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .grid{
+  gap:14px!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .panel.main{
+  position:relative!important;
+  border-radius:16px!important;
+  background:
+    radial-gradient(circle at 88% 4%,rgba(var(--tmz-accent-rgb),.075),transparent 27%),
+    linear-gradient(145deg,rgba(17,24,21,.97),rgba(5,9,7,.96))!important;
+  box-shadow:0 24px 70px rgba(0,0,0,.24)!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .panel.main::before{
+  content:"AI CORE";
+  position:absolute;
+  top:14px;
+  right:17px;
+  color:rgba(var(--tmz-accent-rgb),.28);
+  font-size:6px;
+  font-weight:900;
+  letter-spacing:.22em;
+  pointer-events:none;
+}
+.app[data-tm-theme] .tmz-signals-shell .panel.main .core{
+  position:relative!important;
+  min-height:150px!important;
+  padding:14px 2px!important;
+  align-items:center!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .panel.main .ring{
+  filter:drop-shadow(0 0 18px rgba(var(--tmz-accent-rgb),.10));
+}
+.app[data-tm-theme] .tmz-signals-shell .panel.main .copy{
+  min-width:0!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .panel.main .copy>div:first-child{
+  display:flex!important;
+  flex-direction:column!important;
+  gap:4px!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .panel.main .copy>div:first-child>small{
+  color:rgba(var(--tmz-accent-rgb),.60)!important;
+  font-size:7px!important;
+  letter-spacing:.16em!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .panel.main .copy>div:first-child>b{
+  font-size:28px!important;
+  line-height:1!important;
+  letter-spacing:-.04em!important;
+}
+.app[data-tm-theme] .tmz-confidence-note{
+  display:block!important;
+  margin-top:4px!important;
+  color:rgba(255,255,255,.24)!important;
+  font-size:5px!important;
+  font-style:normal!important;
+  font-weight:800!important;
+  letter-spacing:.11em!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .panel.main .meter{
+  height:5px!important;
+  margin-top:10px!important;
+  overflow:hidden!important;
+  border-radius:999px!important;
+  background:rgba(255,255,255,.055)!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .panel.main .meter i{
+  position:relative!important;
+  display:block!important;
+  height:100%!important;
+  border-radius:inherit!important;
+  background:linear-gradient(90deg,rgba(var(--tmz-accent-rgb),.45),var(--tmz-accent))!important;
+  box-shadow:0 0 14px rgba(var(--tmz-accent-rgb),.28)!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .panel.main .levels{
+  gap:7px!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .panel.main .levels>div{
+  min-height:64px!important;
+  border-radius:10px!important;
+  background:rgba(255,255,255,.025)!important;
+  border-color:rgba(255,255,255,.055)!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .panel.main .levels>div.danger{
+  border-color:rgba(255,90,90,.18)!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .panel.main .meta{
+  gap:6px!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .panel.main .meta span{
+  border-color:rgba(255,255,255,.045)!important;
+  background:rgba(255,255,255,.018)!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .opps{
+  gap:10px!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .opp{
+  border-radius:12px!important;
+  background:linear-gradient(145deg,rgba(14,20,17,.92),rgba(6,10,8,.90))!important;
+}
+.app[data-tm-theme] .tmz-signals-shell .opp strong{
+  color:var(--tmz-accent)!important;
+}
+
+/* Compact the persistent bottom command dock without removing any navigation. */
+@media(max-width:700px){
+  .app[data-tm-theme] main>section{
+    padding:14px 12px calc(88px + env(safe-area-inset-bottom))!important;
+  }
+  .app[data-tm-theme] main>header{
+    height:60px!important;
+    padding:0 12px!important;
+  }
+  .app[data-tm-theme] .title small{
+    font-size:6px!important;
+    letter-spacing:.18em!important;
+  }
+  .app[data-tm-theme] .title b{
+    font-size:12px!important;
+  }
+  .app[data-tm-theme] .actions .live{
+    padding:5px 7px!important;
+    font-size:7px!important;
+  }
+  .app[data-tm-theme] .actions .bell{
+    width:34px!important;
+    height:34px!important;
+  }
+  .app[data-tm-theme] .actions .avatar{
+    width:34px!important;
+    height:34px!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell .hero{
+    padding:15px!important;
+    border-radius:14px!important;
+    margin-bottom:10px!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell .hero h1{
+    font-size:27px!important;
+    max-width:100%!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell .hero p{
+    font-size:10px!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell .tmz-signal-refresh{
+    width:100%!important;
+    min-height:42px!important;
+    margin-top:3px!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell .panel.main .core{
+    min-height:136px!important;
+    gap:12px!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell .panel.main .ring{
+    transform:scale(.90)!important;
+    transform-origin:center!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell .panel.main .copy>div:first-child>b{
+    font-size:25px!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell .panel.main .levels>div{
+    min-height:58px!important;
+    padding:9px!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell .panel.main .levels>div b{
+    font-size:12px!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell .panel.main .meta{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell .panel{
+    border-radius:13px!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell .section{
+    margin-top:14px!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell .section h2{
+    font-size:14px!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell .opps .opp{
+    padding:12px!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell::before{
+    font-size:22px;
+    top:0;
+    opacity:.6;
+  }
+}
+@media(max-width:390px){
+  .app[data-tm-theme] .tmz-signals-shell .panel.main .core{
+    grid-template-columns:92px minmax(0,1fr)!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell .panel.main .ring{
+    transform:scale(.80)!important;
+  }
+  .app[data-tm-theme] .tmz-signals-shell .panel.main .copy>div:first-child>b{
+    font-size:22px!important;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .app[data-tm-theme] .tmz-signals-shell .hero::after{animation:none!important}
+}
