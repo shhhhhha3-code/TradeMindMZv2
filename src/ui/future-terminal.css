@@ -2995,3 +2995,334 @@ body{
     transition:none!important;
   }
 }
+
+
+/* ==========================================================
+   TRADEMINDMZ — NEURAL AI MOTION SYSTEM
+   CSS-only animation layer. No data, navigation or trading logic.
+   ========================================================== */
+
+@keyframes tmzNeuralDrift{
+  0%{background-position:0 0,0 0,0 0}
+  50%{background-position:18px -12px,-14px 10px,0 0}
+  100%{background-position:0 0,0 0,0 0}
+}
+
+@keyframes tmzSignalPulse{
+  0%,100%{opacity:.55;transform:scale(.96)}
+  50%{opacity:1;transform:scale(1.04)}
+}
+
+@keyframes tmzNeuralScan{
+  0%{transform:translateY(-120%);opacity:0}
+  12%{opacity:.7}
+  45%{opacity:.16}
+  100%{transform:translateY(520%);opacity:0}
+}
+
+@keyframes tmzAIOrbit{
+  from{transform:rotate(0deg)}
+  to{transform:rotate(360deg)}
+}
+
+@keyframes tmzAIOrbitReverse{
+  from{transform:rotate(360deg)}
+  to{transform:rotate(0deg)}
+}
+
+@keyframes tmzDataFlow{
+  0%{background-position:0 0}
+  100%{background-position:220px 0}
+}
+
+@keyframes tmzCoreBreath{
+  0%,100%{box-shadow:0 0 0 0 rgba(85,223,255,.02),0 0 26px rgba(85,223,255,.04)}
+  50%{box-shadow:0 0 0 8px rgba(85,223,255,.025),0 0 44px rgba(85,223,255,.12)}
+}
+
+@keyframes tmzTextSignal{
+  0%,100%{background-position:0% 50%}
+  50%{background-position:100% 50%}
+}
+
+/* Deep neural field behind each page */
+.app[data-tm-theme] main{
+  position:relative!important;
+  isolation:isolate!important;
+}
+
+.app[data-tm-theme] main::before{
+  content:""!important;
+  position:fixed!important;
+  inset:0!important;
+  z-index:-3!important;
+  pointer-events:none!important;
+  background:
+    radial-gradient(circle at 72% 8%,rgba(85,223,255,.055),transparent 26%),
+    radial-gradient(circle at 18% 78%,rgba(155,124,255,.045),transparent 30%),
+    linear-gradient(rgba(85,223,255,.018) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(85,223,255,.018) 1px,transparent 1px)!important;
+  background-size:auto,auto,42px 42px,42px 42px!important;
+  animation:tmzNeuralDrift 24s ease-in-out infinite!important;
+}
+
+.app[data-tm-theme] main::after{
+  content:""!important;
+  position:fixed!important;
+  inset:0!important;
+  z-index:-2!important;
+  pointer-events:none!important;
+  background:
+    radial-gradient(circle at 50% 20%,rgba(255,255,255,.018),transparent 18%),
+    repeating-linear-gradient(180deg,transparent 0,transparent 7px,rgba(85,223,255,.008) 8px)!important;
+  opacity:.7!important;
+}
+
+/* Hero = AI system boot surface */
+.app[data-tm-theme] .hero{
+  position:relative!important;
+  overflow:hidden!important;
+  border-color:rgba(85,223,255,.10)!important;
+  background:
+    radial-gradient(circle at 92% 18%,rgba(85,223,255,.09),transparent 28%),
+    radial-gradient(circle at 65% 110%,rgba(155,124,255,.06),transparent 30%),
+    linear-gradient(145deg,rgba(8,17,27,.76),rgba(2,7,13,.58))!important;
+  box-shadow:inset 0 1px rgba(255,255,255,.025),0 20px 60px rgba(0,0,0,.22)!important;
+}
+
+.app[data-tm-theme] .hero::before{
+  content:""!important;
+  position:absolute!important;
+  inset:0!important;
+  pointer-events:none!important;
+  background:
+    linear-gradient(90deg,transparent 0%,rgba(85,223,255,.025) 50%,transparent 100%),
+    linear-gradient(180deg,rgba(85,223,255,.035) 1px,transparent 1px)!important;
+  background-size:180% 100%,100% 3px!important;
+  animation:tmzDataFlow 13s linear infinite!important;
+  opacity:.75!important;
+}
+
+.app[data-tm-theme] .hero::after{
+  content:"AI NEURAL CORE  /  ONLINE"!important;
+  position:absolute!important;
+  top:12px!important;
+  right:16px!important;
+  color:rgba(85,223,255,.22)!important;
+  font:800 7px/1 Inter,system-ui,sans-serif!important;
+  letter-spacing:.22em!important;
+  pointer-events:none!important;
+}
+
+.app[data-tm-theme] .hero label{
+  position:relative!important;
+  z-index:1!important;
+  color:#70e6f8!important;
+}
+
+.app[data-tm-theme] .hero label svg{
+  filter:drop-shadow(0 0 8px rgba(85,223,255,.45))!important;
+  animation:tmzSignalPulse 2.8s ease-in-out infinite!important;
+}
+
+.app[data-tm-theme] .hero h1{
+  position:relative!important;
+  z-index:1!important;
+  background:linear-gradient(90deg,#eafcff 0%,#79e9fa 38%,#c6b1ff 68%,#eafcff 100%)!important;
+  background-size:220% 100%!important;
+  -webkit-background-clip:text!important;
+  background-clip:text!important;
+  color:transparent!important;
+  animation:tmzTextSignal 8s ease-in-out infinite!important;
+}
+
+/* Main signal card: subtle AI scanner + breathing core */
+.app[data-tm-theme] .panel.main{
+  position:relative!important;
+  overflow:hidden!important;
+  box-shadow:
+    inset 0 1px rgba(255,255,255,.035),
+    inset 0 0 70px rgba(85,223,255,.018),
+    0 22px 70px rgba(0,0,0,.28)!important;
+  animation:tmzCoreBreath 7s ease-in-out infinite!important;
+}
+
+.app[data-tm-theme] .panel.main::before{
+  content:""!important;
+  position:absolute!important;
+  left:-20%!important;
+  right:-20%!important;
+  top:-30%!important;
+  height:16%!important;
+  pointer-events:none!important;
+  background:linear-gradient(180deg,transparent,rgba(85,223,255,.11),transparent)!important;
+  filter:blur(7px)!important;
+  animation:tmzNeuralScan 8s ease-in-out infinite!important;
+}
+
+.app[data-tm-theme] .panel.main::after{
+  content:""!important;
+  position:absolute!important;
+  inset:0!important;
+  pointer-events:none!important;
+  border:1px solid rgba(85,223,255,.035)!important;
+  background:
+    radial-gradient(circle at 8% 12%,rgba(85,223,255,.08) 0 1px,transparent 2px),
+    radial-gradient(circle at 88% 25%,rgba(155,124,255,.08) 0 1px,transparent 2px),
+    radial-gradient(circle at 74% 82%,rgba(85,223,255,.07) 0 1px,transparent 2px)!important;
+  background-size:120px 120px,170px 170px,210px 210px!important;
+  opacity:.8!important;
+  animation:tmzNeuralDrift 18s linear infinite!important;
+}
+
+.app[data-tm-theme] .panel.main > *{
+  position:relative!important;
+  z-index:1!important;
+}
+
+.app[data-tm-theme] .panel.main .coin{
+  position:relative!important;
+  border-color:rgba(85,223,255,.32)!important;
+  background:
+    radial-gradient(circle,rgba(85,223,255,.13),rgba(5,12,20,.95) 68%)!important;
+  box-shadow:0 0 22px rgba(85,223,255,.08),inset 0 0 18px rgba(85,223,255,.05)!important;
+}
+
+.app[data-tm-theme] .panel.main .coin::before,
+.app[data-tm-theme] .panel.main .coin::after{
+  content:""!important;
+  position:absolute!important;
+  inset:-6px!important;
+  border:1px solid rgba(85,223,255,.13)!important;
+  border-radius:50%!important;
+  pointer-events:none!important;
+}
+
+.app[data-tm-theme] .panel.main .coin::before{
+  animation:tmzAIOrbit 9s linear infinite!important;
+  border-left-color:rgba(85,223,255,.7)!important;
+  border-right-color:transparent!important;
+}
+
+.app[data-tm-theme] .panel.main .coin::after{
+  inset:-10px!important;
+  animation:tmzAIOrbitReverse 13s linear infinite!important;
+  border-top-color:rgba(155,124,255,.55)!important;
+  border-bottom-color:transparent!important;
+}
+
+/* Live / signal badges behave like active AI telemetry */
+.app[data-tm-theme] .status.on{
+  box-shadow:0 0 16px rgba(85,223,255,.055)!important;
+}
+
+.app[data-tm-theme] .status.on i{
+  animation:tmzSignalPulse 1.9s ease-in-out infinite!important;
+}
+
+.app[data-tm-theme] .metric{
+  position:relative!important;
+  overflow:hidden!important;
+}
+
+.app[data-tm-theme] .metric::after{
+  content:""!important;
+  position:absolute!important;
+  left:0!important;
+  bottom:0!important;
+  width:42%!important;
+  height:1px!important;
+  background:linear-gradient(90deg,rgba(85,223,255,.38),transparent)!important;
+  animation:tmzDataFlow 5s linear infinite!important;
+}
+
+.app[data-tm-theme] .metric b{
+  font-variant-numeric:tabular-nums!important;
+  text-shadow:0 0 12px rgba(85,223,255,.055)!important;
+}
+
+/* Neural telemetry cards */
+.app[data-tm-theme] .tm43-stat,
+.app[data-tm-theme] .tm43-regime-card,
+.app[data-tm-theme] .tm43-risk-card{
+  overflow:hidden!important;
+}
+
+.app[data-tm-theme] .tm43-stat::before,
+.app[data-tm-theme] .tm43-regime-card::before,
+.app[data-tm-theme] .tm43-risk-card::before{
+  content:""!important;
+  position:absolute!important;
+  top:0!important;
+  left:-45%!important;
+  width:35%!important;
+  height:1px!important;
+  background:linear-gradient(90deg,transparent,rgba(85,223,255,.6),transparent)!important;
+  animation:tmzDataFlow 6s linear infinite!important;
+  opacity:.65!important;
+}
+
+/* Early signal rows get a quiet data pulse instead of static blocks */
+.app[data-tm-theme] .panel .settinghead + div > div{
+  transition:background .2s ease,border-color .2s ease!important;
+}
+
+.app[data-tm-theme] .panel .settinghead + div > div:hover{
+  background:rgba(85,223,255,.025)!important;
+}
+
+/* AI Decision / verdict emphasis without changing its meaning */
+.app[data-tm-theme] .long{
+  position:relative!important;
+  overflow:hidden!important;
+}
+
+.app[data-tm-theme] .long::before{
+  content:""!important;
+  position:absolute!important;
+  top:0!important;
+  bottom:0!important;
+  left:-40%!important;
+  width:30%!important;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent)!important;
+  animation:tmzDataFlow 4.5s linear infinite!important;
+}
+
+/* Keep the motion elegant on low-power/mobile devices */
+@media(max-width:900px){
+  .app[data-tm-theme] main::before{
+    background-size:auto,auto,52px 52px,52px 52px!important;
+    opacity:.72!important;
+  }
+
+  .app[data-tm-theme] .panel.main{
+    animation-duration:9s!important;
+  }
+
+  .app[data-tm-theme] .hero::after{
+    top:auto!important;
+    bottom:12px!important;
+    right:14px!important;
+    font-size:6px!important;
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .app[data-tm-theme] main::before,
+  .app[data-tm-theme] .hero::before,
+  .app[data-tm-theme] .hero label svg,
+  .app[data-tm-theme] .hero h1,
+  .app[data-tm-theme] .panel.main,
+  .app[data-tm-theme] .panel.main::before,
+  .app[data-tm-theme] .panel.main::after,
+  .app[data-tm-theme] .panel.main .coin::before,
+  .app[data-tm-theme] .panel.main .coin::after,
+  .app[data-tm-theme] .status.on i,
+  .app[data-tm-theme] .metric::after,
+  .app[data-tm-theme] .tm43-stat::before,
+  .app[data-tm-theme] .tm43-regime-card::before,
+  .app[data-tm-theme] .tm43-risk-card::before,
+  .app[data-tm-theme] .long::before{
+    animation:none!important;
+  }
+}
