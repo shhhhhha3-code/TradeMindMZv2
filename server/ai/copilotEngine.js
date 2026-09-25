@@ -104,7 +104,13 @@ export async function runCopilot({markets=[],position=null,preferredProvider=nul
   const rawConfidence = finite(ai.confidence, 0);
   const intelligence = calculateIntelligence(learning.history, selected, rawConfidence);
   const strategyCandidate = { ...selected, regime: regime(candidates) };
-  const strategy = await getAdaptiveStrategyIntelligence(getSupabaseClient(), strategyCandidate, 5000);
+  let strategy = { success: false, available: false, adjustment: 0, sampleSize: 0, mode: "PAPER_ONLY", reason: "Strategy history unavailable." };
+  try {
+    const supabase = getSupabaseClient();
+    strategy = await getAdaptiveStrategyIntelligence(supabase, strategyCandidate, 5000);
+  } catch (error) {
+    strategy = { ...strategy, reason: error?.message ?? String(error) };
+  }
   const totalAdjustment = Math.max(-15, Math.min(15, finite(evidence.adjustment, 0) + finite(intelligence.adjustment, 0) + finite(strategy.adjustment, 0)));
   const effectiveConfidence = Math.max(0, Math.min(100, rawConfidence + totalAdjustment));
   if (action === ACTIONS.TRADE && effectiveConfidence < 80) action = ACTIONS.WATCH;
