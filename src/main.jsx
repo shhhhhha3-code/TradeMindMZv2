@@ -53,7 +53,7 @@ function Logo(){
   );
 }
 function Ring({score}){return <div className="ring" style={{'--p':score*3.6+'deg'}}><div><b>{score}</b><small>ENGINE SCORE</small></div></div>}
-function TradeMindAiCopilot(){
+function TradeMindAiCopilot({fullPage=false}){
   const [open,setOpen]=useState(false);
   const [marketType,setMarketType]=useState("PERP");
   const [message,setMessage]=useState("");
@@ -104,14 +104,14 @@ function TradeMindAiCopilot(){
 
   return (
     <>
-      <button type="button" className={"tmz-copilot-fab "+(open ? "open" : "")} onClick={()=>setOpen(v=>!v)} aria-label="Open TradeMind AI Copilot">
+      {!fullPage && <button type="button" className={"tmz-copilot-fab "+(open ? "open" : "")} onClick={()=>setOpen(v=>!v)} aria-label="Open TradeMind AI Copilot">
         <span className="tmz-copilot-fab-ring"/>
         <img src="/assets/trademind-ai-avatar.svg" alt="TradeMind AI"/>
         <i>{loading ? "…" : "AI"}</i>
-      </button>
+      </button>}
 
-      {open && (
-        <div className="tmz-copilot-panel">
+      {(open || fullPage) && (
+        <div className={"tmz-copilot-panel "+(fullPage ? "tmz-copilot-page" : "")}>
           <div className="tmz-copilot-head">
             <div className="tmz-copilot-identity">
               <div className="tmz-copilot-avatar"><img src="/assets/trademind-ai-avatar.svg" alt=""/></div>
@@ -121,7 +121,7 @@ function TradeMindAiCopilot(){
                 <small><i/> MARKET INTELLIGENCE ONLINE</small>
               </div>
             </div>
-            <button type="button" className="tmz-copilot-close" onClick={()=>setOpen(false)}><X/></button>
+            {!fullPage && <button type="button" className="tmz-copilot-close" onClick={()=>setOpen(false)}><X/></button>}
           </div>
 
           <div className={"tmz-copilot-status "+String(activityStage).toLowerCase()}>
@@ -189,7 +189,7 @@ function TradeMindAiCopilot(){
             <button type="button" onClick={()=>ask("ASK")} disabled={loading || !message.trim()} aria-label="Send"><Send/></button>
           </div>
           <div className="tmz-copilot-footer">
-            <span><i/> READ ONLY</span><span>NO AUTOMATIC TRADING</span><span>GROQ AI</span>
+            <span><i/> READ ONLY</span><span>NO AUTOMATIC TRADING</span><span className="tmz-copilot-provider">OPENAI WEB</span>
           </div>
         </div>
       )}
@@ -285,11 +285,13 @@ const handleDashboardTradeSelect=(recommendation)=>{
   setManualPurchaseOpen(true);
 };
 
-const updateAiSetting=(key,value)=>{const next={...aiSettings,[key]:value};setAiSettings(next);localStorage.setItem('trademindmz-ai-settings',JSON.stringify(next));if(key==="pushNotifications"){setQualifiedTradeNotificationsEnabled(value).catch(error=>console.warn("TradeMindMZ push preference update failed:",error));}};const nav=[['dashboard','Dashboard',LayoutDashboard],['signals','AI Signals',BrainCircuit],['positions','Live Positions',Activity],['market','Market Overview',LineChart],['history','Signal History',History]];return <div className="app" data-tm-theme={aiSettings.theme || "lime"}><aside className={open?'side open':'side'}><div className="sidehead"><Logo/><button onClick={()=>setOpen(false)}><X/></button></div><div className="online"><i/> <div><b>AI ENGINE ONLINE</b><small>Learning from market history</small></div></div><nav>{nav.map(([id,label,I])=><button className={tab===id?'active':''} onClick={()=>{setTab(id);setOpen(false)}} key={id}><I/><span>{label}</span>{id==='positions'&&<em>{trackedPositions.filter(p=>p.status==='LIVE').length}</em>}</button>)}</nav><div className="bottom"><button><ShieldCheck/><span>Pionex Connection</span><i/></button><button onClick={()=>{setTab('settings');setOpen(false)}}><Settings/><span>Settings</span></button></div></aside>{open&&<div className="back" onClick={()=>setOpen(false)}/>}
-<main><header><button className="hamb" onClick={()=>setOpen(true)}><Menu/></button><div className="mobilelogo"><Logo/></div><div className="title"><small>TRADEMINDMZ</small><b>{tab==='signals'?'AI Signals':tab==='positions'?'Live Positions':tab==='market'?'Market Overview':tab==='history'?'Signal History':tab==='settings'?'Settings':'Dashboard'}</b></div><div className="actions"><span className="live"><i/> AI LIVE</span><button className="bell"><Bell/></button><button className="avatar">MZ</button></div></header><section>
+const updateAiSetting=(key,value)=>{const next={...aiSettings,[key]:value};setAiSettings(next);localStorage.setItem('trademindmz-ai-settings',JSON.stringify(next));if(key==="pushNotifications"){setQualifiedTradeNotificationsEnabled(value).catch(error=>console.warn("TradeMindMZ push preference update failed:",error));}};const nav=[['dashboard','Dashboard',LayoutDashboard],['signals','AI Signals',BrainCircuit],['copilot','AI Copilot',Bot],['positions','Live Positions',Activity],['market','Market Overview',LineChart],['history','Signal History',History]];return <div className="app" data-tm-theme={aiSettings.theme || "lime"}><aside className={open?'side open':'side'}><div className="sidehead"><Logo/><button onClick={()=>setOpen(false)}><X/></button></div><div className="online"><i/> <div><b>AI ENGINE ONLINE</b><small>Learning from market history</small></div></div><nav>{nav.map(([id,label,I])=><button className={tab===id?'active':''} onClick={()=>{setTab(id);setOpen(false)}} key={id}><I/><span>{label}</span>{id==='positions'&&<em>{trackedPositions.filter(p=>p.status==='LIVE').length}</em>}</button>)}</nav><div className="bottom"><button><ShieldCheck/><span>Pionex Connection</span><i/></button><button onClick={()=>{setTab('settings');setOpen(false)}}><Settings/><span>Settings</span></button></div></aside>{open&&<div className="back" onClick={()=>setOpen(false)}/>}
+<main><header><button className="hamb" onClick={()=>setOpen(true)}><Menu/></button><div className="mobilelogo"><Logo/></div><div className="title"><small>TRADEMINDMZ</small><b>{tab==='signals'?'AI Signals':tab==='copilot'?'AI Copilot':tab==='positions'?'Live Positions':tab==='market'?'Market Overview':tab==='history'?'Signal History':tab==='settings'?'Settings':'Dashboard'}</b></div><div className="actions"><span className="live"><i/> AI LIVE</span><button className="bell"><Bell/></button><button className="avatar">MZ</button></div></header><section>
 {tab==='signals'
   ? <div className="tmz-signals-shell"><SignalsErrorBoundary><Signals bought={bought} setBought={setBought} setManualPurchaseOpen={setManualPurchaseOpen} setPurchaseDefaults={setPurchaseDefaults}/></SignalsErrorBoundary></div>
-  : tab==='positions'
+  : tab==='copilot'
+    ? <TradeMindAiCopilot fullPage/>
+    : tab==='positions'
     ? <Positions/>
     : tab==='settings'
       ? <SettingsPage settings={aiSettings} updateSetting={updateAiSetting}/>
