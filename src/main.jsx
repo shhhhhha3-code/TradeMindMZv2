@@ -59,12 +59,21 @@ function TradeMindAiCopilot(){
   const [message,setMessage]=useState("");
   const [answer,setAnswer]=useState(null);
   const [loading,setLoading]=useState(false);
+  const [activityStage,setActivityStage]=useState("READY");
+  const activityTimers=React.useRef([]);
 
   const ask=async(action="ASK",preset="")=>{
     if(loading) return;
     const text=String(preset || message || "").trim();
     if(action==="ASK" && !text) return;
+    activityTimers.current.forEach(clearTimeout);
+    activityTimers.current = [];
     setLoading(true);
+    setActivityStage("ANALYZING");
+    activityTimers.current.push(
+      setTimeout(()=>setActivityStage("SCANNING"), 650),
+      setTimeout(()=>setActivityStage("DECISION"), 1450)
+    );
     try{
       const res=await fetch(apiUrl("/api/ai/copilot"),{
         method:"POST",
@@ -75,10 +84,14 @@ function TradeMindAiCopilot(){
       if(!res.ok || !data?.success) throw new Error(data?.error || "TradeMind AI is unavailable.");
       setAnswer(data);
       setMessage("");
+      setActivityStage("READY");
     }catch(error){
       setAnswer({headline:"COPILOT OFFLINE",answer:error?.message || "TradeMind AI could not answer right now.",severity:"ERROR",dataAgeSeconds:null});
+      setActivityStage("ERROR");
     }finally{
       setLoading(false);
+      activityTimers.current.forEach(clearTimeout);
+      activityTimers.current = [];
     }
   };
 
@@ -109,6 +122,26 @@ function TradeMindAiCopilot(){
               </div>
             </div>
             <button type="button" className="tmz-copilot-close" onClick={()=>setOpen(false)}><X/></button>
+          </div>
+
+          <div className={"tmz-copilot-status "+String(activityStage).toLowerCase()}>
+            <div className="tmz-copilot-status-head">
+              <span><i className="tmz-copilot-status-dot"/> AI CORE {loading ? "PROCESSING" : "READY"}</span>
+              <b>{activityStage}</b>
+            </div>
+            <div className="tmz-copilot-pipeline" aria-label="AI activity">
+              {["ANALYZING","SCANNING","DECISION","READY"].map((stage,index)=>{
+                const activeIndex=["ANALYZING","SCANNING","DECISION","READY"].indexOf(activityStage);
+                const active=activityStage==="ERROR" ? false : index<=activeIndex;
+                return <React.Fragment key={stage}>
+                  <span className={"tmz-copilot-node "+(active ? "active" : "")+(activityStage===stage ? " current" : "")}>
+                    <i/>
+                    <em>{stage}</em>
+                  </span>
+                  {index<3 && <span className={"tmz-copilot-pipeline-link "+(activeIndex>index ? "active" : "")}/>}
+                </React.Fragment>;
+              })}
+            </div>
           </div>
 
           <div className="tmz-copilot-mode">
