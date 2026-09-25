@@ -3821,6 +3821,29 @@ function DiagnosticsPanel() {
         );
       })()}
 
+      <div className="tmz-neural-feed">
+        <div className="tmz-neural-feed-head">
+          <div><span className="tmz-neural-feed-kicker">NEURAL ACTIVITY STREAM</span><strong>SCHEDULER → MARKET → AI → PUSH</strong></div>
+          <span className="tmz-neural-feed-state"><i /> {scheduler?.details?.currentStage || "WAITING"}</span>
+        </div>
+        <div className="tmz-neural-feed-list">
+          {[
+            { key:"scheduler", label:"SCHEDULER", value:scheduler?.details?.currentStage || "WAITING", meta:scheduler?.details?.durationMs ? formatDuration(scheduler.details.durationMs) : "7 MIN CADENCE", active:["PERP_SCAN","PERP_PUSH","SPOT_SCAN","POSITION_MONITORING"].includes(String(scheduler?.details?.currentStage || "").toUpperCase()), done:String(scheduler?.details?.currentStage || "").toUpperCase()==="COMPLETE" },
+            { key:"pionex", label:"PIONEX SCAN", value:scheduler?.details?.scanned != null ? `${scheduler.details.scanned} MARKETS` : "LAST RUN", meta:scheduler?.details?.candidates != null ? `${scheduler.details.candidates} CANDIDATES` : "AWAITING RUN", active:["PERP_SCAN","SPOT_SCAN"].includes(String(scheduler?.details?.currentStage || "").toUpperCase()), done:Boolean(scheduler?.details?.scanned) },
+            { key:"ai", label:"GROQ AI", value:scheduler?.details?.provider ? String(scheduler.details.provider).toUpperCase() : "GROQ", meta:scheduler?.details?.finalDecision ? `DECISION ${scheduler.details.finalDecision}` : "READ ONLY", active:["PERP_SCAN","SPOT_SCAN"].includes(String(scheduler?.details?.currentStage || "").toUpperCase()), done:Boolean(scheduler?.details?.finalDecision) },
+            { key:"push", label:"FCM PUSH", value:scheduler?.details?.pushStatus || "NOT TRIGGERED", meta:"QUALIFIED TRADE ONLY", active:["PERP_PUSH","SPOT_SCAN"].includes(String(scheduler?.details?.currentStage || "").toUpperCase()), done:Boolean(scheduler?.details?.pushStatus) },
+          ].map((item,index,items)=>(<React.Fragment key={item.key}>
+            <div className={`tmz-neural-feed-item ${item.active ? "active" : ""} ${item.done ? "done" : ""}`}>
+              <span className="tmz-neural-feed-node"><i /></span><div className="tmz-neural-feed-copy"><b>{item.label}</b><strong>{item.value}</strong><small>{item.meta}</small></div>
+            </div>{index<items.length-1&&<span className={`tmz-neural-feed-link ${item.done ? "done" : ""}`} />}</React.Fragment>))}
+        </div>
+        <div className="tmz-neural-feed-foot">
+          <span>LAST RUN <b>{scheduler?.details?.lastRun ? formatDateTime(scheduler.details.lastRun) : "—"}</b></span>
+          <span>PERP <b>{formatDuration(scheduler?.details?.perpDurationMs)}</b></span>
+          <span>SPOT <b>{formatDuration(scheduler?.details?.spotDurationMs)}</b></span>
+          <span>MONITOR <b>{formatDuration(scheduler?.details?.monitoringDurationMs)}</b></span>
+        </div>
+      </div>
       <div
         style={{
           display: "grid",
