@@ -4302,3 +4302,73 @@ body{
   .app[data-tm-theme] .tmz-copilot-node.current i,
   .app[data-tm-theme] .tmz-copilot-pipeline-link.active::after{animation:none!important}
 }
+
+
+/* ==========================================================
+   COPILOT RESPONSE TELEMETRY
+   ========================================================== */
+.app[data-tm-theme] .tmz-copilot-node.done i{
+  background:#55dcff;
+  border-color:rgba(170,242,255,.75);
+  box-shadow:0 0 7px rgba(85,220,255,.48);
+}
+.app[data-tm-theme] .tmz-copilot-node.done em{
+  color:rgba(126,227,255,.58);
+}
+.app[data-tm-theme] .tmz-copilot-node.current i{
+  animation:tmzCopilotNodePulse .8s ease-in-out infinite;
+}
+.app[data-tm-theme] .tmz-copilot-node.current em{
+  color:#e9fbff;
+}
+.app[data-tm-theme] .tmz-copilot-node.done + .tmz-copilot-pipeline-link{
+  background:linear-gradient(90deg,rgba(84,220,255,.72),rgba(151,101,255,.45));
+}
+.app[data-tm-theme] .tmz-copilot-telemetry{
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:7px;
+  margin-top:14px;
+  padding-top:11px;
+  border-top:1px solid rgba(130,165,180,.09);
+  font-size:7px;
+  font-weight:800;
+  letter-spacing:.13em;
+  color:rgba(174,198,210,.4);
+}
+.app[data-tm-theme] .tmz-copilot-telemetry span{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:5px 7px;
+  border:1px solid rgba(110,210,235,.08);
+  border-radius:6px;
+  background:rgba(50,120,145,.035);
+}
+.app[data-tm-theme] .tmz-copilot-telemetry span:first-child{
+  color:#62e7b5;
+  border-color:rgba(98,231,181,.16);
+  background:rgba(98,231,181,.045);
+}
+.app[data-tm-theme] .tmz-copilot-telemetry span:first-child i{
+  width:5px;height:5px;border-radius:50%;
+  background:#62e7b5;
+  box-shadow:0 0 7px rgba(98,231,181,.8);
+  animation:tmzCopilotCorePulse 1.2s ease-in-out infinite;
+}
+.app[data-tm-theme] .tmz-copilot-response.has-answer{
+  box-shadow:inset 0 0 45px rgba(55,190,255,.025);
+}
+@media(max-width:700px){
+  .app[data-tm-theme] .tmz-copilot-telemetry{
+    gap:5px;
+    font-size:6.5px;
+  }
+  .app[data-tm-theme] .tmz-copilot-telemetry span{
+    padding:5px 6px;
+  }
+}
+@media(prefers-reduced-motion:reduce){
+  .app[data-tm-theme] .tmz-copilot-telemetry span:first-child i{animation:none!important}
+}
