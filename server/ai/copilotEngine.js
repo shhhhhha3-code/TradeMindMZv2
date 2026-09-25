@@ -3,6 +3,7 @@ import { runAIDecisionLayer } from "./aiDecisionEngine.js";
 import { getSupabaseClient } from "../supabase/client.js";
 import { getPaperLearning } from "../paper/paperLearning.js";
 import { calculateCopilotEvidence, getCopilotEvidence } from "./copilotEvidence.js";
+import { calculateIntelligence, getCopilotIntelligence } from "./copilotIntelligence.js";
 
 const ACTIONS = { TRADE:"TRADE", WATCH:"WATCH", NO_TRADE:"NO_TRADE", PROTECT:"PROTECT", EXIT_REVIEW:"EXIT_REVIEW" };
 
@@ -89,14 +90,16 @@ export async function runCopilot({markets=[],position=null,preferredProvider=nul
   const learning = getPaperLearning({ limit: 5000 });
   const evidence = calculateCopilotEvidence(selected, learning.history);
   const rawConfidence = finite(ai.confidence, 0);
-  const evidenceConfidence = Math.max(0, Math.min(100, rawConfidence + finite(evidence.adjustment, 0)));
-  if (action === ACTIONS.TRADE && evidenceConfidence < 80) action = ACTIONS.WATCH;
-  const result={success:true,copilotVersion:"2.1",action,symbol:selected?.symbol??null,regime:regime(candidates),confidence:Number(evidenceConfidence.toFixed(2)),confidenceRaw:Number(rawConfidence.toFixed(2)),risk:ai.risk??selected?.risk?.level??"HIGH",evidence,deterministic:{engineScore:selected?.engineScore??null,reasons:selected?.risk?.reasons??[],factors:factorState(selected)},ai,positionReview,explanation:buildExplanation(selected,action),candidates,generatedAt:new Date().toISOString(),execution:"READ_ONLY"};
+  const intelligence = calculateIntelligence(learning.history, selected, rawConfidence);
+  const totalAdjustment = Math.max(-12, Math.min(12, finite(evidence.adjustment, 0) + finite(intelligence.adjustment, 0)));
+  const effectiveConfidence = Math.max(0, Math.min(100, rawConfidence + totalAdjustment));
+  if (action === ACTIONS.TRADE && effectiveConfidence < 80) action = ACTIONS.WATCH;
+  const result={success:true,copilotVersion:"2.2",action,symbol:selected?.symbol??null,regime:regime(candidates),confidence:Number(effectiveConfidence.toFixed(2)),confidenceRaw:Number(rawConfidence.toFixed(2)),confidenceAdjustment:Number(totalAdjustment.toFixed(2)),risk:ai.risk??selected?.risk?.level??"HIGH",evidence,intelligence,deterministic:{engineScore:selected?.engineScore??null,reasons:selected?.risk?.reasons??[],factors:factorState(selected)},ai,positionReview,explanation:buildExplanation(selected,action),candidates,generatedAt:new Date().toISOString(),execution:"READ_ONLY"};
   result.historySaved=await saveCopilotDecision(result);
   return result;
 }
 
-export function getCopilotEvidenceSnapshot({
+export function getCopilotIntelligenceSnapshot({ limit = 5000, candidate = null } = {}) {\n  const learning = getPaperLearning({ limit });\n  return getCopilotIntelligence(learning.history, 8);\n}\n\nexport function getCopilotEvidenceSnapshot({
   limit = 5000,
   candidate = null,
 } = {}) {
