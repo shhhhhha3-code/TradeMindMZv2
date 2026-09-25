@@ -3724,7 +3724,7 @@ function DiagnosticsPanel() {
       return "status on";
     }
 
-    if (status === "STALE") {
+    if (status === "STALE" || status === "SLOW") {
       return "status warning";
     }
 
