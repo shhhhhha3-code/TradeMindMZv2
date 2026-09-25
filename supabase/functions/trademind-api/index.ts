@@ -2266,7 +2266,16 @@ async function handle(req) {
           spot_duration_ms:spotDurationMs,
           monitoring_duration_ms:monitoringDurationMs,
           current_stage:"COMPLETE",
-          perp_scanned:Number(payload?.scanned || 0),\n          perp_candidates:Array.isArray(payload?.candidates) ? payload.candidates.length : 0,\n          perp_provider:payload?.aiDecision?.provider || "groq",\n          perp_decision:payload?.finalDecision || "NO_TRADE",\n          perp_push_status:perpPushStatus,\n          spot_scanned:Number(spotSnapshot?.scanned || 0),\n          spot_candidates:Array.isArray(spotSnapshot?.candidates) ? spotSnapshot.candidates.length : 0,\n          spot_provider:spotSnapshot?.aiDecision?.provider || "groq",\n          spot_decision:spotSnapshot?.finalDecision || "NO_TRADE",\n          spot_push_status:spotPushStatus,
+          perp_scanned:Number(payload?.scanned || 0),
+          perp_candidates:Array.isArray(payload?.candidates) ? payload.candidates.length : 0,
+          perp_provider:payload?.aiDecision?.provider || "groq",
+          perp_decision:payload?.finalDecision || "NO_TRADE",
+          perp_push_status:perpPushStatus,
+          spot_scanned:Number(spotSnapshot?.scanned || 0),
+          spot_candidates:Array.isArray(spotSnapshot?.candidates) ? spotSnapshot.candidates.length : 0,
+          spot_provider:spotSnapshot?.aiDecision?.provider || "groq",
+          spot_decision:spotSnapshot?.finalDecision || "NO_TRADE",
+          spot_push_status:spotPushStatus,
         }).eq("id",schedulerRunId);
       }
 
