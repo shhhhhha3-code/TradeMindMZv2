@@ -1,0 +1,6 @@
+{
+  "appId": "com.trademindmz.app",
+  "appName": "TradeMindMZ",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
