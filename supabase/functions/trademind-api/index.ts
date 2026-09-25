@@ -2179,7 +2179,8 @@ async function handle(req) {
         force: true,
         persist: true,
       });
-      const perpDurationMs = Date.now() - perpStartedAt;\n      const perpPushStatus = pushNotification?.sent ? "SENT" : pushNotification?.skipped ? String(pushNotification.reason || "SKIPPED") : pushNotification?.error ? "ERROR" : "NOT_TRIGGERED";
+      const perpDurationMs = Date.now() - perpStartedAt;
+      const perpPushStatus = pushNotification?.sent ? "SENT" : pushNotification?.skipped ? String(pushNotification.reason || "SKIPPED") : pushNotification?.error ? "ERROR" : "NOT_TRIGGERED";
 
       if (payload?.persistenceError) {
         return response({
