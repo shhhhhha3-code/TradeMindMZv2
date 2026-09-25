@@ -97,10 +97,12 @@ function TradeMindAiCopilot({fullPage=false}){
   };
 
   const quick=[
-    ["LIVE SIGNAL","LIVE_SIGNAL","Get the latest M-USDT analysis"],
+    ["WHAT NOW","WHAT_NOW","What should I do right now?"],
+    ["MY POSITION","POSITION_CHECK","Review my live Pionex position"],
     ["BEST SETUP","BEST_SETUP","Find the strongest current setup"],
+    ["DEEP ANALYSIS","DEEP_ANALYSIS","Combine market, risk and performance"],
+    ["LIVE SIGNAL","LIVE_SIGNAL","Run a fresh 15M AI signal"],
     ["SYSTEM STATUS","STATUS","Check scheduler, Pionex and AI status"],
-    ["DIAGNOSTICS","DIAGNOSTICS","Run a system diagnostics summary"],
   ];
 
   return (
@@ -164,7 +166,7 @@ function TradeMindAiCopilot({fullPage=false}){
               <div className="tmz-copilot-welcome">
                 <img src="/assets/trademind-ai-avatar.svg" alt=""/>
                 <strong>Ask me anything.</strong>
-                <p>I can read live TradeMindMZ market snapshots, AI decisions, scheduler telemetry and diagnostics.</p>
+                <p>I can read live Pionex positions, PNL, TradeMind signals, market regime, performance and system telemetry — then turn it into a clear recommendation.</p>
               </div>
             ) : (
               <>
@@ -173,6 +175,17 @@ function TradeMindAiCopilot({fullPage=false}){
                   {answer.dataAgeSeconds != null && <small>{answer.dataAgeSeconds}s DATA AGE</small>}
                 </div>
                 <p>{answer.answer}</p>
+                <div className="tmz-copilot-advice-row">
+                  <b className={"tmz-copilot-advice "+String(answer.advice||"NO_ACTION").toLowerCase()}>{answer.advice || "NO ACTION"}</b>
+                  {answer.confidence != null && <span className="tmz-copilot-confidence">AI CONFIDENCE {answer.confidence}%</span>}
+                  {answer.openPositionCount != null && <span>{answer.openPositionCount} OPEN POSITION{answer.openPositionCount === 1 ? "" : "S"}</span>}
+                </div>
+                {(Array.isArray(answer.keyFactors) && answer.keyFactors.length > 0) && (
+                  <div className="tmz-copilot-insights">
+                    <div><strong>KEY FACTORS</strong>{answer.keyFactors.map((item,index)=><span key={index}>• {item}</span>)}</div>
+                    {Array.isArray(answer.risks) && answer.risks.length > 0 && <div><strong>RISKS</strong>{answer.risks.map((item,index)=><span key={index}>• {item}</span>)}</div>}
+                  </div>
+                )}
                 <div className="tmz-copilot-telemetry">
                   <span><i/> LIVE ANALYSIS</span>
                   <span>{answer.marketType === "SPOT" ? "SPOT" : "M-USDT"}</span>
