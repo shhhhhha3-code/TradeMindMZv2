@@ -3326,3 +3326,160 @@ body{
     animation:none!important;
   }
 }
+
+
+/* ==========================================================
+   TRADEMINDMZ — AI COCKPIT POLISH / STAGE 2
+   Visual-only motion. Keeps all trading and data behavior intact.
+   ========================================================== */
+
+@keyframes tmzPanelSweep{
+  0%{transform:translateX(-140%);opacity:0}
+  12%{opacity:.28}
+  38%{opacity:.08}
+  100%{transform:translateX(260%);opacity:0}
+}
+
+@keyframes tmzNodeBlink{
+  0%,100%{opacity:.28;box-shadow:0 0 0 rgba(85,223,255,0)}
+  50%{opacity:1;box-shadow:0 0 10px rgba(85,223,255,.35)}
+}
+
+@keyframes tmzDockScan{
+  0%,100%{opacity:.35;transform:scaleX(.25)}
+  50%{opacity:1;transform:scaleX(1)}
+}
+
+@keyframes tmzGridBreath{
+  0%,100%{opacity:.34}
+  50%{opacity:.58}
+}
+
+.app[data-tm-theme] .panel{
+  position:relative!important;
+}
+
+.app[data-tm-theme] .panel::after{
+  content:""!important;
+  position:absolute!important;
+  top:0!important;
+  bottom:0!important;
+  left:-18%!important;
+  width:9%!important;
+  pointer-events:none!important;
+  background:linear-gradient(90deg,transparent,rgba(85,223,255,.07),transparent)!important;
+  filter:blur(3px)!important;
+  opacity:.45!important;
+  animation:tmzPanelSweep 11s ease-in-out infinite!important;
+}
+
+.app[data-tm-theme] .panel > *{
+  position:relative!important;
+  z-index:1!important;
+}
+
+/* Small AI activity node on section headers */
+.app[data-tm-theme] .settinghead{
+  position:relative!important;
+}
+
+.app[data-tm-theme] .settinghead::after{
+  content:""!important;
+  display:block!important;
+  position:absolute!important;
+  right:0!important;
+  top:50%!important;
+  width:4px!important;
+  height:4px!important;
+  margin-top:-2px!important;
+  border-radius:50%!important;
+  background:#55dfff!important;
+  animation:tmzNodeBlink 2.6s ease-in-out infinite!important;
+}
+
+/* Buttons feel like command controls, not ordinary web buttons */
+.app[data-tm-theme] button:not(:disabled){
+  transition:
+    border-color .22s ease,
+    background .22s ease,
+    box-shadow .22s ease,
+    transform .22s ease!important;
+}
+
+.app[data-tm-theme] button:not(:disabled):hover{
+  box-shadow:
+    0 0 0 1px rgba(85,223,255,.055),
+    0 0 20px rgba(85,223,255,.045)!important;
+}
+
+.app[data-tm-theme] button:not(:disabled):active{
+  transform:translateY(1px)!important;
+}
+
+/* Neural grid gets a slow breathing signal */
+.app[data-tm-theme] main::before{
+  animation:
+    tmzNeuralDrift 24s ease-in-out infinite,
+    tmzGridBreath 8s ease-in-out infinite!important;
+}
+
+/* Make the primary live indicator look connected to the AI core */
+.app[data-tm-theme] .status.on{
+  position:relative!important;
+}
+
+.app[data-tm-theme] .status.on::before{
+  content:""!important;
+  width:5px!important;
+  height:5px!important;
+  margin-right:5px!important;
+  border-radius:50%!important;
+  background:#55dfff!important;
+  box-shadow:0 0 9px rgba(85,223,255,.75)!important;
+  animation:tmzNodeBlink 1.8s ease-in-out infinite!important;
+}
+
+/* Mobile command dock: active item gets a moving AI trace */
+.app[data-tm-theme] .side:not(.open) nav button.active{
+  position:relative!important;
+  overflow:hidden!important;
+}
+
+.app[data-tm-theme] .side:not(.open) nav button.active::after{
+  content:""!important;
+  position:absolute!important;
+  left:18%!important;
+  right:18%!important;
+  bottom:3px!important;
+  height:1px!important;
+  transform-origin:center!important;
+  background:linear-gradient(90deg,transparent,#55dfff,transparent)!important;
+  animation:tmzDockScan 2.8s ease-in-out infinite!important;
+}
+
+/* Keep all effects quiet on smaller displays */
+@media(max-width:560px){
+  .app[data-tm-theme] .panel::after{
+    animation-duration:14s!important;
+    opacity:.28!important;
+  }
+
+  .app[data-tm-theme] .settinghead::after{
+    width:3px!important;
+    height:3px!important;
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .app[data-tm-theme] .panel::after,
+  .app[data-tm-theme] .settinghead::after,
+  .app[data-tm-theme] main::before,
+  .app[data-tm-theme] .status.on::before,
+  .app[data-tm-theme] .side:not(.open) nav button.active::after{
+    animation:none!important;
+  }
+
+  .app[data-tm-theme] button:not(:disabled){
+    transition:none!important;
+  }
+}
