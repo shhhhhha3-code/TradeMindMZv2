@@ -2784,8 +2784,26 @@ async function handle(req) {
     if (supabaseOk) {
       try {
         const admin = supabaseAdmin();
-        const { data } = await admin.from("trademind_scheduler_runs").select("id,status,started_at,finished_at,duration_ms,perp_duration_ms,spot_duration_ms,monitoring_duration_ms,current_stage,perp_snapshot_at,spot_snapshot_at,position_monitoring_count,spot_monitoring_count,perp_scanned,perp_candidates,perp_provider,perp_decision,perp_push_status,spot_scanned,spot_candidates,spot_provider,spot_decision,spot_push_status,error").order("created_at",{ascending:false}).limit(1).maybeSingle();
-        schedulerHeartbeat = data || null;
+        const schedulerFields = "id,status,created_at,started_at,finished_at,duration_ms,perp_duration_ms,spot_duration_ms,monitoring_duration_ms,current_stage,perp_snapshot_at,spot_snapshot_at,position_monitoring_count,spot_monitoring_count,perp_scanned,perp_candidates,perp_provider,perp_decision,perp_push_status,spot_scanned,spot_candidates,spot_provider,spot_decision,spot_push_status,error";
+        const [{ data: latestRun }, { data: latestSuccess }, { data: latestActive }] = await Promise.all([
+          admin.from("trademind_scheduler_runs").select(schedulerFields).order("created_at",{ascending:false}).limit(1).maybeSingle(),
+          admin.from("trademind_scheduler_runs").select(schedulerFields).eq("status","SUCCESS").order("created_at",{ascending:false}).limit(1).maybeSingle(),
+          admin.from("trademind_scheduler_runs").select(schedulerFields).in("status",["QUEUED","RUNNING"]).order("created_at",{ascending:false}).limit(1).maybeSingle(),
+        ]);
+
+        // A queued/running scheduler run is healthy activity, not a stale heartbeat.
+        // Use the latest completed SUCCESS run as the heartbeat baseline and expose
+        // the active run separately so diagnostics can show live scheduler progress.
+        schedulerHeartbeat = latestSuccess || latestRun || null;
+        if (latestActive) {
+          schedulerHeartbeat = {
+            ...(schedulerHeartbeat || {}),
+            activeRun: latestActive,
+            activeStatus: latestActive.status,
+            activeStage: latestActive.current_stage || null,
+            activeStartedAt: latestActive.started_at || latestActive.created_at || null,
+          };
+        }
       } catch (error) {
         schedulerHeartbeat = { status:"ERROR", error:error?.message || String(error) };
       }
@@ -2842,10 +2860,19 @@ async function handle(req) {
       : null;
     const schedulerDurationMs = Number(schedulerHeartbeat?.duration_ms);
     const schedulerSlow = Number.isFinite(schedulerDurationMs) && schedulerDurationMs >= 90000;
+    const activeScheduler = schedulerHeartbeat?.activeRun || null;
+    const activeSchedulerAgeMs = activeScheduler?.started_at
+      ? Math.max(0, Date.now() - new Date(activeScheduler.started_at).getTime())
+      : null;
     const schedulerFresh = Boolean(
       schedulerHeartbeat?.status === "SUCCESS" &&
       Number.isFinite(schedulerAgeMs) &&
       schedulerAgeMs <= 15 * 60 * 1000
+    );
+    const schedulerActive = Boolean(
+      activeScheduler &&
+      Number.isFinite(activeSchedulerAgeMs) &&
+      activeSchedulerAgeMs <= 12 * 60 * 1000
     );
 
     const diagnosticsOk =
@@ -2924,30 +2951,37 @@ async function handle(req) {
           name: "Scheduler",
           status: schedulerHeartbeat?.status === "ERROR"
             ? "ERROR"
-            : schedulerFresh
-              ? schedulerSlow
-                ? "SLOW"
-                : "OK"
-              : "STALE",
-          httpStatus: schedulerFresh ? 200 : 503,
+            : schedulerActive
+              ? "OK"
+              : schedulerFresh
+                ? schedulerSlow
+                  ? "SLOW"
+                  : "OK"
+                : "STALE",
+          httpStatus: (schedulerActive || schedulerFresh) ? 200 : 503,
           details: {
             lastRun: schedulerFinishedAt,
             ageSeconds: Number.isFinite(schedulerAgeMs) ? Math.round(schedulerAgeMs / 1000) : null,
+            activeStatus: activeScheduler?.status || null,
+            activeStage: activeScheduler?.current_stage || null,
+            activeAgeSeconds: Number.isFinite(activeSchedulerAgeMs) ? Math.round(activeSchedulerAgeMs / 1000) : null,
             spotMonitored: Number(schedulerHeartbeat?.spot_monitoring_count || 0),
             futuresMonitored: Number(schedulerHeartbeat?.position_monitoring_count || 0),
             durationMs: Number(schedulerHeartbeat?.duration_ms || 0),
             perpDurationMs: Number(schedulerHeartbeat?.perp_duration_ms || 0),
             spotDurationMs: Number(schedulerHeartbeat?.spot_duration_ms || 0),
             monitoringDurationMs: Number(schedulerHeartbeat?.monitoring_duration_ms || 0),
-            currentStage: schedulerHeartbeat?.current_stage || null,
+            currentStage: activeScheduler?.current_stage || schedulerHeartbeat?.current_stage || null,
             cadenceMinutes: 7,
           },
           error:
-            schedulerFresh
-              ? schedulerSlow
-                ? "Scheduler completed, but runtime is approaching the 120s request budget."
-                : null
-              : "Server scheduler heartbeat is missing, stale, or failed.",
+            schedulerActive
+              ? null
+              : schedulerFresh
+                ? schedulerSlow
+                  ? "Scheduler completed, but runtime is approaching the 120s request budget."
+                  : null
+                : "Server scheduler heartbeat is missing, stale, or failed.",
         },
         {
           name: "Market AI",
