@@ -2179,7 +2179,7 @@ async function handle(req) {
         force: true,
         persist: true,
       });
-      const perpDurationMs = Date.now() - perpStartedAt;
+      const perpDurationMs = Date.now() - perpStartedAt;\n      const perpPushStatus = pushNotification?.sent ? "SENT" : pushNotification?.skipped ? String(pushNotification.reason || "SKIPPED") : pushNotification?.error ? "ERROR" : "NOT_TRIGGERED";
 
       if (payload?.persistenceError) {
         return response({
@@ -2206,7 +2206,7 @@ async function handle(req) {
       await updateSchedulerStage("SPOT_SCAN");
       const spotStartedAt = Date.now();
       let spotSnapshot = null;
-      let spotMonitoring = null;
+      let spotMonitoring = null;\n      let spotPushNotification = null;
       try {
         spotSnapshot = await runLiveAiAnalysis({
           interval:"15M",
@@ -2223,13 +2223,13 @@ async function handle(req) {
           const spotPush = await sendQualifiedTradePush(admin, spotSnapshot, "SPOT");
           spotMonitoring = { ...spotMonitoring, pushNotification: spotPush };
         } catch (spotPushError) {
-          console.error("Qualified Spot trade push failed:", spotPushError);
+          console.error("Qualified Spot trade push failed:", spotPushError);\n          spotPushNotification = { sent:false, skipped:false, error:spotPushError?.message || String(spotPushError) };
         }
       } catch (spotError) {
         console.error("Scheduled Spot monitoring failed:", spotError);
         spotMonitoring = { success:false, error:spotError?.message || String(spotError), readOnly:true };
       }
-      const spotDurationMs = Date.now() - spotStartedAt;
+      const spotDurationMs = Date.now() - spotStartedAt;\n      const spotPushStatus = spotPushNotification?.sent ? "SENT" : spotPushNotification?.skipped ? String(spotPushNotification.reason || "SKIPPED") : spotPushNotification?.error ? "ERROR" : "NOT_TRIGGERED";
 
       await updateSchedulerStage("POSITION_MONITORING");
       const monitoringStartedAt = Date.now();
@@ -2261,7 +2261,7 @@ async function handle(req) {
           perp_duration_ms:perpDurationMs,
           spot_duration_ms:spotDurationMs,
           monitoring_duration_ms:monitoringDurationMs,
-          current_stage:"COMPLETE",
+          current_stage:"COMPLETE",\n          perp_scanned:Number(payload?.scanned || 0),\n          perp_candidates:Array.isArray(payload?.candidates) ? payload.candidates.length : 0,\n          perp_provider:payload?.aiDecision?.provider || "groq",\n          perp_decision:payload?.finalDecision || "NO_TRADE",\n          perp_push_status:perpPushStatus,\n          spot_scanned:Number(spotSnapshot?.scanned || 0),\n          spot_candidates:Array.isArray(spotSnapshot?.candidates) ? spotSnapshot.candidates.length : 0,\n          spot_provider:spotSnapshot?.aiDecision?.provider || "groq",\n          spot_decision:spotSnapshot?.finalDecision || "NO_TRADE",\n          spot_push_status:spotPushStatus,
         }).eq("id",schedulerRunId);
       }
 
@@ -2545,7 +2545,7 @@ async function handle(req) {
     if (supabaseOk) {
       try {
         const admin = supabaseAdmin();
-        const { data } = await admin.from("trademind_scheduler_runs").select("id,status,started_at,finished_at,duration_ms,perp_duration_ms,spot_duration_ms,monitoring_duration_ms,current_stage,perp_snapshot_at,spot_snapshot_at,position_monitoring_count,spot_monitoring_count,error").order("created_at",{ascending:false}).limit(1).maybeSingle();
+        const { data } = await admin.from("trademind_scheduler_runs").select("id,status,started_at,finished_at,duration_ms,perp_duration_ms,spot_duration_ms,monitoring_duration_ms,current_stage,perp_snapshot_at,spot_snapshot_at,position_monitoring_count,spot_monitoring_count,perp_scanned,perp_candidates,perp_provider,perp_decision,perp_push_status,spot_scanned,spot_candidates,spot_provider,spot_decision,spot_push_status,error").order("created_at",{ascending:false}).limit(1).maybeSingle();
         schedulerHeartbeat = data || null;
       } catch (error) {
         schedulerHeartbeat = { status:"ERROR", error:error?.message || String(error) };
