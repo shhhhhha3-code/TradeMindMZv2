@@ -189,7 +189,10 @@ function TradeMindAiCopilot({fullPage=false}){
             <button type="button" onClick={()=>ask("ASK")} disabled={loading || !message.trim()} aria-label="Send"><Send/></button>
           </div>
           <div className="tmz-copilot-footer">
-            <span><i/> READ ONLY</span><span>NO AUTOMATIC TRADING</span><span className="tmz-copilot-provider">OPENAI WEB</span>
+            <span><i/> READ ONLY</span><span>NO AUTOMATIC TRADING</span>
+            <span className="tmz-copilot-provider">
+              {answer?.webSearch ? "OPENAI WEB" : answer?.provider ? String(answer.provider).toUpperCase() : "OPENAI WEB"}
+            </span>
           </div>
         </div>
       )}
