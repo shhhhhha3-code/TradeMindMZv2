@@ -132,13 +132,14 @@ function TradeMindAiCopilot(){
             <div className="tmz-copilot-pipeline" aria-label="AI activity">
               {["ANALYZING","SCANNING","DECISION","READY"].map((stage,index)=>{
                 const activeIndex=["ANALYZING","SCANNING","DECISION","READY"].indexOf(activityStage);
-                const active=activityStage==="ERROR" ? false : index<=activeIndex;
+                const done=activityStage!=="ERROR" && index<activeIndex;
+                const current=activityStage===stage;
                 return <React.Fragment key={stage}>
-                  <span className={"tmz-copilot-node "+(active ? "active" : "")+(activityStage===stage ? " current" : "")}>
+                  <span className={"tmz-copilot-node "+(done ? "done" : "")+(current ? " current" : "")}>
                     <i/>
                     <em>{stage}</em>
                   </span>
-                  {index<3 && <span className={"tmz-copilot-pipeline-link "+(activeIndex>index ? "active" : "")}/>}
+                  {index<3 && <span className={"tmz-copilot-pipeline-link "+(done ? "active" : "")}/>}
                 </React.Fragment>;
               })}
             </div>
@@ -171,6 +172,12 @@ function TradeMindAiCopilot(){
                   {answer.dataAgeSeconds != null && <small>{answer.dataAgeSeconds}s DATA AGE</small>}
                 </div>
                 <p>{answer.answer}</p>
+                <div className="tmz-copilot-telemetry">
+                  <span><i/> LIVE ANALYSIS</span>
+                  <span>{answer.marketType === "SPOT" ? "SPOT" : "M-USDT"}</span>
+                  <span>{answer.provider ? String(answer.provider).toUpperCase() : "AI CORE"}</span>
+                  {answer.dataAgeSeconds != null && <span>{answer.dataAgeSeconds < 60 ? "FRESH DATA" : "DATA AGE "+answer.dataAgeSeconds+"s"}</span>}
+                </div>
                 {answer.finalDecision && <b className={"tmz-copilot-decision "+String(answer.finalDecision).toLowerCase()}>{answer.finalDecision}</b>}
               </>
             )}
