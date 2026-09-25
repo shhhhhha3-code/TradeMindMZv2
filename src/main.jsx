@@ -3684,6 +3684,25 @@ function DiagnosticsPanel() {
     return days + "d " + (hours % 24) + "h";
   };
 
+  const formatDuration = milliseconds => {
+    const value = Number(milliseconds);
+    if (!Number.isFinite(value) || value < 0) return "—";
+    if (value < 1000) return `${Math.round(value)}ms`;
+    return `${(value / 1000).toFixed(1)}s`;
+  };
+
+  const schedulerDetails = check => {
+    if (check?.name !== "Scheduler" || !check?.details) return null;
+    const details = check.details;
+    return [
+      `Stage: ${details.currentStage || "—"}`,
+      `PERP ${formatDuration(details.perpDurationMs)}`,
+      `SPOT ${formatDuration(details.spotDurationMs)}`,
+      `Monitor ${formatDuration(details.monitoringDurationMs)}`,
+      `Total ${formatDuration(details.durationMs)}`,
+    ].join(" • ");
+  };
+
   const statusText = status => {
     if (status === "OK")
       return "ONLINE";
@@ -3886,7 +3905,14 @@ function DiagnosticsPanel() {
 
                 {check.name ===
                   "Scheduler" &&
-                  `Last run: ${check.details?.lastRun ? formatDateTime(check.details.lastRun) : "—"} • Age: ${formatAge(check.details?.ageSeconds)} • Spot: ${check.details?.spotMonitored ?? 0} • Futures: ${check.details?.futuresMonitored ?? 0}`}
+                  <>
+                    <span>
+                      Last run: {check.details?.lastRun ? formatDateTime(check.details.lastRun) : "—"} • Age: {formatAge(check.details?.ageSeconds)} • Spot: {check.details?.spotMonitored ?? 0} • Futures: {check.details?.futuresMonitored ?? 0}
+                    </span>
+                    <span style={{display:"block",marginTop:"6px",color:"rgba(85,223,255,.7)"}}>
+                      {schedulerDetails(check)}
+                    </span>
+                  </>}
 
                 {check.name ===
                   "Market AI" &&
