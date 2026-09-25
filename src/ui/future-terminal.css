@@ -2403,3 +2403,101 @@ body{
     animation:none!important;
   }
 }
+
+
+/* ==========================================================
+   TRADEMINDMZ — AI CORE DIAGNOSTICS / SYSTEM HUD
+   Visual-only. No diagnostics, scheduler, API or trading logic changed.
+   ========================================================== */
+
+.app[data-tm-theme] .panel{
+  --ai-glow:rgba(85,223,255,.12);
+}
+
+/* Diagnostics cards become AI subsystem modules */
+.app[data-tm-theme] .panel .status,
+.app[data-tm-theme] .status.on{
+  border-color:rgba(85,223,255,.18)!important;
+  background:rgba(85,223,255,.045)!important;
+  color:#8eeeff!important;
+  box-shadow:inset 0 0 18px rgba(85,223,255,.025)!important;
+}
+.app[data-tm-theme] .panel .status i,
+.app[data-tm-theme] .status.on i{
+  background:var(--tmz-ai-cyan)!important;
+  box-shadow:0 0 9px rgba(85,223,255,.8)!important;
+}
+
+.app[data-tm-theme] .settinghead h2,
+.app[data-tm-theme] .settinghead h3{
+  color:#e8f8fb!important;
+  letter-spacing:.025em!important;
+}
+.app[data-tm-theme] .settinghead p{
+  color:#60727c!important;
+}
+
+.app[data-tm-theme] .panel .meta{
+  border-color:rgba(85,223,255,.07)!important;
+}
+.app[data-tm-theme] .panel .meta span{
+  color:#536671!important;
+}
+.app[data-tm-theme] .panel .meta b{
+  color:#b9e9f2!important;
+}
+
+/* Error states stay unmistakable, but fit the AI HUD */
+.app[data-tm-theme] .panel [style*="color: #ff6b6b"],
+.app[data-tm-theme] .panel [style*="color:#ff6b6b"]{
+  color:#ff7188!important;
+  text-shadow:0 0 10px rgba(255,78,112,.12)!important;
+}
+
+/* Diagnostic footer */
+.app[data-tm-theme] .panel > div:last-child{
+  border-color:rgba(85,223,255,.07)!important;
+}
+
+/* Subtle AI circuit grid across the command surface */
+.app[data-tm-theme] main>section{
+  position:relative!important;
+}
+.app[data-tm-theme] main>section::before{
+  content:""!important;
+  position:fixed!important;
+  inset:0!important;
+  pointer-events:none!important;
+  z-index:-1!important;
+  opacity:.22!important;
+  background-image:
+    linear-gradient(rgba(85,223,255,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(85,223,255,.025) 1px,transparent 1px)!important;
+  background-size:42px 42px!important;
+  mask-image:radial-gradient(circle at 50% 30%,black,transparent 82%)!important;
+}
+
+/* AI subsystem cards get a tiny active scan edge */
+.app[data-tm-theme] .panel:hover::before{
+  opacity:.85!important;
+}
+.app[data-tm-theme] .panel::before{
+  transition:opacity .25s ease,border-color .25s ease!important;
+}
+
+/* Mobile diagnostics: tighter futuristic modules */
+@media(max-width:560px){
+  .app[data-tm-theme] .panel{
+    box-shadow:0 16px 42px rgba(0,0,0,.34),inset 0 1px rgba(255,255,255,.02)!important;
+  }
+  .app[data-tm-theme] .settinghead{
+    gap:10px!important;
+  }
+}
+
+/* Reduced motion */
+@media(prefers-reduced-motion:reduce){
+  .app[data-tm-theme] main>section::before{
+    opacity:.12!important;
+  }
+}
