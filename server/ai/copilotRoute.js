@@ -2,7 +2,8 @@ import express from "express";
 import {
   runCopilot,
   getCopilotLearningStats,
-  getCopilotEvidenceSnapshot,\n  getCopilotIntelligenceSnapshot,
+  getCopilotEvidenceSnapshot,
+  getCopilotIntelligenceSnapshot,
 } from "./copilotEngine.js";
 
 const router = express.Router();
@@ -66,7 +67,16 @@ router.get("/evidence", (req, res) => {
   }
 });
 
-router.get("/intelligence", (req, res) => {\n  try {\n    const limit = Number(req.query?.limit || 5000);\n    return res.json(getCopilotIntelligenceSnapshot({ limit }));\n  } catch (error) {\n    return res.status(500).json({ success: false, error: error?.message || String(error) });\n  }\n});\n\nrouter.get("/learning-stats", async (_req, res) => {
+router.get("/intelligence", (req, res) => {
+  try {
+    const limit = Number(req.query?.limit || 5000);
+    return res.json(getCopilotIntelligenceSnapshot({ limit }));
+  } catch (error) {
+    return res.status(500).json({ success: false, error: error?.message || String(error) });
+  }
+});
+
+router.get("/learning-stats", async (_req, res) => {
   try {
     return res.json(
       await getCopilotLearningStats(),
