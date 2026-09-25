@@ -1,6 +1,8 @@
 import { buildCandidates } from "../../engine/candidateEngine.js";
 import { runAIDecisionLayer } from "./aiDecisionEngine.js";
 import { getSupabaseClient } from "../supabase/client.js";
+import { getPaperLearning } from "../paper/paperLearning.js";
+import { calculateCopilotEvidence, getCopilotEvidence } from "./copilotEvidence.js";
 
 const ACTIONS = { TRADE:"TRADE", WATCH:"WATCH", NO_TRADE:"NO_TRADE", PROTECT:"PROTECT", EXIT_REVIEW:"EXIT_REVIEW" };
 
@@ -84,12 +86,14 @@ export async function runCopilot({markets=[],position=null,preferredProvider=nul
   }
 
   const selected=candidates.find(c=>String(c.symbol).toUpperCase()===String(ai.symbol??"").toUpperCase())??candidates[0]??null;
-  const result={success:true,copilotVersion:"2.0",action,symbol:selected?.symbol??null,regime:regime(candidates),confidence:ai.confidence??0,risk:ai.risk??selected?.risk?.level??"HIGH",deterministic:{engineScore:selected?.engineScore??null,reasons:selected?.risk?.reasons??[],factors:factorState(selected)},ai,positionReview,explanation:buildExplanation(selected,action),candidates,generatedAt:new Date().toISOString(),execution:"READ_ONLY"};
+  const learning = getPaperLearning({ limit: 5000 });
+  const evidence = calculateCopilotEvidence(selected, learning.history);
+  const result={success:true,copilotVersion:"2.1",action,symbol:selected?.symbol??null,regime:regime(candidates),confidence:ai.confidence??0,risk:ai.risk??selected?.risk?.level??"HIGH",evidence,deterministic:{engineScore:selected?.engineScore??null,reasons:selected?.risk?.reasons??[],factors:factorState(selected)},ai,positionReview,explanation:buildExplanation(selected,action),candidates,generatedAt:new Date().toISOString(),execution:"READ_ONLY"};
   result.historySaved=await saveCopilotDecision(result);
   return result;
 }
 
-export async function getCopilotLearningStats() {
+export function getCopilotEvidenceSnapshot({ limit = 5000, candidate = null } = {}) {\n  return getCopilotEvidence({ limit, candidate });\n}\n\nexport async function getCopilotLearningStats() {
   try {
     const supabase=getSupabaseClient();
     const { data, error }=await supabase.from("ai_copilot_learning_stats").select("*").single();
