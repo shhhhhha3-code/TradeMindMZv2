@@ -2207,7 +2207,8 @@ async function handle(req) {
       await updateSchedulerStage("SPOT_SCAN");
       const spotStartedAt = Date.now();
       let spotSnapshot = null;
-      let spotMonitoring = null;\n      let spotPushNotification = null;
+      let spotMonitoring = null;
+      let spotPushNotification = null;
       try {
         spotSnapshot = await runLiveAiAnalysis({
           interval:"15M",
@@ -2224,13 +2225,15 @@ async function handle(req) {
           const spotPush = await sendQualifiedTradePush(admin, spotSnapshot, "SPOT");
           spotMonitoring = { ...spotMonitoring, pushNotification: spotPush };
         } catch (spotPushError) {
-          console.error("Qualified Spot trade push failed:", spotPushError);\n          spotPushNotification = { sent:false, skipped:false, error:spotPushError?.message || String(spotPushError) };
+          console.error("Qualified Spot trade push failed:", spotPushError);
+          spotPushNotification = { sent:false, skipped:false, error:spotPushError?.message || String(spotPushError) };
         }
       } catch (spotError) {
         console.error("Scheduled Spot monitoring failed:", spotError);
         spotMonitoring = { success:false, error:spotError?.message || String(spotError), readOnly:true };
       }
-      const spotDurationMs = Date.now() - spotStartedAt;\n      const spotPushStatus = spotPushNotification?.sent ? "SENT" : spotPushNotification?.skipped ? String(spotPushNotification.reason || "SKIPPED") : spotPushNotification?.error ? "ERROR" : "NOT_TRIGGERED";
+      const spotDurationMs = Date.now() - spotStartedAt;
+      const spotPushStatus = spotPushNotification?.sent ? "SENT" : spotPushNotification?.skipped ? String(spotPushNotification.reason || "SKIPPED") : spotPushNotification?.error ? "ERROR" : "NOT_TRIGGERED";
 
       await updateSchedulerStage("POSITION_MONITORING");
       const monitoringStartedAt = Date.now();
@@ -2262,7 +2265,8 @@ async function handle(req) {
           perp_duration_ms:perpDurationMs,
           spot_duration_ms:spotDurationMs,
           monitoring_duration_ms:monitoringDurationMs,
-          current_stage:"COMPLETE",\n          perp_scanned:Number(payload?.scanned || 0),\n          perp_candidates:Array.isArray(payload?.candidates) ? payload.candidates.length : 0,\n          perp_provider:payload?.aiDecision?.provider || "groq",\n          perp_decision:payload?.finalDecision || "NO_TRADE",\n          perp_push_status:perpPushStatus,\n          spot_scanned:Number(spotSnapshot?.scanned || 0),\n          spot_candidates:Array.isArray(spotSnapshot?.candidates) ? spotSnapshot.candidates.length : 0,\n          spot_provider:spotSnapshot?.aiDecision?.provider || "groq",\n          spot_decision:spotSnapshot?.finalDecision || "NO_TRADE",\n          spot_push_status:spotPushStatus,
+          current_stage:"COMPLETE",
+          perp_scanned:Number(payload?.scanned || 0),\n          perp_candidates:Array.isArray(payload?.candidates) ? payload.candidates.length : 0,\n          perp_provider:payload?.aiDecision?.provider || "groq",\n          perp_decision:payload?.finalDecision || "NO_TRADE",\n          perp_push_status:perpPushStatus,\n          spot_scanned:Number(spotSnapshot?.scanned || 0),\n          spot_candidates:Array.isArray(spotSnapshot?.candidates) ? spotSnapshot.candidates.length : 0,\n          spot_provider:spotSnapshot?.aiDecision?.provider || "groq",\n          spot_decision:spotSnapshot?.finalDecision || "NO_TRADE",\n          spot_push_status:spotPushStatus,
         }).eq("id",schedulerRunId);
       }
 
