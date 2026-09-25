@@ -2553,7 +2553,7 @@ async function handle(req) {
         "Do not use past performance to promise future returns.",
         "If web search is available, use it only for current external facts/news/market context that are not contained in TradeMindMZ telemetry. Clearly label web-sourced facts versus internal TradeMindMZ data.",
         "Never place trades, never provide guaranteed profit claims, and never imply automatic execution.",
-        "Return JSON only with this exact shape: {\\"answer\\":\\"...\\",\\"headline\\":\\"...\\",\\"severity\\":\\"INFO|SUCCESS|WARNING|ERROR\\",\\"action\\":\\"NONE|LIVE_SIGNAL|BEST_SETUP|WHAT_NOW|POSITION_CHECK|DEEP_ANALYSIS|STATUS|DIAGNOSTICS\\",\\"advice\\":\\"WAIT|HOLD|CONSIDER_TRADE|REDUCE_RISK|EXIT_CONSIDERATION|NO_ACTION\\",\\"confidence\\":0,\\"keyFactors\\":[\\"...\\"],\\"risks\\":[\\"...\\"]}.",
+        'Return JSON only with this exact shape: {"answer":"...","headline":"...","severity":"INFO|SUCCESS|WARNING|ERROR","action":"NONE|LIVE_SIGNAL|BEST_SETUP|WHAT_NOW|POSITION_CHECK|DEEP_ANALYSIS|STATUS|DIAGNOSTICS","advice":"WAIT|HOLD|CONSIDER_TRADE|REDUCE_RISK|EXIT_CONSIDERATION|NO_ACTION","confidence":0,"keyFactors":["..."],"risks":["..."]}.',
         "Keep answer concise but substantive: normally 3-7 sentences. keyFactors and risks should each contain at most 4 short items.",
       ].join("\n");
 
