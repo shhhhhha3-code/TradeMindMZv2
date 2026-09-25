@@ -2107,6 +2107,7 @@ async function handle(req) {
     method === "POST"
   ) {
     let schedulerRunId = null;
+    const schedulerRequestStartedAt = Date.now();
     try {
       const admin = supabaseAdmin();
 
@@ -2154,7 +2155,7 @@ async function handle(req) {
         schedulerRunId = schedulerRun?.id || null;
       }
 
-      const schedulerPhaseStartedAt = Date.now();
+      const schedulerPhaseStartedAt = schedulerRequestStartedAt;
       const updateSchedulerStage = async (stage) => {
         if (!schedulerRunId) return;
         try {
@@ -2282,6 +2283,8 @@ async function handle(req) {
           await admin.from("trademind_scheduler_runs").update({
             status:"ERROR",
             finished_at:new Date().toISOString(),
+            duration_ms:Date.now() - schedulerRequestStartedAt,
+            current_stage:"ERROR",
             error:error?.message || String(error),
           }).eq("id",schedulerRunId);
         }
