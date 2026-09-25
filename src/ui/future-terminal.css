@@ -4372,3 +4372,97 @@ body{
 @media(prefers-reduced-motion:reduce){
   .app[data-tm-theme] .tmz-copilot-telemetry span:first-child i{animation:none!important}
 }
+
+
+/* ==========================================================
+   FULL AI COPILOT WORKSPACE
+   ========================================================== */
+.app[data-tm-theme] .tmz-copilot-page{
+  position:relative!important;
+  inset:auto!important;
+  width:100%!important;
+  max-width:1180px!important;
+  height:auto!important;
+  min-height:calc(100vh - 150px)!important;
+  margin:0 auto!important;
+  border-radius:18px!important;
+  overflow:hidden!important;
+  box-shadow:0 24px 80px rgba(0,0,0,.38),inset 0 0 80px rgba(65,210,255,.025)!important;
+}
+.app[data-tm-theme] .tmz-copilot-page .tmz-copilot-head{
+  padding:22px 24px!important;
+}
+.app[data-tm-theme] .tmz-copilot-page .tmz-copilot-mode{
+  padding:15px 24px!important;
+}
+.app[data-tm-theme] .tmz-copilot-page .tmz-copilot-quick{
+  padding:18px 24px!important;
+  grid-template-columns:repeat(4,1fr)!important;
+}
+.app[data-tm-theme] .tmz-copilot-page .tmz-copilot-response{
+  min-height:260px!important;
+  margin:0 24px 18px!important;
+}
+.app[data-tm-theme] .tmz-copilot-page .tmz-copilot-input{
+  margin:0 24px 14px!important;
+}
+.app[data-tm-theme] .tmz-copilot-page .tmz-copilot-footer{
+  padding:0 24px 20px!important;
+}
+.app[data-tm-theme] .tmz-copilot-page .tmz-copilot-welcome{
+  min-height:220px!important;
+  justify-content:center!important;
+}
+.app[data-tm-theme] .tmz-copilot-page .tmz-copilot-welcome img{
+  width:82px!important;
+  height:82px!important;
+}
+@media(max-width:900px){
+  .app[data-tm-theme] .tmz-copilot-page .tmz-copilot-quick{
+    grid-template-columns:repeat(2,1fr)!important;
+  }
+}
+@media(max-width:700px){
+  .app[data-tm-theme] .tmz-copilot-page{
+    min-height:calc(100vh - 118px)!important;
+    border-radius:14px!important;
+  }
+  .app[data-tm-theme] .tmz-copilot-page .tmz-copilot-head{
+    padding:18px 15px!important;
+  }
+  .app[data-tm-theme] .tmz-copilot-page .tmz-copilot-mode{
+    padding:13px 15px!important;
+  }
+  .app[data-tm-theme] .tmz-copilot-page .tmz-copilot-quick{
+    padding:13px 12px!important;
+    gap:8px!important;
+  }
+  .app[data-tm-theme] .tmz-copilot-page .tmz-copilot-response{
+    min-height:260px!important;
+    margin:0 12px 12px!important;
+  }
+  .app[data-tm-theme] .tmz-copilot-page .tmz-copilot-input{
+    margin:0 12px 12px!important;
+  }
+  .app[data-tm-theme] .tmz-copilot-page .tmz-copilot-footer{
+    padding:0 12px 15px!important;
+  }
+}
+
+/* Six-item mobile command dock including AI Copilot */
+@media(max-width:700px){
+  .app[data-tm-theme] .side:not(.open) nav{
+    grid-template-columns:repeat(6,1fr)!important;
+  }
+  .app[data-tm-theme] .side:not(.open) nav button{
+    padding-left:1px!important;
+    padding-right:1px!important;
+  }
+  .app[data-tm-theme] .side:not(.open) nav button span{
+    font-size:6.5px!important;
+  }
+  .app[data-tm-theme] .side:not(.open) nav button svg{
+    width:18px!important;
+    height:18px!important;
+  }
+}
