@@ -269,7 +269,7 @@ const updateAiSetting=(key,value)=>{const next={...aiSettings,[key]:value};setAi
   onSave={handleManualPurchase}
   initialValues={purchaseDefaults}
 />
-</main></div>}
+</main><TradeMindAiCopilot/></div>}
 
 
 function LiveAiDashboardCard() {
