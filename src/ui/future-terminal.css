@@ -4800,3 +4800,56 @@ body{
 @media(prefers-reduced-motion:reduce){
   .app[data-tm-theme] .tmz-performance-panel::before{animation:none}
 }
+
+/* ==========================================================
+   COPILOT V2 INTELLIGENCE HUD
+   ========================================================== */
+.app[data-tm-theme] .tmz-copilot-advice-row{
+  display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:10px;
+}
+.app[data-tm-theme] .tmz-copilot-advice{
+  display:inline-flex;align-items:center;padding:6px 9px;border-radius:7px;
+  border:1px solid rgba(255,255,255,.09);font-size:7px;font-weight:900;letter-spacing:.12em;
+}
+.app[data-tm-theme] .tmz-copilot-advice.wait,
+.app[data-tm-theme] .tmz-copilot-advice.no_action{
+  color:#c5d1dc;background:rgba(145,160,175,.07);border-color:rgba(145,160,175,.18)
+}
+.app[data-tm-theme] .tmz-copilot-advice.hold{
+  color:#72f6ff;background:rgba(114,246,255,.07);border-color:rgba(114,246,255,.2)
+}
+.app[data-tm-theme] .tmz-copilot-advice.consider_trade{
+  color:#55e5a5;background:rgba(85,229,165,.07);border-color:rgba(85,229,165,.23)
+}
+.app[data-tm-theme] .tmz-copilot-advice.reduce_risk,
+.app[data-tm-theme] .tmz-copilot-advice.exit_consideration{
+  color:#ffbd62;background:rgba(255,189,98,.07);border-color:rgba(255,189,98,.23)
+}
+.app[data-tm-theme] .tmz-copilot-confidence,
+.app[data-tm-theme] .tmz-copilot-advice-row>span{
+  color:rgba(220,235,244,.38);font-size:6px;font-weight:800;letter-spacing:.08em
+}
+.app[data-tm-theme] .tmz-copilot-insights{
+  display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px
+}
+.app[data-tm-theme] .tmz-copilot-insights>div{
+  display:flex;flex-direction:column;gap:4px;padding:8px;border:1px solid rgba(255,255,255,.045);
+  border-radius:8px;background:rgba(255,255,255,.014)
+}
+.app[data-tm-theme] .tmz-copilot-insights strong{
+  color:rgba(114,246,255,.52);font-size:6px;letter-spacing:.12em;margin-bottom:2px
+}
+.app[data-tm-theme] .tmz-copilot-insights span{
+  color:rgba(239,247,250,.52);font-size:7px;line-height:1.35
+}
+.app[data-tm-theme] .tmz-copilot-response:has(.tmz-copilot-advice.reduce_risk),
+.app[data-tm-theme] .tmz-copilot-response:has(.tmz-copilot-advice.exit_consideration){
+  border-color:rgba(255,189,98,.2)
+}
+@media(max-width:700px){
+  .app[data-tm-theme] .tmz-copilot-quick{grid-template-columns:1fr 1fr}
+  .app[data-tm-theme] .tmz-copilot-insights{grid-template-columns:1fr}
+}
+@media(prefers-reduced-motion:reduce){
+  .app[data-tm-theme] .tmz-copilot-response:has(.tmz-copilot-advice){animation:none!important}
+}
