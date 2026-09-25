@@ -665,36 +665,61 @@ export async function scanPionexMarket({
 
   const candidates = [];
 
-  for (const item of rankedUniverse) {
-    try {
-      const payload =
-        await getMarketKlines({
-          symbol: item.symbol,
-          interval,
-          limit: candleLimit,
-        });
+  // Keep the same ranked universe and scoring logic, but fetch klines in
+  // small bounded batches so the server scheduler does not spend most of
+  // its runtime waiting on 25 sequential network requests.
+  // A bounded concurrency of 5 reduces latency without opening a burst of
+  // 25 simultaneous Pionex requests.
+  const KLINE_CONCURRENCY = 5;
 
-      const candles =
-        parsePionexKlines(payload);
+  for (
+    let start = 0;
+    start < rankedUniverse.length;
+    start += KLINE_CONCURRENCY
+  ) {
+    const batch = rankedUniverse.slice(
+      start,
+      start + KLINE_CONCURRENCY
+    );
 
-      const candidate =
-        scorePionexCandidate({
-          symbol: item.symbol,
-          candles,
-          ticker: item.ticker,
-          marketType,
-          leverage,
-          interval,
-        });
+    const batchResults = await Promise.all(
+      batch.map(async (item) => {
+        try {
+          const payload =
+            await getMarketKlines({
+              symbol: item.symbol,
+              interval,
+              limit: candleLimit,
+            });
 
+          const candles =
+            parsePionexKlines(payload);
+
+          const candidate =
+            scorePionexCandidate({
+              symbol: item.symbol,
+              candles,
+              ticker: item.ticker,
+              marketType,
+              leverage,
+              interval,
+            });
+
+          return candidate || null;
+        } catch (error) {
+          console.warn(
+            `Scanner skipped ${item.symbol}:`,
+            error?.message || error
+          );
+          return null;
+        }
+      })
+    );
+
+    for (const candidate of batchResults) {
       if (candidate) {
         candidates.push(candidate);
       }
-    } catch (error) {
-      console.warn(
-        `Scanner skipped ${item.symbol}:`,
-        error?.message || error
-      );
     }
   }
 
