@@ -8,6 +8,7 @@ import TradingModeToggle from "./components/TradingModeToggle.jsx";
 import PaperPerformancePanel from "./components/PaperPerformancePanel.jsx";
 import LearningDashboardPanel from "./components/LearningDashboardPanel.jsx";
 import LearningJournalPanel from "./components/LearningJournalPanel.jsx";
+import TradePerformanceLearningPanel from "./components/TradePerformanceLearningPanel.jsx";
 import { loadTrackedPositions } from "./positions/positionStorage.js";
 import { registerManualPurchase } from "./positions/workflowIndex.js";
 import { fetchLivePositions } from "./services/livePositionService.js";
@@ -299,7 +300,10 @@ const updateAiSetting=(key,value)=>{const next={...aiSettings,[key]:value};setAi
     : tab==='settings'
       ? <SettingsPage settings={aiSettings} updateSetting={updateAiSetting}/>
       : tab==='dashboard'
-        ? <ProDashboard onSelectTrade={handleDashboardTradeSelect}/>
+        ? <>
+            <TradePerformanceLearningPanel/>
+            <ProDashboard onSelectTrade={handleDashboardTradeSelect}/>
+          </>
         : tab==='market'
           ? <MarketOverview/>
           : tab==='history'
