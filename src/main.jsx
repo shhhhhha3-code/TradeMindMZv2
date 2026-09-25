@@ -3703,6 +3703,16 @@ function DiagnosticsPanel() {
     ].join(" • ");
   };
 
+  const schedulerStage = check => {
+    const stage = String(check?.details?.currentStage || "").toUpperCase();
+    if (stage === "PERP_SCAN" || stage === "PERP_PUSH") return "PERP";
+    if (stage === "SPOT_SCAN") return "SPOT";
+    if (stage === "POSITION_MONITORING") return "MONITOR";
+    if (stage === "COMPLETE") return "COMPLETE";
+    if (stage === "ERROR") return "ERROR";
+    return stage ? "ACTIVE" : "IDLE";
+  };
+
   const statusText = status => {
     if (status === "OK")
       return "ONLINE";
@@ -3773,6 +3783,43 @@ function DiagnosticsPanel() {
             : " Run diagnostics"}
         </button>
       </div>
+
+      {(() => {
+        const scheduler = checks.find(check => check.name === "Scheduler");
+        const currentStage = schedulerStage(scheduler);
+        const stages = ["PERP", "SPOT", "MONITOR"];
+        const activeIndex = currentStage === "PERP" ? 0 : currentStage === "SPOT" ? 1 : currentStage === "MONITOR" ? 2 : currentStage === "COMPLETE" ? 3 : -1;
+        const liveClass = currentStage === "ERROR" ? "error" : currentStage === "COMPLETE" ? "complete" : "";
+        return (
+          <div className="tmz-scheduler-hud">
+            <div className="tmz-scheduler-hud-head">
+              <div>
+                <span className="tmz-scheduler-kicker">AI SYSTEM ACTIVITY</span>
+                <strong>7-MINUTE SCHEDULER</strong>
+              </div>
+              <span className={`tmz-scheduler-live ${liveClass}`}>
+                <i /> {currentStage}
+              </span>
+            </div>
+            <div className="tmz-scheduler-track">
+              {stages.map((item, index) => (
+                <React.Fragment key={item}>
+                  <div className={`tmz-scheduler-node ${index <= activeIndex ? "active" : ""} ${index === activeIndex ? "current" : ""}`}>
+                    <span>{String(index + 1).padStart(2,"0")}</span>
+                    <b>{item}</b>
+                  </div>
+                  {index < stages.length - 1 && <div className={`tmz-scheduler-link ${index < activeIndex ? "active" : ""}`} />}
+                </React.Fragment>
+              ))}
+            </div>
+            <div className="tmz-scheduler-readout">
+              <span>STAGE <b>{scheduler?.details?.currentStage || "WAITING FOR NEXT RUN"}</b></span>
+              <span>RUNTIME <b>{formatDuration(scheduler?.details?.durationMs)}</b></span>
+              <span>CADENCE <b>7 MIN</b></span>
+            </div>
+          </div>
+        );
+      })()}
 
       <div
         style={{
