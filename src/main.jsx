@@ -6707,11 +6707,23 @@ function Positions(){
                 </span>
               </div>
 
+              <div className={"tmz-position-pnl "+(Number.isFinite(pnl) && pnl > 0 ? "profit" : Number.isFinite(pnl) && pnl < 0 ? "loss" : "flat")}>
+                <div className="tmz-position-pnl-main">
+                  <span>UNREALIZED PNL</span>
+                  <strong>{Number.isFinite(pnl) ? (pnl >= 0 ? "+" : "") + (Math.abs(pnl) < 1 ? pnl.toFixed(4) : pnl.toFixed(2)) : "—"}</strong>
+                  <small>{Number.isFinite(pnlPercent) ? (pnlPercent >= 0 ? "+" : "") + pnlPercent.toFixed(2) + "% "+pnlPercentType : "—"}</small>
+                </div>
+                <div className="tmz-position-pnl-state">
+                  <b>{Number.isFinite(pnl) && pnl > 0 ? "PROFIT" : Number.isFinite(pnl) && pnl < 0 ? "LOSS" : "BREAK-EVEN"}</b>
+                  <span>{Number.isFinite(pnl) ? "LIVE POSITION" : "WAITING FOR PNL"}</span>
+                </div>
+              </div>
+
               <div className="levels">
                 {[
                   ["ENTRY",formatPrice(entry)],
                   ["CURRENT",formatPrice(current)],
-                  ["UNREALIZED PNL",formatPnl(pnl)],
+                  ["PNL",Number.isFinite(pnl) ? (pnl >= 0 ? "+" : "") + (Math.abs(pnl) < 1 ? pnl.toFixed(4) : pnl.toFixed(2)) : "—"],
                   [pnlPercentType,pnlPercent !== null ? formatPercent(pnlPercent) : "—"]
                 ].map((x,i) =>
                   <div
