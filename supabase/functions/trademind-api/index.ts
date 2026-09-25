@@ -2102,6 +2102,109 @@ async function handle(req) {
     }
   }
 
+
+  if (path === "/api/ai/copilot" && method === "POST") {
+    try {
+      const admin = supabaseAdmin();
+      const marketType = String(body?.marketType || "PERP").toUpperCase() === "SPOT" ? "SPOT" : "PERP";
+      const action = String(body?.action || "ASK").toUpperCase();
+      const userMessage = String(body?.message || "").trim().slice(0, 700);
+      const allowedActions = new Set(["ASK", "LIVE_SIGNAL", "BEST_SETUP", "STATUS", "DIAGNOSTICS"]);
+      if (!allowedActions.has(action)) return response({ success:false, error:"Unsupported AI Copilot action." },400);
+
+      let snapshot = null;
+      if (action === "LIVE_SIGNAL" || action === "BEST_SETUP") {
+        snapshot = await runLiveAiAnalysis({
+          interval:"15M", candleLimit:100, maxMarkets:25, marketType,
+          leverage:marketType === "SPOT" ? 1 : 3, provider:"groq", force:true, persist:true,
+        });
+      } else {
+        const { data } = await admin
+          .from("market_ai_snapshots")
+          .select("market_type,interval,leverage,scanned,candidates,ai_decision,final_decision,provider,next_analysis_at,payload,created_at")
+          .eq("market_type",marketType)
+          .eq("interval","15M")
+          .eq("leverage",marketType === "SPOT" ? 1 : 3)
+          .order("created_at",{ascending:false})
+          .limit(1)
+          .maybeSingle();
+        snapshot = data || null;
+      }
+
+      let diagnostics = null;
+      if (action === "STATUS" || action === "DIAGNOSTICS" || action === "ASK") {
+        const { data } = await admin
+          .from("trademind_scheduler_runs")
+          .select("id,status,started_at,finished_at,duration_ms,perp_duration_ms,spot_duration_ms,monitoring_duration_ms,current_stage,position_monitoring_count,spot_monitoring_count,perp_scanned,perp_candidates,perp_provider,perp_decision,perp_push_status,spot_scanned,spot_candidates,spot_provider,spot_decision,spot_push_status,error")
+          .order("created_at",{ascending:false})
+          .limit(1)
+          .maybeSingle();
+        diagnostics = data || null;
+      }
+
+      const available = [];
+      if (Deno.env.get("GROQ_API_KEY")) available.push("groq");
+      if (Deno.env.get("OPENAI_API_KEY")) available.push("openai");
+      if (!available.length) throw new Error("No AI provider is configured.");
+
+      const provider = available.includes("groq") ? "groq" : "openai";
+      const key = Deno.env.get(provider === "openai" ? "OPENAI_API_KEY" : "GROQ_API_KEY");
+      const endpoint = provider === "openai"
+        ? "https://api.openai.com/v1/chat/completions"
+        : "https://api.groq.com/openai/v1/chat/completions";
+      const model = provider === "openai"
+        ? Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini"
+        : Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
+
+      const snapshotPayload = snapshot?.payload || snapshot || null;
+      const systemPrompt = [
+        "You are TradeMind AI Copilot inside TradeMindMZ.",
+        "You are a real-time market intelligence and system operations assistant.",
+        "Use ONLY the supplied TradeMindMZ context. Never invent prices, scores, trades, diagnostics, timestamps, providers, or system states.",
+        "For trade questions, describe the current configured TradeMindMZ signal and its evidence. Do not place trades and do not claim guaranteed profit.",
+        "FINAL DECISION is authoritative: only call it a qualified trade when finalDecision is exactly TRADE. If it is NO_TRADE, clearly say it is not a confirmed trade.",
+        "AI confidence describes model confidence, not trade approval.",
+        "Distinguish engine score, AI confidence, and final decision.",
+        "For system questions, use scheduler telemetry and explicitly say when a value is unavailable.",
+        "Keep answers concise, practical, and suitable for a mobile trading cockpit.",
+        'Return JSON only: {"answer":"...","headline":"...","severity":"INFO|SUCCESS|WARNING|ERROR","action":"NONE|LIVE_SIGNAL|STATUS|DIAGNOSTICS"}.'
+      ].join("\n");
+
+      const context = {
+        action, marketType, userMessage,
+        snapshot: snapshotPayload,
+        scheduler: diagnostics,
+        safety: { readOnly:true, automaticTrading:false },
+      };
+
+      const res = await fetch(endpoint,{
+        method:"POST",
+        headers:{"Content-Type":"application/json",Authorization:"Bearer "+key},
+        body:JSON.stringify({
+          model, temperature:0.1, response_format:{type:"json_object"},
+          messages:[{role:"system",content:systemPrompt},{role:"user",content:JSON.stringify(context)}],
+        }),
+      });
+      const text = await res.text();
+      if (!res.ok) throw new Error(provider+" request failed: "+res.status+" "+text.slice(0,240));
+      const parsed = JSON.parse(text);
+      const raw = JSON.parse(parsed.choices?.[0]?.message?.content || "{}");
+
+      return response({
+        success:true, provider, action, marketType,
+        headline:String(raw?.headline || "TradeMind AI"),
+        answer:String(raw?.answer || "I could not produce an answer from the available TradeMindMZ data."),
+        severity:["INFO","SUCCESS","WARNING","ERROR"].includes(raw?.severity) ? raw.severity : "INFO",
+        suggestedAction:["NONE","LIVE_SIGNAL","STATUS","DIAGNOSTICS"].includes(raw?.action) ? raw.action : "NONE",
+        dataAgeSeconds:snapshot?.created_at ? Math.max(0,Math.round((Date.now()-new Date(snapshot.created_at).getTime())/1000)) : null,
+        finalDecision:snapshotPayload?.finalDecision || snapshot?.final_decision || null,
+        readOnly:true, automaticTrading:false,
+      });
+    } catch (error) {
+      return response({success:false,error:error?.message || "TradeMind AI Copilot failed.",readOnly:true,automaticTrading:false},500);
+    }
+  }
+
   if (
     path === "/api/ai/scheduled-scan" &&
     method === "POST"
@@ -2180,7 +2283,6 @@ async function handle(req) {
         persist: true,
       });
       const perpDurationMs = Date.now() - perpStartedAt;
-      const perpPushStatus = pushNotification?.sent ? "SENT" : pushNotification?.skipped ? String(pushNotification.reason || "SKIPPED") : pushNotification?.error ? "ERROR" : "NOT_TRIGGERED";
 
       if (payload?.persistenceError) {
         return response({
