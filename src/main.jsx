@@ -6416,18 +6416,46 @@ function Positions(){
       loadPositions();
     };
 
+    const refreshLivePnl = async () => {
+      try {
+        const result = await fetchLivePositions();
+        const live = Array.isArray(result?.positions) ? result.positions : [];
+        if (!live.length) return;
+
+        setPositions(previous =>
+          previous.map(position => {
+            const symbol = String(position?.symbol || "").toUpperCase();
+            const side = String(position?.side || position?.direction || "").toUpperCase();
+            const match = live.find(item =>
+              String(item?.symbol || "").toUpperCase() === symbol &&
+              String(item?.side || item?.direction || "").toUpperCase() === side
+            );
+            if (!match) return position;
+
+            return {
+              ...position,
+              currentPrice: match.currentPrice ?? match.markPrice ?? position.currentPrice,
+              markPrice: match.markPrice ?? match.currentPrice ?? position.markPrice,
+              unrealizedPnl: match.unrealizedPnl ?? position.unrealizedPnl,
+              unrealizedPnlPercent: match.unrealizedPnlPercent ?? position.unrealizedPnlPercent,
+              quantity: match.quantity ?? position.quantity,
+            };
+          })
+        );
+      } catch (error) {
+        console.warn("Live PNL refresh failed:", error);
+      }
+    };
+
     window.addEventListener(
       "trademindmz-position-updated",
       onPositionUpdated
     );
 
-    const timer = setInterval(() => {
-      setAi({});
-      loadPositions();
-    }, 7 * 60 * 1000);
+    const pnlTimer = setInterval(refreshLivePnl, 15 * 1000);
 
     return () => {
-      clearInterval(timer);
+      clearInterval(pnlTimer);
       window.removeEventListener(
         "trademindmz-position-updated",
         onPositionUpdated
