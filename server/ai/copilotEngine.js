@@ -96,7 +96,11 @@ export async function runCopilot({markets=[],position=null,preferredProvider=nul
   return result;
 }
 
-export function getCopilotEvidenceSnapshot({ limit = 5000, candidate = null } = {}) {\n  return getCopilotEvidence({ limit, candidate });\n}\n\nexport async function getCopilotLearningStats() {
+export function getCopilotEvidenceSnapshot({ limit = 5000, candidate = null } = {}) {
+  return getCopilotEvidence({ limit, candidate });
+}
+
+export async function getCopilotLearningStats() {
   try {
     const supabase=getSupabaseClient();
     const { data, error }=await supabase.from("ai_copilot_learning_stats").select("*").single();
