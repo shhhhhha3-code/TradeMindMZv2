@@ -143,7 +143,7 @@ const handleDashboardTradeSelect=(recommendation)=>{
 const updateAiSetting=(key,value)=>{const next={...aiSettings,[key]:value};setAiSettings(next);localStorage.setItem('trademindmz-ai-settings',JSON.stringify(next));if(key==="pushNotifications"){setQualifiedTradeNotificationsEnabled(value).catch(error=>console.warn("TradeMindMZ push preference update failed:",error));}};const nav=[['dashboard','Dashboard',LayoutDashboard],['signals','AI Signals',BrainCircuit],['positions','Live Positions',Activity],['market','Market Overview',LineChart],['history','Signal History',History]];return <div className="app" data-tm-theme={aiSettings.theme || "lime"}><aside className={open?'side open':'side'}><div className="sidehead"><Logo/><button onClick={()=>setOpen(false)}><X/></button></div><div className="online"><i/> <div><b>AI ENGINE ONLINE</b><small>Learning from market history</small></div></div><nav>{nav.map(([id,label,I])=><button className={tab===id?'active':''} onClick={()=>{setTab(id);setOpen(false)}} key={id}><I/><span>{label}</span>{id==='positions'&&<em>{trackedPositions.filter(p=>p.status==='LIVE').length}</em>}</button>)}</nav><div className="bottom"><button><ShieldCheck/><span>Pionex Connection</span><i/></button><button onClick={()=>{setTab('settings');setOpen(false)}}><Settings/><span>Settings</span></button></div></aside>{open&&<div className="back" onClick={()=>setOpen(false)}/>}
 <main><header><button className="hamb" onClick={()=>setOpen(true)}><Menu/></button><div className="mobilelogo"><Logo/></div><div className="title"><small>TRADEMINDMZ</small><b>{tab==='signals'?'AI Signals':tab==='positions'?'Live Positions':tab==='market'?'Market Overview':tab==='history'?'Signal History':tab==='settings'?'Settings':'Dashboard'}</b></div><div className="actions"><span className="live"><i/> AI LIVE</span><button className="bell"><Bell/></button><button className="avatar">MZ</button></div></header><section>
 {tab==='signals'
-  ? <SignalsErrorBoundary><Signals bought={bought} setBought={setBought} setManualPurchaseOpen={setManualPurchaseOpen} setPurchaseDefaults={setPurchaseDefaults}/></SignalsErrorBoundary>
+  ? <div className="tmz-signals-shell"><SignalsErrorBoundary><Signals bought={bought} setBought={setBought} setManualPurchaseOpen={setManualPurchaseOpen} setPurchaseDefaults={setPurchaseDefaults}/></SignalsErrorBoundary></div>
   : tab==='positions'
     ? <Positions/>
     : tab==='settings'
@@ -5378,7 +5378,7 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
         </div>
 
         <button
-          className="refresh"
+          className="refresh tmz-signal-refresh"
           onClick={() => refresh(true)}
           disabled={loading || refreshing}
         >
@@ -5502,6 +5502,7 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
               <div>
                 <small>AI CONFIDENCE</small>
                 <b>{confidence > 0 ? confidence + "%" : "—"}</b>
+                <em className="tmz-confidence-note">MODEL CONFIDENCE · NOT TRADE APPROVAL</em>
               </div>
               <div className="meter">
                 <i style={{width:Math.max(0,Math.min(100,confidence))+"%"}}/>
