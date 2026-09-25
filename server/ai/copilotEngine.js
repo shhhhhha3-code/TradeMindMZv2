@@ -6,6 +6,7 @@ import { calculateCopilotEvidence, getCopilotEvidence } from "./copilotEvidence.
 import { calculateIntelligence, getCopilotIntelligence } from "./copilotIntelligence.js";
 import { reconcileCopilotDecisionMemory, getCopilotDecisionMemoryStats } from "./copilotDecisionMemory.js";
 import crypto from "node:crypto";
+import { getAdaptiveStrategyIntelligence } from "./adaptiveStrategyIntelligence.js";
 
 const ACTIONS = { TRADE:"TRADE", WATCH:"WATCH", NO_TRADE:"NO_TRADE", PROTECT:"PROTECT", EXIT_REVIEW:"EXIT_REVIEW" };
 
@@ -66,7 +67,10 @@ async function saveCopilotDecision(result) {
       position_review: result.positionReview ?? null,
       ai_result: result.ai ?? null,
       candidates: result.candidates ?? [],
-      source: "COPILOT_V2.2",
+      direction: result.candidates?.find(c => String(c.symbol).toUpperCase() === String(result.symbol).toUpperCase())?.direction ?? null,
+      factor_pass_count: result.deterministic?.factors?.filter(f => f.state === "PASS").length ?? null,
+      strategy_signature: [result.regime, result.risk, result.candidates?.find(c => String(c.symbol).toUpperCase() === String(result.symbol).toUpperCase())?.direction ?? "UNKNOWN", result.candidates?.find(c => String(c.symbol).toUpperCase() === String(result.symbol).toUpperCase())?.engineScore ?? "UNKNOWN"].join("|"),
+      source: "COPILOT_V2.4",
     });
     if (error) throw error;
     return true;
@@ -99,10 +103,12 @@ export async function runCopilot({markets=[],position=null,preferredProvider=nul
   const evidence = calculateCopilotEvidence(selected, learning.history);
   const rawConfidence = finite(ai.confidence, 0);
   const intelligence = calculateIntelligence(learning.history, selected, rawConfidence);
-  const totalAdjustment = Math.max(-12, Math.min(12, finite(evidence.adjustment, 0) + finite(intelligence.adjustment, 0)));
+  const strategyCandidate = { ...selected, regime: regime(candidates) };
+  const strategy = await getAdaptiveStrategyIntelligence(getSupabaseClient(), strategyCandidate, 5000);
+  const totalAdjustment = Math.max(-15, Math.min(15, finite(evidence.adjustment, 0) + finite(intelligence.adjustment, 0) + finite(strategy.adjustment, 0)));
   const effectiveConfidence = Math.max(0, Math.min(100, rawConfidence + totalAdjustment));
   if (action === ACTIONS.TRADE && effectiveConfidence < 80) action = ACTIONS.WATCH;
-  const result={success:true,copilotVersion:"2.2",action,symbol:selected?.symbol??null,regime:regime(candidates),confidence:Number(effectiveConfidence.toFixed(2)),confidenceRaw:Number(rawConfidence.toFixed(2)),confidenceAdjustment:Number(totalAdjustment.toFixed(2)),risk:ai.risk??selected?.risk?.level??"HIGH",evidence,intelligence,deterministic:{engineScore:selected?.engineScore??null,reasons:selected?.risk?.reasons??[],factors:factorState(selected)},ai,positionReview,explanation:buildExplanation(selected,action),candidates,generatedAt:new Date().toISOString(),execution:"READ_ONLY"};
+  const result={success:true,copilotVersion:"2.4",action,symbol:selected?.symbol??null,regime:regime(candidates),confidence:Number(effectiveConfidence.toFixed(2)),confidenceRaw:Number(rawConfidence.toFixed(2)),confidenceAdjustment:Number(totalAdjustment.toFixed(2)),risk:ai.risk??selected?.risk?.level??"HIGH",evidence,intelligence,strategy,deterministic:{engineScore:selected?.engineScore??null,reasons:selected?.risk?.reasons??[],factors:factorState(selected)},ai,positionReview,explanation:buildExplanation(selected,action),candidates,generatedAt:new Date().toISOString(),execution:"READ_ONLY"};
   result.historySaved=await saveCopilotDecision(result);
   result.decisionMemory = { status: "PENDING", mode: "PAPER_ONLY", decisionId: result.decisionId ?? null };
   return result;
