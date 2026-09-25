@@ -4,6 +4,8 @@ import { getSupabaseClient } from "../supabase/client.js";
 import { getPaperLearning } from "../paper/paperLearning.js";
 import { calculateCopilotEvidence, getCopilotEvidence } from "./copilotEvidence.js";
 import { calculateIntelligence, getCopilotIntelligence } from "./copilotIntelligence.js";
+import { reconcileCopilotDecisionMemory, getCopilotDecisionMemoryStats } from "./copilotDecisionMemory.js";
+import crypto from "node:crypto";
 
 const ACTIONS = { TRADE:"TRADE", WATCH:"WATCH", NO_TRADE:"NO_TRADE", PROTECT:"PROTECT", EXIT_REVIEW:"EXIT_REVIEW" };
 
@@ -48,7 +50,11 @@ function buildExplanation(candidate, action) {
 async function saveCopilotDecision(result) {
   try {
     const supabase = getSupabaseClient();
+    const decisionId = `copilot_${Date.now()}_${crypto.randomBytes(4).toString("hex")}`;
+    result.decisionId = decisionId;
     const { error } = await supabase.from("ai_copilot_history").insert({
+      decision_id: decisionId,
+      outcome_status: "PENDING",
       symbol: result.symbol,
       action: result.action,
       confidence: result.confidence,
@@ -60,6 +66,7 @@ async function saveCopilotDecision(result) {
       position_review: result.positionReview ?? null,
       ai_result: result.ai ?? null,
       candidates: result.candidates ?? [],
+      source: "COPILOT_V2.2",
     });
     if (error) throw error;
     return true;
@@ -70,6 +77,7 @@ async function saveCopilotDecision(result) {
 }
 
 export async function runCopilot({markets=[],position=null,preferredProvider=null,candidateLimit=5}={}) {
+  await reconcileCopilotDecisionMemory({ limit: 500 });
   const candidates = buildCandidates(markets,{limit:candidateLimit});
   const ai = await runAIDecisionLayer(candidates,{preferredProvider});
   let action = ai.decision === "TRADE" ? ACTIONS.TRADE : ai.decision === "WATCH" ? ACTIONS.WATCH : ACTIONS.NO_TRADE;
@@ -96,6 +104,7 @@ export async function runCopilot({markets=[],position=null,preferredProvider=nul
   if (action === ACTIONS.TRADE && effectiveConfidence < 80) action = ACTIONS.WATCH;
   const result={success:true,copilotVersion:"2.2",action,symbol:selected?.symbol??null,regime:regime(candidates),confidence:Number(effectiveConfidence.toFixed(2)),confidenceRaw:Number(rawConfidence.toFixed(2)),confidenceAdjustment:Number(totalAdjustment.toFixed(2)),risk:ai.risk??selected?.risk?.level??"HIGH",evidence,intelligence,deterministic:{engineScore:selected?.engineScore??null,reasons:selected?.risk?.reasons??[],factors:factorState(selected)},ai,positionReview,explanation:buildExplanation(selected,action),candidates,generatedAt:new Date().toISOString(),execution:"READ_ONLY"};
   result.historySaved=await saveCopilotDecision(result);
+  result.decisionMemory = { status: "PENDING", mode: "PAPER_ONLY", decisionId: result.decisionId ?? null };
   return result;
 }
 
@@ -114,7 +123,7 @@ export function getCopilotEvidenceSnapshot({
   });
 }
 
-export async function getCopilotLearningStats() {
+export async function reconcileCopilotMemory() {\n  return reconcileCopilotDecisionMemory({ limit: 1000 });\n}\n\nexport async function getCopilotMemoryStats() {\n  return getCopilotDecisionMemoryStats();\n}\n\nexport async function getCopilotLearningStats() {
   try {
     const supabase=getSupabaseClient();
     const { data, error }=await supabase.from("ai_copilot_learning_stats").select("*").single();
