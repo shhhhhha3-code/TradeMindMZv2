@@ -9,7 +9,7 @@
     "preview": "vite preview",
     "server": "node server/index.js",
     "test:smoke": "node --test tests/production-smoke.test.js",
-    "test:copilot": "node --test tests/ai-copilot-ci.test.js tests/copilot-evidence.test.js"
+    "test:copilot": "node --test tests/ai-copilot-ci.test.js tests/copilot-evidence.test.js tests/copilot-intelligence.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.4",
