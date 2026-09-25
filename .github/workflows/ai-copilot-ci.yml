@@ -1,0 +1,61 @@
+name: AI Copilot CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feature/**"
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Start backend
+        run: |
+          nohup npm run server > /tmp/trademind-server.log 2>&1 &
+          echo $! > /tmp/trademind-server.pid
+
+      - name: Wait for backend
+        run: |
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:3001/api/health > /tmp/health.json; then
+              cat /tmp/health.json
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Backend did not become ready."
+          cat /tmp/trademind-server.log || true
+          exit 1
+
+      - name: AI Copilot smoke test
+        run: npm run test:copilot
+
+      - name: Show backend log on failure
+        if: failure()
+        run: cat /tmp/trademind-server.log || true
+
+      - name: Stop backend
+        if: always()
+        run: |
+          if [ -f /tmp/trademind-server.pid ]; then
+            kill "$(cat /tmp/trademind-server.pid)" || true
+          fi
