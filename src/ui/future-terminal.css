@@ -2501,3 +2501,176 @@ body{
     opacity:.12!important;
   }
 }
+
+
+/* ==========================================================
+   TRADEMINDMZ — AI NEURAL COMMAND / NEXT VISUAL PASS
+   Visual-only. Preserve all existing logic and interactions.
+   ========================================================== */
+
+/* Global AI command atmosphere */
+.app[data-tm-theme] main{
+  position:relative!important;
+}
+.app[data-tm-theme] main::before{
+  content:"AI NEURAL FIELD  //  LIVE TELEMETRY"!important;
+  position:fixed!important;
+  top:74px!important;
+  right:28px!important;
+  z-index:0!important;
+  color:rgba(85,223,255,.13)!important;
+  font:700 7px/10px Inter,system-ui,sans-serif!important;
+  letter-spacing:.24em!important;
+  pointer-events:none!important;
+}
+
+/* Diagnostics / settings panels: make each module feel connected */
+.app[data-tm-theme] .panel{
+  overflow:hidden!important;
+}
+.app[data-tm-theme] .panel::after{
+  opacity:.42!important;
+}
+.app[data-tm-theme] .panel::before{
+  opacity:.48!important;
+}
+
+/* Tiny AI node on module headers */
+.app[data-tm-theme] .settinghead{
+  position:relative!important;
+}
+.app[data-tm-theme] .settinghead::before{
+  content:""!important;
+  width:6px!important;
+  height:6px!important;
+  border-radius:50%!important;
+  position:absolute!important;
+  left:-13px!important;
+  top:7px!important;
+  background:var(--tmz-ai-cyan)!important;
+  box-shadow:0 0 10px rgba(85,223,255,.75)!important;
+}
+
+/* Give diagnostic/status modules distinct subsystem accents */
+.app[data-tm-theme] .panel .status{
+  position:relative!important;
+  letter-spacing:.06em!important;
+  font-weight:800!important;
+}
+.app[data-tm-theme] .panel .status::before{
+  content:""!important;
+  position:absolute!important;
+  inset:-5px!important;
+  border-radius:inherit!important;
+  border:1px solid rgba(85,223,255,.045)!important;
+  pointer-events:none!important;
+}
+
+/* Numbers become telemetry readouts */
+.app[data-tm-theme] .panel .meta b{
+  font-variant-numeric:tabular-nums!important;
+  text-shadow:0 0 9px rgba(85,223,255,.08)!important;
+}
+
+/* AI-style separators */
+.app[data-tm-theme] .panel hr{
+  border:0!important;
+  border-top:1px solid rgba(85,223,255,.07)!important;
+  position:relative!important;
+}
+.app[data-tm-theme] .panel hr::after{
+  content:""!important;
+  position:absolute!important;
+  right:0!important;
+  top:-1px!important;
+  width:36px!important;
+  height:1px!important;
+  background:linear-gradient(90deg,transparent,var(--tmz-ai-cyan))!important;
+  box-shadow:0 0 8px rgba(85,223,255,.4)!important;
+}
+
+/* AI core title treatment */
+.app[data-tm-theme] .tmz-ai-panel .tmz-panel-header h2{
+  display:flex!important;
+  align-items:center!important;
+  gap:9px!important;
+}
+.app[data-tm-theme] .tmz-ai-panel .tmz-panel-header h2::before{
+  content:"AI"!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:24px!important;
+  height:16px!important;
+  border:1px solid rgba(85,223,255,.25)!important;
+  border-radius:4px!important;
+  color:#8eeeff!important;
+  background:rgba(85,223,255,.05)!important;
+  font:800 7px/1 Inter,system-ui,sans-serif!important;
+  letter-spacing:.12em!important;
+  box-shadow:0 0 14px rgba(85,223,255,.04)!important;
+}
+
+/* Add a calm scan to the primary AI core */
+.app[data-tm-theme] .tmz-ai-panel{
+  background-size:auto,auto,auto,100% 100%!important;
+}
+.app[data-tm-theme] .tmz-ai-panel .tmz-decision-box{
+  position:relative!important;
+  overflow:hidden!important;
+}
+.app[data-tm-theme] .tmz-ai-panel .tmz-decision-box::after{
+  content:""!important;
+  position:absolute!important;
+  left:0!important;
+  top:-30%!important;
+  width:100%!important;
+  height:1px!important;
+  background:linear-gradient(90deg,transparent,rgba(85,223,255,.55),transparent)!important;
+  box-shadow:0 0 14px rgba(85,223,255,.35)!important;
+  animation:tmz-ai-scanline 5.5s ease-in-out infinite!important;
+  pointer-events:none!important;
+}
+@keyframes tmz-ai-scanline{
+  0%,25%{top:-5%;opacity:0}
+  35%{opacity:.8}
+  72%{top:105%;opacity:.45}
+  82%,100%{top:115%;opacity:0}
+}
+
+/* Holographic confidence / metric emphasis */
+.app[data-tm-theme] .tmz-ai-stats>div,
+.app[data-tm-theme] .tmz-feature-metrics>div{
+  position:relative!important;
+  overflow:hidden!important;
+}
+.app[data-tm-theme] .tmz-ai-stats>div::after,
+.app[data-tm-theme] .tmz-feature-metrics>div::after{
+  content:""!important;
+  position:absolute!important;
+  left:10px!important;
+  right:10px!important;
+  bottom:0!important;
+  height:1px!important;
+  background:linear-gradient(90deg,transparent,rgba(85,223,255,.22),transparent)!important;
+}
+
+/* Mobile: remove decorative upper-right label where space is tight */
+@media(max-width:560px){
+  .app[data-tm-theme] main::before{
+    display:none!important;
+  }
+  .app[data-tm-theme] .settinghead::before{
+    left:-9px!important;
+  }
+  .app[data-tm-theme] .tmz-ai-panel .tmz-decision-box::after{
+    animation-duration:7s!important;
+  }
+}
+
+/* Reduced motion */
+@media(prefers-reduced-motion:reduce){
+  .app[data-tm-theme] .tmz-ai-panel .tmz-decision-box::after{
+    animation:none!important;
+  }
+}
