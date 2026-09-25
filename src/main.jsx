@@ -301,8 +301,8 @@ const updateAiSetting=(key,value)=>{const next={...aiSettings,[key]:value};setAi
       ? <SettingsPage settings={aiSettings} updateSetting={updateAiSetting}/>
       : tab==='dashboard'
         ? <>
-            <TradePerformanceLearningPanel/>
             <ProDashboard onSelectTrade={handleDashboardTradeSelect}/>
+            <TradePerformanceLearningPanel/>
           </>
         : tab==='market'
           ? <MarketOverview/>
