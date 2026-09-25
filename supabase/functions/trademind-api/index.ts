@@ -2304,14 +2304,38 @@ async function handle(req) {
       const marketType = String(body?.marketType || "PERP").toUpperCase() === "SPOT" ? "SPOT" : "PERP";
       const action = String(body?.action || "ASK").toUpperCase();
       const userMessage = String(body?.message || "").trim().slice(0, 700);
-      const allowedActions = new Set(["ASK", "LIVE_SIGNAL", "BEST_SETUP", "STATUS", "DIAGNOSTICS"]);
-      if (!allowedActions.has(action)) return response({ success:false, error:"Unsupported AI Copilot action." },400);
+      const allowedActions = new Set([
+        "ASK",
+        "LIVE_SIGNAL",
+        "BEST_SETUP",
+        "WHAT_NOW",
+        "POSITION_CHECK",
+        "DEEP_ANALYSIS",
+        "STATUS",
+        "DIAGNOSTICS",
+      ]);
+      if (!allowedActions.has(action)) {
+        return response({ success:false, error:"Unsupported AI Copilot action." },400);
+      }
+
+      const leverage = marketType === "SPOT" ? 1 : 3;
+      const needsFreshScan =
+        action === "LIVE_SIGNAL" ||
+        action === "BEST_SETUP" ||
+        action === "WHAT_NOW" ||
+        action === "DEEP_ANALYSIS";
 
       let snapshot = null;
-      if (action === "LIVE_SIGNAL" || action === "BEST_SETUP") {
+      if (needsFreshScan) {
         snapshot = await runLiveAiAnalysis({
-          interval:"15M", candleLimit:100, maxMarkets:25, marketType,
-          leverage:marketType === "SPOT" ? 1 : 3, provider:"groq", force:true, persist:true,
+          interval:"15M",
+          candleLimit:100,
+          maxMarkets:25,
+          marketType,
+          leverage,
+          provider:"groq",
+          force:true,
+          persist:true,
         });
       } else {
         const { data } = await admin
@@ -2319,15 +2343,23 @@ async function handle(req) {
           .select("market_type,interval,leverage,scanned,candidates,ai_decision,final_decision,provider,next_analysis_at,payload,created_at")
           .eq("market_type",marketType)
           .eq("interval","15M")
-          .eq("leverage",marketType === "SPOT" ? 1 : 3)
+          .eq("leverage",leverage)
           .order("created_at",{ascending:false})
           .limit(1)
           .maybeSingle();
         snapshot = data || null;
       }
 
+      let livePositions = [];
+      let positionFeedError = null;
+      try {
+        livePositions = normalizePositions(await getOpenPositions());
+      } catch (positionError) {
+        positionFeedError = positionError?.message || String(positionError);
+      }
+
       let diagnostics = null;
-      if (action === "STATUS" || action === "DIAGNOSTICS" || action === "ASK") {
+      if (action === "STATUS" || action === "DIAGNOSTICS" || action === "ASK" || action === "WHAT_NOW" || action === "DEEP_ANALYSIS") {
         const { data } = await admin
           .from("trademind_scheduler_runs")
           .select("id,status,started_at,finished_at,duration_ms,perp_duration_ms,spot_duration_ms,monitoring_duration_ms,current_stage,position_monitoring_count,spot_monitoring_count,perp_scanned,perp_candidates,perp_provider,perp_decision,perp_push_status,spot_scanned,spot_candidates,spot_provider,spot_decision,spot_push_status,error")
@@ -2337,17 +2369,15 @@ async function handle(req) {
         diagnostics = data || null;
       }
 
-      const key = Deno.env.get("OPENAI_API_KEY");
-      if (!key) throw new Error("OpenAI API key is not configured. Add OPENAI_API_KEY to the Supabase Edge Function secrets.");
-
-      const provider = "openai";
-      const endpoint = "https://api.openai.com/v1/responses";
-      const model = Deno.env.get("OPENAI_COPILOT_MODEL") || Deno.env.get("OPENAI_MODEL") || "gpt-5.6-luna";
+      let performanceSummary = null;
+      try {
+        performanceSummary = await getTradePerformanceSummary(admin);
+      } catch (performanceError) {
+        console.warn("Copilot performance summary unavailable:", performanceError?.message || performanceError);
+      }
 
       const snapshotPayload = snapshot?.payload || snapshot || null;
 
-      // Keep Copilot context deliberately small. The persisted snapshot contains
-      // full market/candle/candidate payloads that can exceed provider TPM limits.
       const compactCandidate = (candidate) => {
         if (!candidate || typeof candidate !== "object") return null;
         return {
@@ -2360,23 +2390,51 @@ async function handle(req) {
           takeProfit: candidate.takeProfit ?? null,
           riskReward: candidate.riskReward ?? null,
           change24h: candidate.change24h ?? candidate.priceChange24h ?? null,
+          rsi: candidate.rsi ?? candidate.indicators?.rsi14 ?? null,
+          volumeRatio: candidate.volumeRatio ?? candidate.indicators?.volumeRatio ?? null,
+        };
+      };
+
+      const compactPosition = (position) => {
+        if (!position || typeof position !== "object") return null;
+        return {
+          symbol: position.symbol || null,
+          side: position.side || position.direction || null,
+          quantity: position.quantity ?? null,
+          entryPrice: position.entryPrice ?? null,
+          currentPrice: position.currentPrice ?? position.markPrice ?? null,
+          unrealizedPnl: position.unrealizedPnl ?? null,
+          unrealizedPnlPercent: position.unrealizedPnlPercent ?? null,
+          leverage: position.leverage ?? null,
+          margin: position.margin ?? null,
+          liquidationPrice: position.liquidationPrice ?? null,
+          status: position.status || "OPEN",
         };
       };
 
       const compactSnapshot = snapshotPayload ? {
         marketType: snapshotPayload.marketType || snapshot?.market_type || marketType,
         interval: snapshotPayload.interval || snapshot?.interval || "15M",
-        leverage: snapshotPayload.leverage ?? snapshot?.leverage ?? (marketType === "SPOT" ? 1 : 3),
+        leverage: snapshotPayload.leverage ?? snapshot?.leverage ?? leverage,
         scanned: snapshotPayload.scanned ?? snapshot?.scanned ?? null,
         createdAt: snapshot?.created_at || snapshotPayload.createdAt || snapshotPayload.updatedAt || null,
         persistedAt: snapshotPayload.persistedAt || null,
         updatedAt: snapshotPayload.updatedAt || null,
+        marketRegime: snapshotPayload.marketRegime?.regime || null,
+        marketRegimeDetail: snapshotPayload.marketRegime ? {
+          change24h: snapshotPayload.marketRegime.change24h ?? null,
+          emaAligned: snapshotPayload.marketRegime.emaAligned ?? null,
+          score: snapshotPayload.marketRegime.score ?? null,
+        } : null,
         finalDecision: snapshotPayload.finalDecision || snapshot?.final_decision || "NO_TRADE",
         aiDecision: snapshotPayload.aiDecision ? {
           decision: snapshotPayload.aiDecision.decision || null,
           confidence: snapshotPayload.aiDecision.confidence ?? null,
           provider: snapshotPayload.aiDecision.provider || snapshot?.provider || null,
           reasoning: String(snapshotPayload.aiDecision.reasoning || "").slice(0, 900),
+          engineReasons: Array.isArray(snapshotPayload.aiDecision.engineReasons)
+            ? snapshotPayload.aiDecision.engineReasons.slice(0, 8)
+            : [],
         } : {
           decision: snapshot?.ai_decision || null,
           provider: snapshot?.provider || null,
@@ -2388,7 +2446,11 @@ async function handle(req) {
         criteria: snapshotPayload.criteria ? {
           passed: snapshotPayload.criteria.passed ?? null,
           failedChecks: Array.isArray(snapshotPayload.criteria.failedChecks)
-            ? snapshotPayload.criteria.failedChecks.slice(0, 8).map(String)
+            ? snapshotPayload.criteria.failedChecks.slice(0, 8).map((check) =>
+                typeof check === "object"
+                  ? { key: check.key, label: check.label, actual: check.actual, target: check.target, operator: check.operator }
+                  : String(check)
+              )
             : [],
         } : null,
       } : null;
@@ -2417,41 +2479,22 @@ async function handle(req) {
         error: diagnostics.error ? String(diagnostics.error).slice(0, 700) : null,
       } : null;
 
-      const systemPrompt = [
-        "You are TradeMind AI Copilot inside TradeMindMZ.",
-        "You are a real-time market intelligence and system operations assistant.",
-        "Use ONLY the supplied TradeMindMZ context. Never invent prices, scores, trades, diagnostics, timestamps, providers, or system states.",
-        "For trade questions, describe the current configured TradeMindMZ signal and its evidence. Do not place trades and do not claim guaranteed profit.",
-        "FINAL DECISION is authoritative: only call it a qualified trade when finalDecision is exactly TRADE. If it is NO_TRADE, clearly say it is not a confirmed trade.",
-        "AI confidence describes model confidence, not trade approval.",
-        "Distinguish engine score, AI confidence, and final decision.",
-        "For system questions, use scheduler telemetry and explicitly say when a value is unavailable.",
-        "When performance or learning data is supplied, summarize the 24h, 7d, and 30d results factually. Treat the learning layer as observational calibration only; never claim it has changed the trading engine unless the context explicitly says so.",
-        "Distinguish closed-trade results from current unrealized positions and never invent stop-loss events.",
-        "Keep answers concise, practical, and suitable for a mobile trading cockpit.",
-        'Return JSON only: {"answer":"...","headline":"...","severity":"INFO|SUCCESS|WARNING|ERROR","action":"NONE|LIVE_SIGNAL|STATUS|DIAGNOSTICS"}.'
-      ].join("\n");
-
-      let performanceSummary = null;
-      try {
-        performanceSummary = await getTradePerformanceSummary(supabaseAdmin());
-      } catch (performanceError) {
-        console.warn("Copilot performance summary unavailable:", performanceError?.message || performanceError);
-      }
-
       const compactPerformance = performanceSummary ? {
         status: performanceSummary.status,
         trend: performanceSummary.trend,
-        windows: Object.fromEntries(Object.entries(performanceSummary.windows || {}).map(([key, value]) => [key, {
-          closed: value.closed,
-          wins: value.wins,
-          losses: value.losses,
-          winRate: value.winRate,
-          netPnl: value.netPnl,
-          profitFactor: value.profitFactor,
-          averageConfidence: value.averageConfidence,
-          stopLossLike: value.stopLossLike,
-        }])),
+        windows: Object.fromEntries(
+          Object.entries(performanceSummary.windows || {}).map(([key, value]) => [key, {
+            closed: value.closed,
+            wins: value.wins,
+            losses: value.losses,
+            winRate: value.winRate,
+            netPnl: value.netPnl,
+            avgPnl: value.avgPnl,
+            profitFactor: value.profitFactor,
+            averageConfidence: value.averageConfidence,
+            stopLossLike: value.stopLossLike,
+          }])
+        ),
         learning: performanceSummary.learning ? {
           mode: performanceSummary.learning.mode,
           samples: performanceSummary.learning.samples,
@@ -2459,7 +2502,18 @@ async function handle(req) {
           averageConfidence: performanceSummary.learning.averageConfidence,
           confidenceGap: performanceSummary.learning.confidenceGap,
           trend: performanceSummary.learning.trend,
+          confidenceBuckets: performanceSummary.learning.confidenceBuckets || null,
         } : null,
+        recentLosses: Array.isArray(performanceSummary.recentLosses)
+          ? performanceSummary.recentLosses.slice(0, 5).map((loss) => ({
+              symbol: loss.symbol,
+              side: loss.side,
+              pnl: loss.pnl,
+              confidence: loss.confidence,
+              closeReason: loss.closeReason,
+              closedAt: loss.closedAt,
+            }))
+          : [],
       } : null;
 
       const context = {
@@ -2467,56 +2521,103 @@ async function handle(req) {
         marketType,
         userMessage,
         snapshot: compactSnapshot,
+        openPositions: livePositions.map(compactPosition).filter(Boolean),
+        positionFeedError,
         scheduler: compactScheduler,
         performance: compactPerformance,
-        safety: { readOnly:true, automaticTrading:false },
+        safety: {
+          readOnly:true,
+          automaticTrading:false,
+          noOrderPlacement:true,
+        },
       };
 
-      const openAiPayload = {
-        model,
-        tools:[{type:"web_search"}],
-        input:[
-          {role:"system",content:systemPrompt+"\\nYou have web search access. Use it for current external facts, news, market context, and anything the supplied TradeMind data cannot answer. Clearly distinguish web-sourced facts from TradeMind internal telemetry."},
-          {role:"user",content:JSON.stringify(context)}
-        ],
-        max_output_tokens:900,
-      };
+      const systemPrompt = [
+        "You are TradeMind AI Copilot V2 inside TradeMindMZ.",
+        "Act like a disciplined senior trading analyst and system-aware copilot, not a generic chatbot.",
+        "Your job is to turn supplied live TradeMindMZ telemetry into clear, conservative, actionable advice.",
+        "Use ONLY supplied TradeMindMZ data plus clearly identified web facts when web search is available. Never invent prices, scores, PNL, trades, diagnostics, timestamps, providers, indicators, positions, or historical results.",
+        "The Pionex position feed is authoritative for current open-position facts. Never replace reported unrealized PNL with an estimate when Pionex supplies it.",
+        "FINAL DECISION is authoritative for the configured TradeMindMZ signal: only describe a qualified trade when finalDecision is exactly TRADE. If it is NO_TRADE, say there is no confirmed TradeMindMZ trade.",
+        "AI confidence is model confidence, not a probability and not trade approval.",
+        "Engine score, AI confidence, trade criteria, final decision, and your advice are different concepts. Never merge them.",
+        "For an existing position, first assess current unrealized PNL, direction, entry/current price, risk levels if supplied, market regime, and current signal. Do not tell the user to add to a position unless the supplied evidence explicitly supports it.",
+        "If a position is losing and the supplied data shows weakening confirmation or elevated risk, explain the risk clearly and consider REDUCE_RISK or EXIT_CONSIDERATION. Do not invent an exit trigger.",
+        "If a position is profitable but confirmation is weakening, distinguish HOLD from taking action and explain the evidence.",
+        "WAIT is a valid and often preferable recommendation when evidence conflicts, data is stale, or risk/reward is inadequate.",
+        "For 'what should I do now' questions, prioritize the user's current open positions first, then the strongest current setup, then explain if no action is warranted.",
+        "For BEST_SETUP, compare the supplied TOP candidates using score, confidence, direction, RSI, volume, risk/reward, market regime, and criteria. Do not choose a winner if the data is insufficient; say so.",
+        "For DEEP_ANALYSIS, synthesize market regime, current signal, open positions, risk, recent performance, and historical confidence calibration. Be explicit about conflicts and uncertainty.",
+        "For performance, summarize 24h, 7d and 30d results factually. Treat learning as observational calibration only; never claim the model weights or engine thresholds changed unless explicitly supplied.",
+        "Recent losses are context, not proof of what will happen next.",
+        "Do not use past performance to promise future returns.",
+        "If web search is available, use it only for current external facts/news/market context that are not contained in TradeMindMZ telemetry. Clearly label web-sourced facts versus internal TradeMindMZ data.",
+        "Never place trades, never provide guaranteed profit claims, and never imply automatic execution.",
+        "Return JSON only with this exact shape: {"answer":"...","headline":"...","severity":"INFO|SUCCESS|WARNING|ERROR","action":"NONE|LIVE_SIGNAL|BEST_SETUP|WHAT_NOW|POSITION_CHECK|DEEP_ANALYSIS|STATUS|DIAGNOSTICS","advice":"WAIT|HOLD|CONSIDER_TRADE|REDUCE_RISK|EXIT_CONSIDERATION|NO_ACTION","confidence":0,"keyFactors":["..."],"risks":["..."]}.",
+        "Keep answer concise but substantive: normally 3-7 sentences. keyFactors and risks should each contain at most 4 short items.",
+      ].join("\n");
 
-      let providerUsed = provider;
+      const openAiKey = Deno.env.get("OPENAI_API_KEY");
+      const model = Deno.env.get("OPENAI_COPILOT_MODEL") || Deno.env.get("OPENAI_MODEL") || "gpt-5.6-luna";
+
+      let providerUsed = "openai";
       let webSearchUsed = true;
-      let raw;
+      let raw = null;
       let outputText = "";
 
-      const res = await fetch(endpoint,{
-        method:"POST",
-        headers:{"Content-Type":"application/json",Authorization:"Bearer "+key},
-        body:JSON.stringify(openAiPayload),
-      });
-      const text = await res.text();
+      if (openAiKey) {
+        const openAiPayload = {
+          model,
+          tools:[{type:"web_search"}],
+          input:[
+            {
+              role:"system",
+              content:systemPrompt + "\nYou have web search access. Use it selectively; do not search when the supplied live telemetry is sufficient."
+            },
+            {role:"user",content:JSON.stringify(context)}
+          ],
+          max_output_tokens:1100,
+        };
 
-      if (res.ok) {
-        const parsed = JSON.parse(text);
-        outputText = String(parsed.output_text || parsed.output?.flatMap(item=>item.content||[]).filter(part=>part.type==="output_text").map(part=>part.text).join("\\n") || "").trim();
-        raw = {answer:outputText || "I could not produce an answer from the available TradeMindMZ data.",headline:"TRADEMIND AI",severity:"INFO",action:"NONE"};
-        try { raw = JSON.parse(outputText); } catch {}
-      } else {
-        let openAiError = null;
-        try { openAiError = JSON.parse(text)?.error; } catch {}
-        const quotaExhausted = res.status === 429 && (
-          openAiError?.code === "credit_balance_exhausted" ||
-          /no credits remaining|insufficient.*quota/i.test(String(openAiError?.message || text))
-        );
+        const res = await fetch("https://api.openai.com/v1/responses",{
+          method:"POST",
+          headers:{"Content-Type":"application/json",Authorization:"Bearer "+openAiKey},
+          body:JSON.stringify(openAiPayload),
+        });
+        const text = await res.text();
 
-        if (!quotaExhausted) {
-          throw new Error(provider+" request failed: "+res.status+" "+text.slice(0,360));
+        if (res.ok) {
+          const parsed = JSON.parse(text);
+          outputText = String(
+            parsed.output_text ||
+            parsed.output?.flatMap(item=>item.content||[])
+              .filter(part=>part.type==="output_text")
+              .map(part=>part.text)
+              .join("\n") ||
+            ""
+          ).trim();
+          try { raw = JSON.parse(outputText); } catch {}
+        } else {
+          let openAiError = null;
+          try { openAiError = JSON.parse(text)?.error; } catch {}
+          const quotaExhausted = res.status === 429 && (
+            openAiError?.code === "credit_balance_exhausted" ||
+            /no credits remaining|insufficient.*quota/i.test(String(openAiError?.message || text))
+          );
+          if (!quotaExhausted) {
+            throw new Error("OpenAI request failed: "+res.status+" "+text.slice(0,360));
+          }
         }
+      }
 
-        // Keep the Copilot usable when OpenAI billing credits are exhausted.
-        // Groq fallback does not provide web search; the response explicitly
-        // reports that fallback so the UI never implies live web access.
+      if (!raw) {
         const groqKey = Deno.env.get("GROQ_API_KEY");
         if (!groqKey) {
-          throw new Error("OpenAI credits are exhausted and no Groq fallback is configured.");
+          throw new Error(
+            openAiKey
+              ? "OpenAI credits are exhausted and no Groq fallback is configured."
+              : "No AI provider is configured for TradeMind AI Copilot."
+          );
         }
 
         providerUsed = "groq";
@@ -2529,30 +2630,79 @@ async function handle(req) {
             temperature:0.1,
             response_format:{type:"json_object"},
             messages:[
-              {role:"system",content:systemPrompt+"\\nOpenAI web search is unavailable because its API quota is exhausted. Do not claim to have browsed the internet."},
+              {
+                role:"system",
+                content:systemPrompt+"\nOpenAI web search is unavailable. Do not claim to have browsed the internet or cite web facts."
+              },
               {role:"user",content:JSON.stringify(context)}
             ],
           }),
         });
         const groqText = await groqRes.text();
-        if (!groqRes.ok) throw new Error("OpenAI credits exhausted; Groq fallback failed: "+groqRes.status+" "+groqText.slice(0,300));
+        if (!groqRes.ok) {
+          throw new Error("TradeMind AI fallback failed: "+groqRes.status+" "+groqText.slice(0,300));
+        }
         const groqParsed = JSON.parse(groqText);
         outputText = String(groqParsed.choices?.[0]?.message?.content || "").trim();
-        raw = JSON.parse(outputText || "{}");
+        try { raw = JSON.parse(outputText || "{}"); } catch {}
       }
 
+      const allowedAdvice = new Set([
+        "WAIT",
+        "HOLD",
+        "CONSIDER_TRADE",
+        "REDUCE_RISK",
+        "EXIT_CONSIDERATION",
+        "NO_ACTION",
+      ]);
+      const allowedActions = new Set([
+        "NONE",
+        "LIVE_SIGNAL",
+        "BEST_SETUP",
+        "WHAT_NOW",
+        "POSITION_CHECK",
+        "DEEP_ANALYSIS",
+        "STATUS",
+        "DIAGNOSTICS",
+      ]);
+
+      const confidence = Math.max(
+        0,
+        Math.min(100, Math.round(Number(raw?.confidence) || 0))
+      );
+
       return response({
-        success:true, provider:providerUsed, model, webSearch:webSearchUsed, action, marketType,
+        success:true,
+        provider:providerUsed,
+        model:providerUsed === "openai" ? model : (Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b"),
+        webSearch:webSearchUsed,
+        action,
+        marketType,
         headline:String(raw?.headline || "TRADEMIND AI"),
         answer:String(raw?.answer || outputText || "I could not produce an answer from the available TradeMindMZ data."),
         severity:["INFO","SUCCESS","WARNING","ERROR"].includes(raw?.severity) ? raw.severity : "INFO",
-        suggestedAction:["NONE","LIVE_SIGNAL","STATUS","DIAGNOSTICS"].includes(raw?.action) ? raw.action : "NONE",
-        dataAgeSeconds:snapshot?.created_at ? Math.max(0,Math.round((Date.now()-new Date(snapshot.created_at).getTime())/1000)) : null,
+        suggestedAction:allowedActions.has(String(raw?.action || "").toUpperCase()) ? String(raw.action).toUpperCase() : action,
+        advice:allowedAdvice.has(String(raw?.advice || "").toUpperCase()) ? String(raw.advice).toUpperCase() : "NO_ACTION",
+        confidence,
+        keyFactors:Array.isArray(raw?.keyFactors) ? raw.keyFactors.slice(0,4).map(String) : [],
+        risks:Array.isArray(raw?.risks) ? raw.risks.slice(0,4).map(String) : [],
+        dataAgeSeconds:snapshot?.created_at
+          ? Math.max(0,Math.round((Date.now()-new Date(snapshot.created_at).getTime())/1000))
+          : null,
         finalDecision:snapshotPayload?.finalDecision || snapshot?.final_decision || null,
-        readOnly:true, automaticTrading:false,
+        openPositionCount:livePositions.length,
+        readOnly:true,
+        automaticTrading:false,
+        noOrderPlacement:true,
       });
     } catch (error) {
-      return response({success:false,error:error?.message || "TradeMind AI Copilot failed.",readOnly:true,automaticTrading:false},500);
+      return response({
+        success:false,
+        error:error?.message || "TradeMind AI Copilot failed.",
+        readOnly:true,
+        automaticTrading:false,
+        noOrderPlacement:true,
+      },500);
     }
   }
 
