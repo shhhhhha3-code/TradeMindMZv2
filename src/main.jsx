@@ -1,7 +1,7 @@
 import { apiUrl } from "./services/apiBase.js";
 import "./ui/trademind-v3-global.css";
 import './ui/trademind-design.css';
-import React,{useEffect,useState}from'react';import{createRoot}from'react-dom/client';import{Activity,BrainCircuit,ChevronRight,History,LayoutDashboard,LineChart,Menu,Bell,RefreshCw,Settings,ShieldCheck,Target,TrendingUp,Wallet,X,Zap,Radio}from'lucide-react';import'./styles.css';
+import React,{useEffect,useState}from'react';import{createRoot}from'react-dom/client';import{Activity,BrainCircuit,ChevronRight,History,LayoutDashboard,LineChart,Menu,Bell,RefreshCw,Settings,ShieldCheck,Target,TrendingUp,Wallet,X,Zap,Radio,Bot,Send,MessageCircle,Sparkles}from'lucide-react';import'./styles.css';
 import { useLiveAiSignal } from "./services/useLiveAiSignal.js";
 import ManualPurchaseModal from "./components/ManualPurchaseModal";
 import TradingModeToggle from "./components/TradingModeToggle.jsx";
@@ -53,6 +53,111 @@ function Logo(){
   );
 }
 function Ring({score}){return <div className="ring" style={{'--p':score*3.6+'deg'}}><div><b>{score}</b><small>ENGINE SCORE</small></div></div>}
+function TradeMindAiCopilot(){
+  const [open,setOpen]=useState(false);
+  const [marketType,setMarketType]=useState("PERP");
+  const [message,setMessage]=useState("");
+  const [answer,setAnswer]=useState(null);
+  const [loading,setLoading]=useState(false);
+
+  const ask=async(action="ASK",preset="")=>{
+    if(loading) return;
+    const text=String(preset || message || "").trim();
+    if(action==="ASK" && !text) return;
+    setLoading(true);
+    try{
+      const res=await fetch(apiUrl("/api/ai/copilot"),{
+        method:"POST",
+        headers:{"Content-Type":"application/json",Accept:"application/json"},
+        body:JSON.stringify({action,marketType,message:text}),
+      });
+      const data=await res.json().catch(()=>({}));
+      if(!res.ok || !data?.success) throw new Error(data?.error || "TradeMind AI is unavailable.");
+      setAnswer(data);
+      setMessage("");
+    }catch(error){
+      setAnswer({headline:"COPILOT OFFLINE",answer:error?.message || "TradeMind AI could not answer right now.",severity:"ERROR",dataAgeSeconds:null});
+    }finally{
+      setLoading(false);
+    }
+  };
+
+  const quick=[
+    ["LIVE SIGNAL","LIVE_SIGNAL","Get the latest M-USDT analysis"],
+    ["BEST SETUP","BEST_SETUP","Find the strongest current setup"],
+    ["SYSTEM STATUS","STATUS","Check scheduler, Pionex and AI status"],
+    ["DIAGNOSTICS","DIAGNOSTICS","Run a system diagnostics summary"],
+  ];
+
+  return (
+    <>
+      <button type="button" className={"tmz-copilot-fab "+(open ? "open" : "")} onClick={()=>setOpen(v=>!v)} aria-label="Open TradeMind AI Copilot">
+        <span className="tmz-copilot-fab-ring"/>
+        <img src="/assets/trademind-ai-avatar.svg" alt="TradeMind AI"/>
+        <i>{loading ? "…" : "AI"}</i>
+      </button>
+
+      {open && (
+        <div className="tmz-copilot-panel">
+          <div className="tmz-copilot-head">
+            <div className="tmz-copilot-identity">
+              <div className="tmz-copilot-avatar"><img src="/assets/trademind-ai-avatar.svg" alt=""/></div>
+              <div>
+                <span>TRADEMIND AI</span>
+                <strong>REAL-TIME COPILOT</strong>
+                <small><i/> MARKET INTELLIGENCE ONLINE</small>
+              </div>
+            </div>
+            <button type="button" className="tmz-copilot-close" onClick={()=>setOpen(false)}><X/></button>
+          </div>
+
+          <div className="tmz-copilot-mode">
+            <span>MARKET</span>
+            {["PERP","SPOT"].map(mode=><button key={mode} className={marketType===mode?"active":""} onClick={()=>setMarketType(mode)}>{mode==="PERP"?"M-USDT":"SPOT"}</button>)}
+          </div>
+
+          <div className="tmz-copilot-quick">
+            {quick.map(([label,action,preset])=>(
+              <button key={action} type="button" onClick={()=>ask(action,preset)} disabled={loading}>
+                <Sparkles/><span>{label}</span><ChevronRight/>
+              </button>
+            ))}
+          </div>
+
+          <div className={"tmz-copilot-response "+(answer ? "has-answer" : "")+" "+String(answer?.severity||"").toLowerCase()}>
+            {!answer ? (
+              <div className="tmz-copilot-welcome">
+                <img src="/assets/trademind-ai-avatar.svg" alt=""/>
+                <strong>Ask me anything.</strong>
+                <p>I can read live TradeMindMZ market snapshots, AI decisions, scheduler telemetry and diagnostics.</p>
+              </div>
+            ) : (
+              <>
+                <div className="tmz-copilot-response-head">
+                  <span><Bot/> {answer.headline || "TRADEMIND AI"}</span>
+                  {answer.dataAgeSeconds != null && <small>{answer.dataAgeSeconds}s DATA AGE</small>}
+                </div>
+                <p>{answer.answer}</p>
+                {answer.finalDecision && <b className={"tmz-copilot-decision "+String(answer.finalDecision).toLowerCase()}>{answer.finalDecision}</b>}
+              </>
+            )}
+          </div>
+
+          <div className="tmz-copilot-input">
+            <MessageCircle/>
+            <input value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>{if(e.key==="Enter") ask("ASK");}} placeholder="Ask TradeMind AI…" maxLength={700} disabled={loading}/>
+            <button type="button" onClick={()=>ask("ASK")} disabled={loading || !message.trim()} aria-label="Send"><Send/></button>
+          </div>
+          <div className="tmz-copilot-footer">
+            <span><i/> READ ONLY</span><span>NO AUTOMATIC TRADING</span><span>GROQ AI</span>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+
 
 class SignalsErrorBoundary extends React.Component {
   constructor(props) {
