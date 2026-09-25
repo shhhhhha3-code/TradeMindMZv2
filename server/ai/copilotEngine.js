@@ -99,7 +99,12 @@ export async function runCopilot({markets=[],position=null,preferredProvider=nul
   return result;
 }
 
-export function getCopilotIntelligenceSnapshot({ limit = 5000, candidate = null } = {}) {\n  const learning = getPaperLearning({ limit });\n  return getCopilotIntelligence(learning.history, 8);\n}\n\nexport function getCopilotEvidenceSnapshot({
+export function getCopilotIntelligenceSnapshot({ limit = 5000, candidate = null } = {}) {
+  const learning = getPaperLearning({ limit });
+  return getCopilotIntelligence(learning.history, 8);
+}
+
+export function getCopilotEvidenceSnapshot({
   limit = 5000,
   candidate = null,
 } = {}) {
