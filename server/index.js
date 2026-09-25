@@ -9,6 +9,7 @@ import dotenv from "dotenv";
 import { analyzeServerAI } from "./ai/serverAIAnalysis.js";
 import pionexRouter from "./pionex/index.js";
 import positionRoute from "./ai/positionRoute.js";
+import copilotRouter from "./ai/copilotRoute.js";
 
 import supabaseRouter from "./supabase/route.js";
 import positionsRouter from "./positions/route.js";
@@ -40,6 +41,9 @@ app.use(
 app.use(express.json({ limit: "1mb" }));
 
 app.use("/api/paper", paperRouter);
+
+/* AI Copilot V2: deterministic engine + AI cross-check; read-only. */
+app.use("/api/ai/copilot", copilotRouter);
 
 /*
  * Market Overview fallback endpoint.
@@ -94,6 +98,7 @@ app.get("/api/health", (_req, res) => {
     service: "TradeMindMZ V2",
     status: "ONLINE",
     ai: true,
+    copilot: true,
     pionex: "READ_ONLY",
     trading: false,
   });
