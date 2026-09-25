@@ -179,3 +179,38 @@ export function getAdaptiveStrategySummary(records = [], limit = 10) {
     },
   };
 }
+
+
+export async function getAdaptiveStrategyIntelligence(supabase, candidate = null, limit = 5000) {
+  try {
+    const safeLimit = Math.min(Math.max(Number(limit) || 5000, 1), 5000);
+    const { data, error } = await supabase
+      .from("ai_copilot_history")
+      .select("symbol,direction,regime,risk,confidence,engine_score,factor_pass_count,strategy_signature,outcome_status,outcome_return_pct")
+      .in("outcome_status", ["WIN", "LOSS", "FLAT"])
+      .order("created_at", { ascending: false })
+      .limit(safeLimit);
+
+    if (error) throw error;
+
+    const records = Array.isArray(data) ? data : [];
+    const result = candidate
+      ? calculateAdaptiveStrategy(records, candidate)
+      : getAdaptiveStrategySummary(records);
+
+    return {
+      ...result,
+      source: "ai_copilot_history",
+      mode: "PAPER_ONLY",
+    };
+  } catch (error) {
+    return {
+      success: false,
+      available: false,
+      sampleSize: 0,
+      adjustment: 0,
+      error: error?.message ?? String(error),
+      mode: "PAPER_ONLY",
+    };
+  }
+}
