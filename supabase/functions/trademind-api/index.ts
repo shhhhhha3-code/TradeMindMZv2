@@ -2244,32 +2244,77 @@ async function handle(req) {
         safety: { readOnly:true, automaticTrading:false },
       };
 
+      const openAiPayload = {
+        model,
+        tools:[{type:"web_search"}],
+        input:[
+          {role:"system",content:systemPrompt+"\\nYou have web search access. Use it for current external facts, news, market context, and anything the supplied TradeMind data cannot answer. Clearly distinguish web-sourced facts from TradeMind internal telemetry."},
+          {role:"user",content:JSON.stringify(context)}
+        ],
+        max_output_tokens:900,
+      };
+
+      let providerUsed = provider;
+      let webSearchUsed = true;
+      let raw;
+      let outputText = "";
+
       const res = await fetch(endpoint,{
         method:"POST",
         headers:{"Content-Type":"application/json",Authorization:"Bearer "+key},
-        body:JSON.stringify({
-          model,
-          tools:[{type:"web_search"}],
-          input:[
-            {role:"system",content:systemPrompt+"\\nYou have web search access. Use it for current external facts, news, market context, and anything the supplied TradeMind data cannot answer. Clearly distinguish web-sourced facts from TradeMind internal telemetry."},
-            {role:"user",content:JSON.stringify(context)}
-          ],
-          max_output_tokens:900,
-        }),
+        body:JSON.stringify(openAiPayload),
       });
       const text = await res.text();
-      if (!res.ok) throw new Error(provider+" request failed: "+res.status+" "+text.slice(0,360));
-      const parsed = JSON.parse(text);
-      const outputText = String(parsed.output_text || parsed.output?.flatMap(item=>item.content||[]).filter(part=>part.type==="output_text").map(part=>part.text).join("\\n") || "").trim();
-      let raw = {answer:outputText || "I could not produce an answer from the available TradeMindMZ data.",headline:"TRADEMIND AI",severity:"INFO",action:"NONE"};
-      try {
-        raw = JSON.parse(outputText);
-      } catch {
-        // Responses API web-search answers are allowed to be plain text.
+
+      if (res.ok) {
+        const parsed = JSON.parse(text);
+        outputText = String(parsed.output_text || parsed.output?.flatMap(item=>item.content||[]).filter(part=>part.type==="output_text").map(part=>part.text).join("\\n") || "").trim();
+        raw = {answer:outputText || "I could not produce an answer from the available TradeMindMZ data.",headline:"TRADEMIND AI",severity:"INFO",action:"NONE"};
+        try { raw = JSON.parse(outputText); } catch {}
+      } else {
+        let openAiError = null;
+        try { openAiError = JSON.parse(text)?.error; } catch {}
+        const quotaExhausted = res.status === 429 && (
+          openAiError?.code === "credit_balance_exhausted" ||
+          /no credits remaining|insufficient.*quota/i.test(String(openAiError?.message || text))
+        );
+
+        if (!quotaExhausted) {
+          throw new Error(provider+" request failed: "+res.status+" "+text.slice(0,360));
+        }
+
+        // Keep the Copilot usable when OpenAI billing credits are exhausted.
+        // Groq fallback does not provide web search; the response explicitly
+        // reports that fallback so the UI never implies live web access.
+        const groqKey = Deno.env.get("GROQ_API_KEY");
+        if (!groqKey) {
+          throw new Error("OpenAI credits are exhausted and no Groq fallback is configured.");
+        }
+
+        providerUsed = "groq";
+        webSearchUsed = false;
+        const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions",{
+          method:"POST",
+          headers:{"Content-Type":"application/json",Authorization:"Bearer "+groqKey},
+          body:JSON.stringify({
+            model:Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b",
+            temperature:0.1,
+            response_format:{type:"json_object"},
+            messages:[
+              {role:"system",content:systemPrompt+"\\nOpenAI web search is unavailable because its API quota is exhausted. Do not claim to have browsed the internet."},
+              {role:"user",content:JSON.stringify(context)}
+            ],
+          }),
+        });
+        const groqText = await groqRes.text();
+        if (!groqRes.ok) throw new Error("OpenAI credits exhausted; Groq fallback failed: "+groqRes.status+" "+groqText.slice(0,300));
+        const groqParsed = JSON.parse(groqText);
+        outputText = String(groqParsed.choices?.[0]?.message?.content || "").trim();
+        raw = JSON.parse(outputText || "{}");
       }
 
       return response({
-        success:true, provider, model, webSearch:true, action, marketType,
+        success:true, provider:providerUsed, model, webSearch:webSearchUsed, action, marketType,
         headline:String(raw?.headline || "TRADEMIND AI"),
         answer:String(raw?.answer || outputText || "I could not produce an answer from the available TradeMindMZ data."),
         severity:["INFO","SUCCESS","WARNING","ERROR"].includes(raw?.severity) ? raw.severity : "INFO",
