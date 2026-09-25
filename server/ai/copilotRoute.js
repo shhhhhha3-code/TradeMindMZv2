@@ -3,7 +3,7 @@ import {
   runCopilot,
   getCopilotLearningStats,
   getCopilotEvidenceSnapshot,
-  getCopilotIntelligenceSnapshot,
+  getCopilotIntelligenceSnapshot,\n  reconcileCopilotMemory,\n  getCopilotMemoryStats,
 } from "./copilotEngine.js";
 
 const router = express.Router();
@@ -76,7 +76,7 @@ router.get("/intelligence", (req, res) => {
   }
 });
 
-router.get("/learning-stats", async (_req, res) => {
+router.post("/memory/reconcile", async (_req, res) => {\n  try { return res.json(await reconcileCopilotMemory()); }\n  catch (error) { return res.status(500).json({ success: false, error: error?.message || String(error) }); }\n});\n\nrouter.get("/memory/stats", async (_req, res) => {\n  try { return res.json(await getCopilotMemoryStats()); }\n  catch (error) { return res.status(500).json({ success: false, error: error?.message || String(error) }); }\n});\n\nrouter.get("/learning-stats", async (_req, res) => {
   try {
     return res.json(
       await getCopilotLearningStats(),
