@@ -2545,7 +2545,7 @@ async function handle(req) {
     if (supabaseOk) {
       try {
         const admin = supabaseAdmin();
-        const { data } = await admin.from("trademind_scheduler_runs").select("id,status,started_at,finished_at,perp_snapshot_at,spot_snapshot_at,position_monitoring_count,spot_monitoring_count,error").order("created_at",{ascending:false}).limit(1).maybeSingle();
+        const { data } = await admin.from("trademind_scheduler_runs").select("id,status,started_at,finished_at,duration_ms,perp_duration_ms,spot_duration_ms,monitoring_duration_ms,current_stage,perp_snapshot_at,spot_snapshot_at,position_monitoring_count,spot_monitoring_count,error").order("created_at",{ascending:false}).limit(1).maybeSingle();
         schedulerHeartbeat = data || null;
       } catch (error) {
         schedulerHeartbeat = { status:"ERROR", error:error?.message || String(error) };
@@ -2688,6 +2688,11 @@ async function handle(req) {
             ageSeconds: Number.isFinite(schedulerAgeMs) ? Math.round(schedulerAgeMs / 1000) : null,
             spotMonitored: Number(schedulerHeartbeat?.spot_monitoring_count || 0),
             futuresMonitored: Number(schedulerHeartbeat?.position_monitoring_count || 0),
+            durationMs: Number(schedulerHeartbeat?.duration_ms || 0),
+            perpDurationMs: Number(schedulerHeartbeat?.perp_duration_ms || 0),
+            spotDurationMs: Number(schedulerHeartbeat?.spot_duration_ms || 0),
+            monitoringDurationMs: Number(schedulerHeartbeat?.monitoring_duration_ms || 0),
+            currentStage: schedulerHeartbeat?.current_stage || null,
             cadenceMinutes: 7,
           },
           error: schedulerFresh ? null : "Server scheduler heartbeat is missing, stale, or failed.",
