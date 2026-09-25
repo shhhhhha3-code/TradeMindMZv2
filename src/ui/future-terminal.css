@@ -4553,3 +4553,37 @@ body{
     height:18px;
   }
 }
+
+
+/* ==========================================================
+   COPILOT MOBILE KEYBOARD MODE
+   Keep the composer visible while the response area scrolls.
+   ========================================================== */
+@media(max-width:700px){
+  .app[data-tm-theme] .tmz-copilot-page{
+    display:flex!important;
+    flex-direction:column!important;
+    min-height:calc(100dvh - 118px)!important;
+  }
+  .app[data-tm-theme] .tmz-copilot-page .tmz-copilot-response{
+    flex:1 1 auto!important;
+    min-height:180px!important;
+    max-height:calc(100dvh - 455px)!important;
+    overflow:auto!important;
+    -webkit-overflow-scrolling:touch;
+  }
+  .app[data-tm-theme] .tmz-copilot-page .tmz-copilot-input{
+    position:sticky!important;
+    bottom:0!important;
+    z-index:30!important;
+    flex:0 0 auto!important;
+    margin:4px 12px 10px!important;
+    background:rgba(4,10,17,.94)!important;
+    backdrop-filter:blur(16px);
+    -webkit-backdrop-filter:blur(16px);
+    box-shadow:0 -12px 28px rgba(0,0,0,.28),0 0 20px rgba(72,208,255,.04)!important;
+  }
+  .app[data-tm-theme] .tmz-copilot-page .tmz-copilot-footer{
+    flex:0 0 auto!important;
+  }
+}
