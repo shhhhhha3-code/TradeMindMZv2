@@ -36,6 +36,7 @@ function WindowCard({ label, data }) {
         <span><small>W / L</small><strong>{data?.wins ?? 0} / {data?.losses ?? 0}</strong></span>
         <span><small>AVG</small><strong>{fmtPnl(data?.avgPnl)}</strong></span>
         <span><small>PF</small><strong>{data?.profitFactor == null ? "—" : Number(data.profitFactor).toFixed(2)}</strong></span>
+        <span><small>STOP EVENTS*</small><strong>{data?.stopLossLike ?? 0}</strong></span>
       </div>
     </div>
   );
@@ -134,6 +135,7 @@ export default function TradePerformanceLearningPanel() {
         <span>LAST UPDATE {data?.updatedAt ? new Date(data.updatedAt).toLocaleTimeString("nb-NO",{hour:"2-digit",minute:"2-digit"}) : "—"}</span>
         {recentLosses.length > 0 && <span className="loss"><TrendingDown/> {recentLosses.length} RECENT LOSSES</span>}
         {recentLosses.length === 0 && <span className="win"><TrendingUp/> NO RECENT LOSSES LOGGED</span>}
+        <span>* inferred from journal closure/stop proximity, not Pionex notification history</span>
       </div>
     </section>
   );
