@@ -285,18 +285,8 @@ export default function ProDashboard({ onSelectTrade = null }) {
     }
   }, []);
 
-  useEffect(() => {
-    load();
-
-    const timer =
-      setInterval(
-        load,
-        60000
-      );
-
-    return () =>
-      clearInterval(timer);
-  }, [load]);
+  // useLiveAiSignal already polls the persisted server snapshot every minute.
+  // Avoid a second timer here that can duplicate Pionex/AI requests.
 
   useEffect(() => {
     if (marketType !== "SPOT") {
