@@ -2655,7 +2655,7 @@ async function handle(req) {
         "EXIT_CONSIDERATION",
         "NO_ACTION",
       ]);
-      const allowedActions = new Set([
+      const allowedSuggestedActions = new Set([
         "NONE",
         "LIVE_SIGNAL",
         "BEST_SETUP",
