@@ -3646,25 +3646,42 @@ function DiagnosticsPanel() {
   const formatTime = value => {
     if (!value) return "—";
 
-    const date =
-      new Date(value);
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "—";
 
-    if (
-      Number.isNaN(
-        date.getTime()
-      )
-    ) {
-      return "—";
-    }
+    return date.toLocaleTimeString("nb-NO", {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  };
 
-    return date.toLocaleTimeString(
-      "nb-NO",
-      {
-        hour: "2-digit",
-        minute: "2-digit",
-        second: "2-digit",
-      }
-    );
+  const formatDateTime = value => {
+    if (!value) return "—";
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return "—";
+
+    return date.toLocaleString("nb-NO", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+  };
+
+  const formatAge = seconds => {
+    const value = Number(seconds);
+    if (!Number.isFinite(value) || value < 0) return "—";
+    if (value < 60) return value + "s";
+    const minutes = Math.floor(value / 60);
+    if (minutes < 60) return minutes + "m";
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    if (hours < 24) return hours + "h " + remainingMinutes + "m";
+    const days = Math.floor(hours / 24);
+    return days + "d " + (hours % 24) + "h";
   };
 
   const statusText = status => {
@@ -3869,7 +3886,7 @@ function DiagnosticsPanel() {
 
                 {check.name ===
                   "Scheduler" &&
-                  `Last run: ${check.details?.lastRun ? formatTime(check.details.lastRun) : "—"} • Age: ${check.details?.ageSeconds != null ? check.details.ageSeconds + "s" : "—"} • Spot: ${check.details?.spotMonitored ?? 0} • Futures: ${check.details?.futuresMonitored ?? 0}`}
+                  `Last run: ${check.details?.lastRun ? formatDateTime(check.details.lastRun) : "—"} • Age: ${formatAge(check.details?.ageSeconds)} • Spot: ${check.details?.spotMonitored ?? 0} • Futures: ${check.details?.futuresMonitored ?? 0}`}
 
                 {check.name ===
                   "Market AI" &&
@@ -3969,9 +3986,7 @@ function DiagnosticsPanel() {
         <span>
           Last check:{" "}
           <b>
-            {formatTime(
-              data?.timestamp
-            )}
+            {formatTime(data?.timestamp)}
           </b>
         </span>
 
