@@ -14,7 +14,26 @@ router.post("/", async (req, res) => {
   }
 });
 
-router.get("/evidence", (req, res) => {\n  try {\n    const candidate = req.body?.candidate || null;\n    const limit = Number(req.query?.limit || 5000);\n    return res.json(getCopilotEvidenceSnapshot({ limit, candidate }));\n  } catch (error) {\n    return res.status(500).json({ success: false, error: error?.message || String(error) });\n  }\n});\n\nrouter.get("/learning-stats", async (_req, res) => {
+router.get("/evidence", (req, res) => {
+  try {
+    const candidate = req.body?.candidate || null;
+    const limit = Number(req.query?.limit || 5000);
+
+    return res.json(
+      getCopilotEvidenceSnapshot({
+        limit,
+        candidate,
+      }),
+    );
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error?.message || String(error),
+    });
+  }
+});
+
+router.get("/learning-stats", async (_req, res) => {
   try { return res.json(await getCopilotLearningStats()); }
   catch (error) { return res.status(500).json({success:false,stats:null,error:error?.message||String(error)}); }
 });
