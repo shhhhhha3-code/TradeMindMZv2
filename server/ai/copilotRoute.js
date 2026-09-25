@@ -1,4 +1,6 @@
 import express from "express";
+import { getSupabaseClient } from "../supabase/client.js";
+import { getAdaptiveStrategyIntelligence } from "./adaptiveStrategyIntelligence.js";
 import {
   runCopilot,
   getCopilotLearningStats,
@@ -75,6 +77,33 @@ router.get("/intelligence", (req, res) => {
     return res.json(getCopilotIntelligenceSnapshot({ limit }));
   } catch (error) {
     return res.status(500).json({ success: false, error: error?.message || String(error) });
+  }
+});
+
+
+router.get("/strategy", async (req, res) => {
+  try {
+    const candidate = req.query?.symbol
+      ? {
+          symbol: req.query.symbol,
+          direction: req.query.direction ?? null,
+          regime: req.query.regime ?? null,
+          risk: req.query.risk ?? null,
+          confidence: Number(req.query.confidence ?? 0),
+          factorPassCount: Number(req.query.factorPassCount ?? 0),
+        }
+      : null;
+    return res.json(await getAdaptiveStrategyIntelligence(
+      getSupabaseClient(),
+      candidate,
+      Number(req.query?.limit || 5000),
+    ));
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      error: error?.message || String(error),
+      mode: "PAPER_ONLY",
+    });
   }
 });
 
