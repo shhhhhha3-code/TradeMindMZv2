@@ -94,14 +94,36 @@ function normalizePionexPosition(position, index) {
       position?.price
     );
 
-  const unrealizedPnl =
+  const reportedUnrealizedPnl =
     toNumber(
       position?.unrealizedPnl ??
       position?.unrealizedPNL ??
+      position?.unrealizedProfit ??
       position?.unrealized_profit ??
+      position?.unrealizedProfitLoss ??
+      position?.unrealized_pnl ??
       position?.pnl ??
       position?.profit
     );
+
+  const unrealizedPnl =
+    reportedUnrealizedPnl ??
+    (Number.isFinite(Number(entryPrice)) &&
+    Number.isFinite(Number(markPrice)) &&
+    Number.isFinite(Number(quantity))
+      ? (side === "SHORT"
+          ? Number(entryPrice) - Number(markPrice)
+          : Number(markPrice) - Number(entryPrice)) * Math.abs(Number(quantity))
+      : null);
+
+  const unrealizedPnlPercent =
+    Number.isFinite(Number(entryPrice)) &&
+    Number(entryPrice) > 0 &&
+    Number.isFinite(Number(markPrice))
+      ? (side === "SHORT"
+          ? ((Number(entryPrice) - Number(markPrice)) / Number(entryPrice)) * 100
+          : ((Number(markPrice) - Number(entryPrice)) / Number(entryPrice)) * 100)
+      : null;
 
   const leverage =
     toNumber(
@@ -150,6 +172,7 @@ function normalizePionexPosition(position, index) {
     currentPrice: markPrice,
 
     unrealizedPnl,
+    unrealizedPnlPercent,
 
     leverage,
 
