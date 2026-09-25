@@ -123,7 +123,15 @@ export function getCopilotEvidenceSnapshot({
   });
 }
 
-export async function reconcileCopilotMemory() {\n  return reconcileCopilotDecisionMemory({ limit: 1000 });\n}\n\nexport async function getCopilotMemoryStats() {\n  return getCopilotDecisionMemoryStats();\n}\n\nexport async function getCopilotLearningStats() {
+export async function reconcileCopilotMemory() {
+  return reconcileCopilotDecisionMemory({ limit: 1000 });
+}
+
+export async function getCopilotMemoryStats() {
+  return getCopilotDecisionMemoryStats();
+}
+
+export async function getCopilotLearningStats() {
   try {
     const supabase=getSupabaseClient();
     const { data, error }=await supabase.from("ai_copilot_learning_stats").select("*").single();
