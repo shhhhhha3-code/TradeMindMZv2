@@ -103,7 +103,7 @@ export async function fetchLiveAiSignal(options = {}) {
     ...result,
     marketType,
     contractType: scanner?.contractType || (marketType === "SPOT" ? "SPOT" : "USDT-M PERPETUAL"),
-    leverage: Number(scanner?.leverage) || (marketType === "SPOT" ? 1 : 2),
+    leverage: Number(scanner?.leverage) || (marketType === "SPOT" ? 1 : 3),
     cached: scanner?.cached === true,
     nextAnalysisAt: scanner?.nextAnalysisAt || null,
     serverSide: true,
