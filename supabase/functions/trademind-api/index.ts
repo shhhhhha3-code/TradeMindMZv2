@@ -2154,6 +2154,20 @@ async function handle(req) {
         schedulerRunId = schedulerRun?.id || null;
       }
 
+      const schedulerPhaseStartedAt = Date.now();
+      const updateSchedulerStage = async (stage) => {
+        if (!schedulerRunId) return;
+        try {
+          await admin.from("trademind_scheduler_runs")
+            .update({ current_stage: stage })
+            .eq("id", schedulerRunId);
+        } catch (stageError) {
+          console.warn("Scheduler stage update failed:", stageError?.message || stageError);
+        }
+      };
+
+      await updateSchedulerStage("PERP_SCAN");
+      const perpStartedAt = Date.now();
       const payload = await runLiveAiAnalysis({
         interval: "15M",
         candleLimit: 100,
@@ -2164,6 +2178,7 @@ async function handle(req) {
         force: true,
         persist: true,
       });
+      const perpDurationMs = Date.now() - perpStartedAt;
 
       if (payload?.persistenceError) {
         return response({
@@ -2174,6 +2189,7 @@ async function handle(req) {
         }, 500);
       }
 
+      await updateSchedulerStage("PERP_PUSH");
       let pushNotification = null;
       try {
         pushNotification = await sendQualifiedTradePush(admin, payload, "PERP");
@@ -2186,6 +2202,8 @@ async function handle(req) {
         };
       }
 
+      await updateSchedulerStage("SPOT_SCAN");
+      const spotStartedAt = Date.now();
       let spotSnapshot = null;
       let spotMonitoring = null;
       try {
@@ -2210,7 +2228,10 @@ async function handle(req) {
         console.error("Scheduled Spot monitoring failed:", spotError);
         spotMonitoring = { success:false, error:spotError?.message || String(spotError), readOnly:true };
       }
+      const spotDurationMs = Date.now() - spotStartedAt;
 
+      await updateSchedulerStage("POSITION_MONITORING");
+      const monitoringStartedAt = Date.now();
       let positionMonitoring = null;
       try {
         positionMonitoring = await runServerPositionMonitoring(admin, {
@@ -2224,6 +2245,8 @@ async function handle(req) {
           readOnly: true,
         };
       }
+      const monitoringDurationMs = Date.now() - monitoringStartedAt;
+      const schedulerDurationMs = Date.now() - schedulerPhaseStartedAt;
 
       if (schedulerRunId) {
         await admin.from("trademind_scheduler_runs").update({
@@ -2233,6 +2256,11 @@ async function handle(req) {
           spot_snapshot_at:spotSnapshot?.persistedAt || spotSnapshot?.updatedAt || null,
           position_monitoring_count:Number(positionMonitoring?.monitoredCount || 0),
           spot_monitoring_count:Number(spotMonitoring?.monitoredCount || 0),
+          duration_ms:schedulerDurationMs,
+          perp_duration_ms:perpDurationMs,
+          spot_duration_ms:spotDurationMs,
+          monitoring_duration_ms:monitoringDurationMs,
+          current_stage:"COMPLETE",
         }).eq("id",schedulerRunId);
       }
 
