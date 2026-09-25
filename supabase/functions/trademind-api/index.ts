@@ -413,7 +413,7 @@ async function runLiveAiAnalysis({
   candleLimit = 100,
   maxMarkets = 25,
   marketType = "PERP",
-  leverage = 2,
+  leverage = 3,
   provider = "groq",
   force = false,
   persist = true,
@@ -2123,12 +2123,36 @@ async function handle(req) {
       }
 
       const schedulerStartedAt = new Date().toISOString();
-      const { data: schedulerRun } = await admin
-        .from("trademind_scheduler_runs")
-        .insert({ status:"RUNNING", started_at:schedulerStartedAt })
-        .select("id")
-        .single();
-      schedulerRunId = schedulerRun?.id || null;
+      const requestedSchedulerRunId = Number(body?.schedulerRunId);
+
+      if (Number.isFinite(requestedSchedulerRunId) && requestedSchedulerRunId > 0) {
+        const { data: queuedRun } = await admin
+          .from("trademind_scheduler_runs")
+          .select("id,status")
+          .eq("id", requestedSchedulerRunId)
+          .maybeSingle();
+
+        if (queuedRun?.id) {
+          schedulerRunId = queuedRun.id;
+          await admin
+            .from("trademind_scheduler_runs")
+            .update({
+              status:"RUNNING",
+              started_at:schedulerStartedAt,
+              error:null,
+            })
+            .eq("id", schedulerRunId);
+        }
+      }
+
+      if (!schedulerRunId) {
+        const { data: schedulerRun } = await admin
+          .from("trademind_scheduler_runs")
+          .insert({ status:"RUNNING", started_at:schedulerStartedAt })
+          .select("id")
+          .single();
+        schedulerRunId = schedulerRun?.id || null;
+      }
 
       const payload = await runLiveAiAnalysis({
         interval: "15M",
