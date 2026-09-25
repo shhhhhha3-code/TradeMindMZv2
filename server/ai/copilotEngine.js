@@ -96,8 +96,14 @@ export async function runCopilot({markets=[],position=null,preferredProvider=nul
   return result;
 }
 
-export function getCopilotEvidenceSnapshot({ limit = 5000, candidate = null } = {}) {
-  return getCopilotEvidence({ limit, candidate });
+export function getCopilotEvidenceSnapshot({
+  limit = 5000,
+  candidate = null,
+} = {}) {
+  return getCopilotEvidence({
+    limit,
+    candidate,
+  });
 }
 
 export async function getCopilotLearningStats() {
