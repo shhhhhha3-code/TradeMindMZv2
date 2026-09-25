@@ -2142,19 +2142,12 @@ async function handle(req) {
         diagnostics = data || null;
       }
 
-      const available = [];
-      if (Deno.env.get("GROQ_API_KEY")) available.push("groq");
-      if (Deno.env.get("OPENAI_API_KEY")) available.push("openai");
-      if (!available.length) throw new Error("No AI provider is configured.");
+      const key = Deno.env.get("OPENAI_API_KEY");
+      if (!key) throw new Error("OpenAI API key is not configured. Add OPENAI_API_KEY to the Supabase Edge Function secrets.");
 
-      const provider = available.includes("groq") ? "groq" : "openai";
-      const key = Deno.env.get(provider === "openai" ? "OPENAI_API_KEY" : "GROQ_API_KEY");
-      const endpoint = provider === "openai"
-        ? "https://api.openai.com/v1/chat/completions"
-        : "https://api.groq.com/openai/v1/chat/completions";
-      const model = provider === "openai"
-        ? Deno.env.get("OPENAI_MODEL") || "gpt-4o-mini"
-        : Deno.env.get("GROQ_MODEL") || "openai/gpt-oss-120b";
+      const provider = "openai";
+      const endpoint = "https://api.openai.com/v1/responses";
+      const model = Deno.env.get("OPENAI_COPILOT_MODEL") || Deno.env.get("OPENAI_MODEL") || "gpt-5.6-luna";
 
       const snapshotPayload = snapshot?.payload || snapshot || null;
 
@@ -2255,19 +2248,30 @@ async function handle(req) {
         method:"POST",
         headers:{"Content-Type":"application/json",Authorization:"Bearer "+key},
         body:JSON.stringify({
-          model, temperature:0.1, response_format:{type:"json_object"},
-          messages:[{role:"system",content:systemPrompt},{role:"user",content:JSON.stringify(context)}],
+          model,
+          tools:[{type:"web_search"}],
+          input:[
+            {role:"system",content:systemPrompt+"\\nYou have web search access. Use it for current external facts, news, market context, and anything the supplied TradeMind data cannot answer. Clearly distinguish web-sourced facts from TradeMind internal telemetry."},
+            {role:"user",content:JSON.stringify(context)}
+          ],
+          max_output_tokens:900,
         }),
       });
       const text = await res.text();
-      if (!res.ok) throw new Error(provider+" request failed: "+res.status+" "+text.slice(0,240));
+      if (!res.ok) throw new Error(provider+" request failed: "+res.status+" "+text.slice(0,360));
       const parsed = JSON.parse(text);
-      const raw = JSON.parse(parsed.choices?.[0]?.message?.content || "{}");
+      const outputText = String(parsed.output_text || parsed.output?.flatMap(item=>item.content||[]).filter(part=>part.type==="output_text").map(part=>part.text).join("\\n") || "").trim();
+      let raw = {answer:outputText || "I could not produce an answer from the available TradeMindMZ data.",headline:"TRADEMIND AI",severity:"INFO",action:"NONE"};
+      try {
+        raw = JSON.parse(outputText);
+      } catch {
+        // Responses API web-search answers are allowed to be plain text.
+      }
 
       return response({
-        success:true, provider, action, marketType,
-        headline:String(raw?.headline || "TradeMind AI"),
-        answer:String(raw?.answer || "I could not produce an answer from the available TradeMindMZ data."),
+        success:true, provider, model, webSearch:true, action, marketType,
+        headline:String(raw?.headline || "TRADEMIND AI"),
+        answer:String(raw?.answer || outputText || "I could not produce an answer from the available TradeMindMZ data."),
         severity:["INFO","SUCCESS","WARNING","ERROR"].includes(raw?.severity) ? raw.severity : "INFO",
         suggestedAction:["NONE","LIVE_SIGNAL","STATUS","DIAGNOSTICS"].includes(raw?.action) ? raw.action : "NONE",
         dataAgeSeconds:snapshot?.created_at ? Math.max(0,Math.round((Date.now()-new Date(snapshot.created_at).getTime())/1000)) : null,
