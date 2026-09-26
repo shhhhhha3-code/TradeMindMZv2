@@ -498,7 +498,7 @@ export function getPaperLearning({
       Number(limit) || 100,
       1
     ),
-    500
+    5000
   );
 
   return {
