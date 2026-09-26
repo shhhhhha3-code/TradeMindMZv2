@@ -15,6 +15,7 @@ import positionsRouter from "./positions/route.js";
 import { analyzeTopCandidates } from "./ai/topCandidatesAnalysis.js";
 import { runTradeMindCopilot } from "./ai/copilotEngine.js";
 import { createParameterProposal, getParameterOptimizerStatus, markParameterValidation, promoteParameterProposal, rejectParameterProposal } from "./ai/parameterOptimizer.js";
+import { createParameterProposal, getParameterOptimizerStatus, markParameterValidation, promoteParameterProposal, rejectParameterProposal } from "./ai/parameterOptimizer.js";
 import { getTradeCriteria, saveTradeCriteria } from "./ai/tradeCriteria.js";
 import paperRouter from "./paper/index.js";
 import { getFallbackMarket } from "./market/fallbackMarket.js";
@@ -283,6 +284,16 @@ app.post("/api/ai/copilot/parameters/reject", (req, res) => {
   try { res.json(rejectParameterProposal(req.body || {})); }
   catch (error) { res.status(400).json({ success: false, error: error?.message || "Parameter rejection failed." }); }
 });
+
+app.get("/api/ai/copilot/parameters", (_req, res) => { try { res.json(getParameterOptimizerStatus()); } catch (error) { res.status(500).json({ success: false, error: error?.message || "Parameter optimizer status failed." }); } });
+
+app.post("/api/ai/copilot/parameters/propose", async (req, res) => { try { res.json(await createParameterProposal(req.body || {})); } catch (error) { res.status(500).json({ success: false, error: error?.message || "Parameter proposal failed." }); } });
+
+app.post("/api/ai/copilot/parameters/validate", (req, res) => { try { res.json(markParameterValidation(req.body || {})); } catch (error) { res.status(400).json({ success: false, error: error?.message || "Parameter validation update failed." }); } });
+
+app.post("/api/ai/copilot/parameters/promote", (req, res) => { try { res.json(promoteParameterProposal(req.body || {})); } catch (error) { res.status(400).json({ success: false, error: error?.message || "Parameter promotion blocked." }); } });
+
+app.post("/api/ai/copilot/parameters/reject", (req, res) => { try { res.json(rejectParameterProposal(req.body || {})); } catch (error) { res.status(400).json({ success: false, error: error?.message || "Parameter rejection failed." }); } });
 
 app.post("/api/ai/copilot", async (req, res) => {
   try {
