@@ -1,3 +1,4 @@
+import { getTradeCriteria } from "./tradeCriteria.js";
 import {
   getServerAIConfig,
   getAvailableProviders,
@@ -51,6 +52,7 @@ function engineHardBlock(
   candidate
 ) {
   const reasons = [];
+  const criteria = getTradeCriteria();
 
   const score =
     number(
@@ -106,7 +108,7 @@ function engineHardBlock(
 
   if (
     score !== null &&
-    score < 75
+    score < criteria.minimumScore
   ) {
     reasons.push(
       "ENGINE_SCORE_BELOW_MINIMUM"
@@ -115,7 +117,7 @@ function engineHardBlock(
 
   if (
     confidence !== null &&
-    confidence < 80
+    confidence < criteria.minimumConfidence
   ) {
     reasons.push(
       "CONFIDENCE_BELOW_MINIMUM"
@@ -124,7 +126,7 @@ function engineHardBlock(
 
   if (
     rr !== null &&
-    rr < 2
+    rr < criteria.minimumRiskReward
   ) {
     reasons.push(
       "RISK_REWARD_BELOW_MINIMUM"
@@ -134,8 +136,8 @@ function engineHardBlock(
   if (
     rsi !== null &&
     (
-      rsi < 35 ||
-      rsi > 70
+      rsi < criteria.minimumRsi ||
+      rsi > criteria.maximumRsi
     )
   ) {
     reasons.push(
@@ -145,7 +147,7 @@ function engineHardBlock(
 
   if (
     volumeRatio !== null &&
-    volumeRatio < 0.8
+    volumeRatio < criteria.minimumVolumeRatio
   ) {
     reasons.push(
       "VOLUME_BELOW_MINIMUM"
