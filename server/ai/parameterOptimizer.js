@@ -145,6 +145,39 @@ function evaluateDataset(records, criteria) {
   const stats = summarize(eligible);
   return { ...stats, eligibleSamples: eligible.length };
 }
+function evaluateByRegime(records, currentCriteria, proposedCriteria) {
+  const groups = new Map();
+  for (const record of records) {
+    const regime = String(record?.regime || "UNKNOWN").toUpperCase();
+    if (!groups.has(regime)) groups.set(regime, []);
+    groups.get(regime).push(record);
+  }
+  return [...groups.entries()].map(([regime, bucket]) => {
+    const current = evaluateDataset(bucket, currentCriteria);
+    const proposed = evaluateDataset(bucket, proposedCriteria);
+    const deltaPnl = Number(((proposed.totalPnl || 0) - (current.totalPnl || 0)).toFixed(4));
+    const sufficientlySampled = bucket.length >= VALIDATION_POLICY.minRegimeSamples;
+    return {
+      regime, rawSamples: bucket.length, sufficientlySampled, current, proposed, deltaPnl,
+      passed: !sufficientlySampled || (proposed.eligibleSamples > 0 && deltaPnl >= VALIDATION_POLICY.maxRegimeDegradationPct),
+    };
+  });
+}
+
+function buildRollingWindows(records) {
+  const holdoutSize = Math.max(VALIDATION_POLICY.minHoldoutSamples, Math.floor(records.length * VALIDATION_POLICY.holdoutRatio));
+  const preHoldout = records.slice(0, records.length - holdoutSize);
+  const count = Math.min(VALIDATION_POLICY.rollingWindows, Math.floor(preHoldout.length / VALIDATION_POLICY.minWindowSamples));
+  const windows = [];
+  if (count < 1) return windows;
+  const windowSize = Math.max(VALIDATION_POLICY.minWindowSamples, Math.floor(preHoldout.length / (count + 1)));
+  for (let i = 0; i < count; i += 1) {
+    const end = Math.min(preHoldout.length, (i + 2) * windowSize);
+    const start = Math.max(0, end - windowSize);
+    if (end - start >= VALIDATION_POLICY.minWindowSamples) windows.push({ index: i + 1, start, end, records: preHoldout.slice(start, end) });
+  }
+  return windows;
+}
 
 export function validateProposalWithWalkForward({ proposalId } = {}) {
   const state = readState();
