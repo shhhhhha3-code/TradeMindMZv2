@@ -332,7 +332,7 @@ const updateAiSetting=(key,value)=>{const next={...aiSettings,[key]:value};setAi
   initialValues={purchaseDefaults}
 />
 </main></div>
-
+}
 
 function LiveAiDashboardCard() {
   const {
