@@ -1,7 +1,7 @@
 import { runTradeMindEngine } from "./index.js";
 
 /**
- * TradeMind Engine V2 authoritative pipeline.
+ * TradeMind Engine V3 multi-timeframe authoritative pipeline.
  *
  * The caller must provide the full candidate set produced by the market
  * scanner. This function deliberately does not pre-select a scanner TOP 5.
@@ -16,7 +16,7 @@ export function runTradeMindEngineV2(markets = [], options = {}) {
 
   return {
     ...result,
-    engine: "TradeMindMZ Engine V2",
+    engine: "TradeMind Engine V3 Multi-Timeframe",
     pipeline: {
       rankingAuthority: "TradeMindMZ Engine",
       inputCandidates: Array.isArray(markets)
