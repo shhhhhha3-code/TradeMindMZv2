@@ -24,6 +24,15 @@ test("Build 5.1 rejects unsafe proposal changes", () => {
   assert.ok(result.errors.some((x) => x.startsWith("CHANGE_TOO_LARGE_")));
 });
 
+test("Build 5.3 exposes performance guardrails", async () => {
+  const mod = await import("../../server/ai/parameterOptimizer.js");
+  const status = mod.getParameterOptimizerStatus();
+  assert.equal(status.policy.minProfitFactor, 1);
+  assert.equal(status.policy.maxDrawdownPct, 15);
+  assert.equal(status.policy.minHoldoutEligibleSamples, 5);
+  assert.equal(status.policy.maxEligibleTradeCountDropPct, 50);
+});
+
 test("Build 5.2 exposes regime-aware validation policy", async () => {
   const mod = await import("../../server/ai/parameterOptimizer.js");
   const status = mod.getParameterOptimizerStatus();
