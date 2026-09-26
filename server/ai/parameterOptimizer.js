@@ -189,7 +189,8 @@ export function validateProposalWithWalkForward({ proposalId } = {}) {
     throw new Error("Walk-forward validation requires at least 50 closed paper-trading records.");
   }
 
-  const split = Math.max(VALIDATION_POLICY.minHoldoutSamples, Math.floor(records.length * (1 - VALIDATION_POLICY.holdoutRatio)));
+  const holdoutSize = Math.max(VALIDATION_POLICY.minHoldoutSamples, Math.floor(records.length * VALIDATION_POLICY.holdoutRatio));
+  const split = records.length - holdoutSize;
   const train = records.slice(0, split);
   const holdout = records.slice(split);
   if (holdout.length < VALIDATION_POLICY.minHoldoutSamples) throw new Error("Insufficient holdout records.");
@@ -204,19 +205,38 @@ export function validateProposalWithWalkForward({ proposalId } = {}) {
 
   const holdoutDelta = Number(((holdoutProposed.totalPnl || 0) - (holdoutCurrent.totalPnl || 0)).toFixed(4));
   const trainDelta = Number(((trainProposed.totalPnl || 0) - (trainCurrent.totalPnl || 0)).toFixed(4));
+  const trainRegimes = evaluateByRegime(train, currentCriteria, proposedCriteria);
+  const holdoutRegimes = evaluateByRegime(holdout, currentCriteria, proposedCriteria);
+  const rollingWindows = buildRollingWindows(records).map(window => {
+    const current = evaluateDataset(window.records, currentCriteria);
+    const proposed = evaluateDataset(window.records, proposedCriteria);
+    const deltaPnl = Number(((proposed.totalPnl || 0) - (current.totalPnl || 0)).toFixed(4));
+    const regimes = evaluateByRegime(window.records, currentCriteria, proposedCriteria);
+    return {
+      index: window.index, start: window.start, end: window.end, samples: window.records.length,
+      current, proposed, deltaPnl, regimes,
+      passed: proposed.eligibleSamples > 0 && deltaPnl >= VALIDATION_POLICY.minImprovementPct && regimes.every(item => item.passed),
+    };
+  });
+  const regimeChecks = [...trainRegimes, ...holdoutRegimes];
   const passed =
     trainProposed.eligibleSamples > 0 &&
     holdoutProposed.eligibleSamples > 0 &&
     trainDelta >= VALIDATION_POLICY.minImprovementPct &&
-    holdoutDelta >= VALIDATION_POLICY.minImprovementPct;
+    holdoutDelta >= VALIDATION_POLICY.minImprovementPct &&
+    rollingWindows.length > 0 &&
+    rollingWindows.every(window => window.passed) &&
+    regimeChecks.every(item => item.passed);
 
   proposal.validation = {
     status: passed ? "PASSED" : "FAILED",
-    method: "WALK_FORWARD_HOLDOUT",
+    method: "REGIME_AWARE_ROLLING_WALK_FORWARD_HOLDOUT",
     validatedAt: new Date().toISOString(),
     policy: VALIDATION_POLICY,
-    train: { samples: train.length, current: trainCurrent, proposed: trainProposed, deltaPnl: trainDelta },
-    holdout: { samples: holdout.length, current: holdoutCurrent, proposed: holdoutProposed, deltaPnl: holdoutDelta },
+    dataOrder: "ASCENDING_CHRONOLOGICAL",
+    train: { samples: train.length, current: trainCurrent, proposed: trainProposed, deltaPnl: trainDelta, byRegime: trainRegimes },
+    rollingWindows,
+    holdout: { samples: holdout.length, current: holdoutCurrent, proposed: holdoutProposed, deltaPnl: holdoutDelta, byRegime: holdoutRegimes },
     automaticPromotion: false,
   };
   writeState({ ...state, status: passed ? "VALIDATED" : "VALIDATION_FAILED", proposal });
