@@ -111,9 +111,19 @@ function summarize(records) {
   };
 }
 
+function recordTimestamp(record) {
+  for (const value of [record?.evaluatedAt, record?.tradeCreatedAt, record?.recordedAt]) {
+    const time = Date.parse(value || "");
+    if (Number.isFinite(time)) return time;
+  }
+  return 0;
+}
+
 function loadClosedRecords(limit = 5000) {
-  const result = getPaperLearning({ limit: Math.min(Math.max(Number(limit) || 500, 50), 500) });
-  return Array.isArray(result?.history) ? result.history.filter(r => r?.result && r.result !== "UNKNOWN") : [];
+  const result = getPaperLearning({ limit: Math.min(Math.max(Number(limit) || 500, 50), 5000) });
+  return Array.isArray(result?.history)
+    ? result.history.filter(r => r?.result && r.result !== "UNKNOWN").sort((a, b) => recordTimestamp(a) - recordTimestamp(b))
+    : [];
 }
 
 function recordPassesCriteria(record, criteria) {
