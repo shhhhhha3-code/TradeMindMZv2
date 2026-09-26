@@ -55,5 +55,5 @@ test("Engine V2 preserves the read-only safety boundary", () => {
 
   assert.equal(result.safety.readOnly, true);
   assert.equal(result.safety.automaticTrading, false);
-  assert.equal(result.engine, "TradeMindMZ Engine V2");
+  assert.equal(result.engine, "TradeMindMZ Engine V3 Multi-Timeframe");
 });
