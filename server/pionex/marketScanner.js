@@ -9,8 +9,8 @@ import {
 } from "../../engine/v2Pipeline.js";
 
 /*
- * TradeMindMZ V2
- * Pionex → Local Market Scanner → TradeMind Engine V2
+ * TradeMindMZ V3
+ * Pionex → Multi-Timeframe Market Scanner → TradeMind Engine V3
  *
  * READ-ONLY.
  *
@@ -18,7 +18,8 @@ import {
  * Pionex
  * → market candidates
  * → technical analysis
- * → TradeMind Engine V2
+ * → 15M / 60M / 4H confirmation
+ * → TradeMind Engine V3
  * → final TOP 5
  *
  * The scanner does not pre-select a final TOP 5.
@@ -211,10 +212,17 @@ function buildTimeframeMetrics({
     return null;
   }
 
-  const closes = candles.map((candle) => candle.close);
-  const highs = candles.map((candle) => candle.high);
-  const lows = candles.map((candle) => candle.low);
-  const volumes = candles.map((candle) => candle.volume);
+  // Higher-timeframe confirmation uses only completed candles so an
+  // unfinished 60M/4H candle cannot flip the regime mid-period.
+  const completedCandles =
+    candles.length > 1
+      ? candles.slice(0, -1)
+      : candles;
+
+  const closes = completedCandles.map((candle) => candle.close);
+  const highs = completedCandles.map((candle) => candle.high);
+  const lows = completedCandles.map((candle) => candle.low);
+  const volumes = completedCandles.map((candle) => candle.volume);
 
   const price = closes[closes.length - 1];
   const ema9Value = ema(closes, 9);
@@ -330,8 +338,7 @@ function scoreCandidate({
       ? recentVolume / historicalVolume
       : 1;
 
-  // Pionex 1D candles are daily candles.
-  // Use the ticker's actual 24h open/close for 24h momentum.
+  // Use the ticker's actual rolling 24h open/close for momentum.
   const tickerOpen = number(ticker.open, 0);
   const tickerClose = number(
     ticker.close,
