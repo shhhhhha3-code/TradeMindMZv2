@@ -25,7 +25,11 @@ const VALIDATION_POLICY = Object.freeze({
   minSamples: 50,
   minHoldoutSamples: 15,
   holdoutRatio: 0.25,
+  rollingWindows: 3,
+  minWindowSamples: 8,
+  minRegimeSamples: 10,
   minImprovementPct: 0,
+  maxRegimeDegradationPct: 0,
 });
 
 function finite(value) { const n = Number(value); return Number.isFinite(n) ? n : null; }
