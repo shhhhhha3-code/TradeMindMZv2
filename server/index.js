@@ -13,6 +13,7 @@ import positionRoute from "./ai/positionRoute.js";
 import supabaseRouter from "./supabase/route.js";
 import positionsRouter from "./positions/route.js";
 import { analyzeTopCandidates } from "./ai/topCandidatesAnalysis.js";
+import { runTradeMindCopilot } from "./ai/copilotEngine.js";
 import { getTradeCriteria, saveTradeCriteria } from "./ai/tradeCriteria.js";
 import paperRouter from "./paper/index.js";
 import { getFallbackMarket } from "./market/fallbackMarket.js";
@@ -256,6 +257,29 @@ app.post(
   }
 );
 
+
+app.post("/api/ai/copilot", async (req, res) => {
+  try {
+    const result = await runTradeMindCopilot({
+      question: req.body?.question,
+      candidates: req.body?.candidates || [],
+      history: req.body?.history || {},
+      portfolio: req.body?.portfolio || {},
+      preferredProvider: req.body?.preferredProvider || null,
+      mode: req.body?.mode || "auto",
+    });
+
+    res.json(result);
+  } catch (error) {
+    console.error("TradeMind Copilot error:", error);
+    res.status(500).json({
+      success: false,
+      status: "COPILOT_FAILED",
+      answer: null,
+      error: error?.message || "TradeMind Copilot failed.",
+    });
+  }
+});
 
 app.post("/api/ai/top-candidates", async (req, res) => {
   try {
