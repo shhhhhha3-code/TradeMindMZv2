@@ -218,6 +218,15 @@ function createRecord(trade) {
     momentum:
       trade?.momentum || null,
 
+    regime:
+      trade?.regime || null,
+
+    mtfConfirmation:
+      trade?.mtfConfirmation || null,
+
+    mtfAlignment:
+      trade?.mtfAlignment || null,
+
     horizonMinutes:
       numberOrZero(
         trade?.horizonMinutes
