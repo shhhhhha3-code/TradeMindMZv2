@@ -14,7 +14,7 @@ import supabaseRouter from "./supabase/route.js";
 import positionsRouter from "./positions/route.js";
 import { analyzeTopCandidates } from "./ai/topCandidatesAnalysis.js";
 import { runTradeMindCopilot } from "./ai/copilotEngine.js";
-import { createParameterProposal, getParameterOptimizerStatus, markParameterValidation, promoteParameterProposal, rejectParameterProposal } from "./ai/parameterOptimizer.js";
+import { createParameterProposal, getParameterOptimizerStatus, markParameterValidation, validateProposalWithWalkForward, promoteParameterProposal, rejectParameterProposal } from "./ai/parameterOptimizer.js";
 import { createParameterProposal, getParameterOptimizerStatus, markParameterValidation, promoteParameterProposal, rejectParameterProposal } from "./ai/parameterOptimizer.js";
 import { getTradeCriteria, saveTradeCriteria } from "./ai/tradeCriteria.js";
 import paperRouter from "./paper/index.js";
@@ -289,7 +289,7 @@ app.get("/api/ai/copilot/parameters", (_req, res) => { try { res.json(getParamet
 
 app.post("/api/ai/copilot/parameters/propose", async (req, res) => { try { res.json(await createParameterProposal(req.body || {})); } catch (error) { res.status(500).json({ success: false, error: error?.message || "Parameter proposal failed." }); } });
 
-app.post("/api/ai/copilot/parameters/validate", (req, res) => { try { res.json(markParameterValidation(req.body || {})); } catch (error) { res.status(400).json({ success: false, error: error?.message || "Parameter validation update failed." }); } });
+app.post("/api/ai/copilot/parameters/validate", (req, res) => { try { res.json(markParameterValidation(req.body || {})); } catch (error) { res.status(400).json({ success: false, error: error?.message || "Parameter validation update failed." }); } });\n\napp.post("/api/ai/copilot/parameters/walk-forward", (req, res) => { try { res.json(validateProposalWithWalkForward(req.body || {})); } catch (error) { res.status(400).json({ success: false, error: error?.message || "Walk-forward validation failed." }); } });
 
 app.post("/api/ai/copilot/parameters/promote", (req, res) => { try { res.json(promoteParameterProposal(req.body || {})); } catch (error) { res.status(400).json({ success: false, error: error?.message || "Parameter promotion blocked." }); } });
 
