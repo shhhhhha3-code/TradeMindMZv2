@@ -2,6 +2,7 @@ import { normalizeMarkets } from "./marketDataEngine.js";
 import { buildTechnicalSnapshot } from "./technicalEngine.js";
 import { scoreMarkets } from "./scoringEngine.js";
 import { addRiskAssessment } from "./riskEngine.js";
+import { buildMultiTimeframeSnapshot } from "./multiTimeframeEngine.js";
 
 export function buildCandidates(
   inputMarkets = [],
@@ -13,9 +14,13 @@ export function buildCandidates(
     .map((market) => {
       const technical = buildTechnicalSnapshot(market);
 
+      const multiTimeframe =
+        buildMultiTimeframeSnapshot(market);
+
       return {
         ...market,
         technical,
+        multiTimeframe,
         regime: technical.regime,
       };
     })
@@ -45,6 +50,7 @@ export function buildCandidates(
       atr: market.technical.atr,
       atrPct: market.technical.atrPct,
       riskReward: market.riskReward,
+      multiTimeframe: market.multiTimeframe,
       volumeRatio: market.volumeRatio,
       risk: market.risk,
       dataQuality: market.dataQuality,
