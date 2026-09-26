@@ -25,7 +25,7 @@ export function runTradeMindEngine(
     );
 
   return {
-    engine: "TradeMindMZ Engine V1",
+    engine: "TradeMind Engine V3",
 
     timestamp:
       Date.now(),
