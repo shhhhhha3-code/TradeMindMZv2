@@ -14,20 +14,9 @@ export function normalizeMarket(market = {}) {
     ticker?.close
   );
 
-  const open = number(
-    market?.open ??
-    ticker?.open
-  );
-
-  const high = number(
-    market?.high ??
-    ticker?.high
-  );
-
-  const low = number(
-    market?.low ??
-    ticker?.low
-  );
+  const open = number(market?.open ?? ticker?.open);
+  const high = number(market?.high ?? ticker?.high);
+  const low = number(market?.low ?? ticker?.low);
 
   const close = number(
     market?.close ??
@@ -36,10 +25,7 @@ export function normalizeMarket(market = {}) {
     ticker?.close
   );
 
-  const volume = number(
-    market?.volume ??
-    ticker?.volume
-  );
+  const volume = number(market?.volume ?? ticker?.volume);
 
   const rsi = number(
     market?.rsi ??
@@ -89,36 +75,44 @@ export function normalizeMarket(market = {}) {
     "NEUTRAL"
   ).toUpperCase();
 
+  const ema9 = number(market?.ema9 ?? indicators?.ema9);
+  const ema21 = number(market?.ema21 ?? indicators?.ema21);
+  const macd = number(market?.macd ?? indicators?.macd);
+  const atr = number(market?.atr ?? indicators?.atr);
+  const atrPct = number(market?.atrPct ?? indicators?.atrPct);
+  const regime = String(
+    market?.regime ??
+    indicators?.regime ??
+    "UNKNOWN"
+  ).toUpperCase();
+
   return {
     ...market,
-
-    symbol:
-      market?.symbol ??
-      ticker?.symbol ??
-      null,
-
+    symbol: market?.symbol ?? ticker?.symbol ?? null,
     price,
     open,
     high,
     low,
     close,
     volume,
-
     rsi,
     volumeRatio,
     change24h,
     riskReward,
-
+    ema9,
+    ema21,
+    macd,
+    atr,
+    atrPct,
+    regime,
     trend,
     score,
     confidence,
-
     timestamp:
       market?.timestamp ??
       market?.scannedAt ??
       ticker?.time ??
       Date.now(),
-
     raw: market,
   };
 }
