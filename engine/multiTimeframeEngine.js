@@ -70,10 +70,84 @@ function alignmentFor(direction, snapshot) {
     : "OPPOSED";
 }
 
+function timeframeQualityScore(direction, snapshot) {
+  const alignment = alignmentFor(direction, snapshot);
+
+  const trendScore =
+    alignment === "ALIGNED"
+      ? 100
+      : alignment === "OPPOSED"
+        ? 0
+        : 50;
+
+  const change = finite(
+    snapshot?.change24h ??
+    snapshot?.change
+  );
+
+  let momentumScore = 75;
+  if (change !== null) {
+    const alignedChange =
+      direction === "BUY"
+        ? change
+        : direction === "SELL"
+          ? -change
+          : 0;
+
+    momentumScore =
+      alignedChange >= 2
+        ? 100
+        : alignedChange >= 0.5
+          ? 85
+          : alignedChange >= -0.5
+            ? 55
+            : 15;
+  }
+
+  const rsi = finite(snapshot?.rsi);
+  let rsiScore = 75;
+
+  if (rsi !== null && direction !== "NEUTRAL") {
+    const ideal =
+      direction === "BUY"
+        ? rsi >= 45 && rsi <= 65
+        : rsi >= 35 && rsi <= 55;
+
+    const acceptable =
+      rsi >= 35 && rsi <= 70;
+
+    rsiScore = ideal
+      ? 100
+      : acceptable
+        ? 70
+        : 25;
+  }
+
+  const atrPct = finite(snapshot?.atrPct);
+  let volatilityScore = 75;
+
+  if (atrPct !== null) {
+    volatilityScore =
+      atrPct >= 0.5 && atrPct <= 3.5
+        ? 100
+        : atrPct > 0.35 && atrPct <= 5
+          ? 70
+          : 30;
+  }
+
+  return Math.round(
+    trendScore * 0.55 +
+    momentumScore * 0.2 +
+    rsiScore * 0.1 +
+    volatilityScore * 0.15
+  );
+}
+
 function weightedAlignment(direction, timeframes) {
   let availableWeight = 0;
   let alignedWeight = 0;
   let opposedWeight = 0;
+  let weightedScore = 0;
 
   for (const [rawTf, weight] of Object.entries(TIMEFRAME_WEIGHTS)) {
     const tf = normalizeTimeframe(rawTf);
@@ -92,6 +166,10 @@ function weightedAlignment(direction, timeframes) {
     } else if (alignment === "OPPOSED") {
       opposedWeight += weight;
     }
+
+    weightedScore +=
+      timeframeQualityScore(direction, snapshot) *
+      weight;
   }
 
   if (!availableWeight) {
@@ -108,7 +186,7 @@ function weightedAlignment(direction, timeframes) {
     alignedWeight,
     opposedWeight,
     score: Math.round(
-      (alignedWeight / availableWeight) * 100
+      weightedScore / availableWeight
     ),
   };
 }
