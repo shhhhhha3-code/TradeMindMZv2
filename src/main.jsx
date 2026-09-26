@@ -20,6 +20,7 @@ import { calculateRiskSizing } from "./services/riskSizingService.js";
 import { fetchDashboardData } from "./services/dashboardService.js";
 import { initTradePushNotifications, setQualifiedTradeNotificationsEnabled } from "./services/pushNotificationService.js";
 import { fetchServerPositionMonitoring } from "./services/serverPositionMonitoringService.js";
+import { buildPositionDecisionSummary } from "./positions/tradeDecisionStatus.js";
 import "./ui/trademind-v3.css";
 import "./ui/trademind-v4.css";
 import "./ui/trademind-v41.css";
@@ -651,6 +652,15 @@ function LivePionexBalance(){
     setError("");
 
     try {
+      try {
+        const criteriaResponse = await fetch(apiUrl("/api/ai/trade-criteria"), { cache: "no-store" });
+        const criteriaPayload = await criteriaResponse.json().catch(() => null);
+        if (criteriaResponse.ok && criteriaPayload?.success && criteriaPayload?.criteria) {
+          setTradeCriteria(criteriaPayload.criteria);
+        }
+      } catch (criteriaError) {
+        console.warn("Trade criteria unavailable; using local defaults:", criteriaError);
+      }
 
       const response = await fetch(apiUrl("/api/pionex/wallet-balances")
       );
@@ -6697,33 +6707,38 @@ function Positions(){
           const marketConfidence = Number(position.marketConfidence);
           const marketRiskReward = Number(position.marketRiskReward);
 
-          const healthChecks = [
-            {
-              label: "Engine score",
-              value: Number.isFinite(engineScore) ? Math.round(engineScore) + "/100" : "—",
-              state: Number.isFinite(engineScore) ? (engineScore >= 75 ? "PASS" : "WARN") : "UNKNOWN",
+          const decisionSummary = buildPositionDecisionSummary({
+            analysis,
+            pnlPercent,
+            market: {
+              engineScore,
+              confidence: marketConfidence,
+              riskReward: marketRiskReward,
+              rsi: positionRsi,
+              volumeRatio,
+              riskLevel: position.riskLevel || position.risk?.level || null,
             },
-            {
-              label: "Market confidence",
-              value: Number.isFinite(marketConfidence) ? Math.round(marketConfidence) + "%" : "—",
-              state: Number.isFinite(marketConfidence) ? (marketConfidence >= 80 ? "PASS" : "WARN") : "UNKNOWN",
-            },
-            {
-              label: "Risk / Reward",
-              value: Number.isFinite(marketRiskReward) ? marketRiskReward.toFixed(1) + ":1" : "—",
-              state: Number.isFinite(marketRiskReward) ? (marketRiskReward >= 2 ? "PASS" : "WARN") : "UNKNOWN",
-            },
-            {
-              label: "RSI",
-              value: Number.isFinite(positionRsi) ? positionRsi.toFixed(1) : "—",
-              state: Number.isFinite(positionRsi) ? (positionRsi >= 35 && positionRsi <= 70 ? "PASS" : "WARN") : "UNKNOWN",
-            },
-            {
-              label: "Volume",
-              value: Number.isFinite(volumeRatio) ? volumeRatio.toFixed(2) + "x" : "—",
-              state: Number.isFinite(volumeRatio) ? (volumeRatio >= 0.8 ? "PASS" : "WARN") : "UNKNOWN",
-            },
-          ];
+            criteria: tradeCriteria || {},
+          });
+
+          const positionStatus = decisionSummary.positionStatus;
+          const entryStatus = decisionSummary.entryStatus;
+
+          const formatEntryCheck = (check) => {
+            if (check.actual === null || check.actual === undefined) return "—";
+            if (check.key === "score") return Math.round(Number(check.actual)) + "/100";
+            if (check.key === "confidence") return Math.round(Number(check.actual)) + "%";
+            if (check.key === "riskReward") return Number(check.actual).toFixed(1) + ":1";
+            if (check.key === "rsi") return Number(check.actual).toFixed(1);
+            if (check.key === "volume") return Number(check.actual).toFixed(2) + "x";
+            return String(check.actual);
+          };
+
+          const healthChecks = entryStatus.checks.map(check => ({
+            ...check,
+            value: formatEntryCheck(check),
+            state: check.passed ? "PASS" : check.actual === null ? "UNKNOWN" : "WARN",
+          }));
 
           return (
             <div className="panel pos" key={key}>
@@ -6822,23 +6837,29 @@ function Positions(){
               <div className="panel" style={{marginTop:"18px",padding:"18px"}}>
                 <h3><BrainCircuit/> AI POSITION MONITORING</h3>
 
-                {analysis?.exitWarning ? (
-                  <div
-                    className="metric"
-                    style={{
-                      marginBottom: "12px",
-                      border: "1px solid rgba(255,90,90,.35)",
-                      background: "rgba(255,70,70,.08)",
-                    }}
-                  >
-                    <span>EXIT WARNING</span>
-                    <b style={{color:"#ff7777"}}>
-                      {recommendation === "EXIT_CONSIDERATION"
-                        ? "AI EXIT CONSIDERATION"
-                        : recommendation === "REDUCE_RISK"
-                          ? "REDUCE RISK"
-                          : "AI CONFIDENCE WEAKENING"}
-                    </b>
+                <div className="metric tmz-position-decision">
+                  <span>POSITION STATUS</span>
+                  <b className={positionStatus.className}>
+                    {positionStatus.label}
+                  </b>
+                </div>
+
+                <div className="metric">
+                  <span>ENTRY STATUS</span>
+                  <b className={entryStatus.status === "ELIGIBLE" ? "positive" : entryStatus.status === "UNKNOWN" ? "neutral" : "warning"}>
+                    {entryStatus.status.replace(/_/g, " ")}
+                  </b>
+                </div>
+
+                {entryStatus.failedChecks.length ? (
+                  <div className="tmz-entry-blockers">
+                    <span>WHY NOT A NEW ENTRY?</span>
+                    {entryStatus.failedChecks.map(check => (
+                      <div key={check.key}>
+                        <b>{check.label}</b>
+                        <span>{formatEntryCheck(check)} · Required {String(check.target)}</span>
+                      </div>
+                    ))}
                   </div>
                 ) : null}
 
@@ -6850,7 +6871,7 @@ function Positions(){
                 ) : analysis ? (
                   <>
                     <div className="metric">
-                      <span>AI STATUS</span>
+                      <span>AI RISK ACTION</span>
                       <b className={recommendation === "WAITING" ? "neutral" : recommendationClass}>
                         {recommendation.replace(/_/g," ")}
                       </b>
