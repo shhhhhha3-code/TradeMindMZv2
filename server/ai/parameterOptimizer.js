@@ -30,6 +30,10 @@ const VALIDATION_POLICY = Object.freeze({
   minRegimeSamples: 10,
   minImprovementPct: 0,
   maxRegimeDegradationPct: 0,
+  minProfitFactor: 1,
+  maxDrawdownPct: 15,
+  minHoldoutEligibleSamples: 5,
+  maxEligibleTradeCountDropPct: 50,
 });
 
 function finite(value) { const n = Number(value); return Number.isFinite(n) ? n : null; }
@@ -100,14 +104,32 @@ function writeState(state) {
 function summarize(records) {
   const closed = records.filter(r => r?.result && r.result !== "UNKNOWN");
   const wins = closed.filter(r => Number(r.pnlPercent) > 0).length;
+  const losses = closed.filter(r => Number(r.pnlPercent) < 0).length;
   const pnl = closed.reduce((sum, r) => sum + (Number(r.pnlPercent) || 0), 0);
+  let equity = 0;
+  let peak = 0;
+  let maxDrawdown = 0;
+  let grossProfit = 0;
+  let grossLoss = 0;
+  for (const record of closed) {
+    const value = Number(record.pnlPercent) || 0;
+    equity += value;
+    peak = Math.max(peak, equity);
+    maxDrawdown = Math.max(maxDrawdown, peak - equity);
+    if (value > 0) grossProfit += value;
+    if (value < 0) grossLoss += Math.abs(value);
+  }
   return {
     samples: closed.length,
     wins,
-    losses: closed.filter(r => Number(r.pnlPercent) < 0).length,
+    losses,
     winRate: closed.length ? Number((wins / closed.length * 100).toFixed(2)) : null,
     avgPnl: closed.length ? Number((pnl / closed.length).toFixed(4)) : null,
     totalPnl: Number(pnl.toFixed(4)),
+    grossProfit: Number(grossProfit.toFixed(4)),
+    grossLoss: Number(grossLoss.toFixed(4)),
+    profitFactor: grossLoss > 0 ? Number((grossProfit / grossLoss).toFixed(4)) : (grossProfit > 0 ? null : 0),
+    maxDrawdownPct: Number(maxDrawdown.toFixed(4)),
   };
 }
 
@@ -143,7 +165,20 @@ function recordPassesCriteria(record, criteria) {
 function evaluateDataset(records, criteria) {
   const eligible = records.filter(r => recordPassesCriteria(r, criteria));
   const stats = summarize(eligible);
-  return { ...stats, eligibleSamples: eligible.length };
+  return { ...stats, eligibleSamples: eligible.length, rawSamples: records.length };
+}
+
+function assessGuardrails(current, proposed, isHoldout = false) {
+  const tradeDropPct = current.eligibleSamples > 0
+    ? Number(((current.eligibleSamples - proposed.eligibleSamples) / current.eligibleSamples * 100).toFixed(2))
+    : 0;
+  const checks = {
+    profitFactor: proposed.profitFactor === null || proposed.profitFactor >= VALIDATION_POLICY.minProfitFactor,
+    drawdown: proposed.maxDrawdownPct <= VALIDATION_POLICY.maxDrawdownPct,
+    tradeCount: tradeDropPct <= VALIDATION_POLICY.maxEligibleTradeCountDropPct,
+    holdoutSamples: !isHoldout || proposed.eligibleSamples >= VALIDATION_POLICY.minHoldoutEligibleSamples,
+  };
+  return { ...checks, tradeDropPct, passed: Object.values(checks).every(Boolean) };
 }
 function evaluateByRegime(records, currentCriteria, proposedCriteria) {
   const groups = new Map();
@@ -218,6 +253,8 @@ export function validateProposalWithWalkForward({ proposalId } = {}) {
       passed: proposed.eligibleSamples > 0 && deltaPnl >= VALIDATION_POLICY.minImprovementPct && regimes.every(item => item.passed),
     };
   });
+  const trainGuardrails = assessGuardrails(trainCurrent, trainProposed);
+  const holdoutGuardrails = assessGuardrails(holdoutCurrent, holdoutProposed, true);
   const regimeChecks = [...trainRegimes, ...holdoutRegimes];
   const passed =
     trainProposed.eligibleSamples > 0 &&
@@ -226,7 +263,9 @@ export function validateProposalWithWalkForward({ proposalId } = {}) {
     holdoutDelta >= VALIDATION_POLICY.minImprovementPct &&
     rollingWindows.length > 0 &&
     rollingWindows.every(window => window.passed) &&
-    regimeChecks.every(item => item.passed);
+    regimeChecks.every(item => item.passed) &&
+    trainGuardrails.passed &&
+    holdoutGuardrails.passed;
 
   proposal.validation = {
     status: passed ? "PASSED" : "FAILED",
@@ -236,6 +275,7 @@ export function validateProposalWithWalkForward({ proposalId } = {}) {
     dataOrder: "ASCENDING_CHRONOLOGICAL",
     train: { samples: train.length, current: trainCurrent, proposed: trainProposed, deltaPnl: trainDelta, byRegime: trainRegimes },
     rollingWindows,
+    guardrails: { train: trainGuardrails, holdout: holdoutGuardrails },
     holdout: { samples: holdout.length, current: holdoutCurrent, proposed: holdoutProposed, deltaPnl: holdoutDelta, byRegime: holdoutRegimes },
     automaticPromotion: false,
   };
