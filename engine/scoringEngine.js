@@ -184,7 +184,7 @@ export function calculateEngineScore(market) {
    * The base deterministic score keeps 85% weight, while 15% comes from
    * 15M/60M/4H alignment. This avoids allowing one timeframe to dominate.
    */
-  if (mtf && mtf.status !== "INSUFFICIENT") {
+  if (mtf?.enabled && mtf.status !== "INSUFFICIENT") {
     const mtfScore = finite(mtf.score, 0);
     total =
       total * 0.85 +
