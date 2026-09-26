@@ -374,22 +374,70 @@ function scoreCandidate({
       Math.min(100, Math.round(rawScore))
     );
 
+  const entry = price;
+
+  /*
+   * Build 1: risk/reward is now derived from recent market structure
+   * instead of forcing a fixed 2.0 RR on every setup.
+   *
+   * The current candle is excluded so an unfinished spike cannot become
+   * the target. If structure does not provide at least 2R, the engine uses
+   * a conservative 2.5R ATR-based fallback target.
+   */
+  const structureWindow =
+    candles.slice(
+      Math.max(0, candles.length - 21),
+      Math.max(0, candles.length - 1)
+    );
+
+  const recentSwingHigh =
+    structureWindow.length
+      ? Math.max(
+          ...structureWindow.map(
+            (candle) => candle.high
+          )
+        )
+      : price;
+
+  const recentSwingLow =
+    structureWindow.length
+      ? Math.min(
+          ...structureWindow.map(
+            (candle) => candle.low
+          )
+        )
+      : price;
+
   const stopDistance =
     Math.max(
       atrValue * 1.5,
       price * 0.01
     );
 
-  const targetDistance =
-    stopDistance * 2;
-
-  const entry =
-    price;
-
   const stopLoss =
     direction === "BUY"
       ? price - stopDistance
       : price + stopDistance;
+
+  const structureTargetDistance =
+    direction === "BUY"
+      ? recentSwingHigh - price
+      : price - recentSwingLow;
+
+  const fallbackTargetDistance =
+    Math.max(
+      stopDistance * 2.5,
+      atrValue * 3
+    );
+
+  const targetDistance =
+    Number.isFinite(
+      structureTargetDistance
+    ) &&
+    structureTargetDistance >=
+      stopDistance * 2
+      ? structureTargetDistance
+      : fallbackTargetDistance;
 
   const takeProfit =
     direction === "BUY"
