@@ -239,6 +239,20 @@ export function createPaperTrade({
       candidate.momentum ??
       null,
 
+    regime:
+      candidate.regime ??
+      null,
+
+    mtfConfirmation:
+      candidate?.multiTimeframe?.confirmation ??
+      candidate?.mtfConfirmation ??
+      null,
+
+    mtfAlignment:
+      candidate?.multiTimeframe?.alignment ??
+      candidate?.mtfAlignment ??
+      null,
+
     aiDecision:
       aiDecision?.decision ??
       null,
