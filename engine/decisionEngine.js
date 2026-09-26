@@ -19,6 +19,18 @@ export function evaluateCandidate(candidate) {
     reasons.push("INSUFFICIENT_MARKET_DATA");
   }
 
+  if (
+    candidate.multiTimeframe?.status === "INSUFFICIENT"
+  ) {
+    reasons.push("INSUFFICIENT_MTF_CONFIRMATION");
+  }
+
+  if (
+    candidate.multiTimeframe?.alignment === "CONFLICTING"
+  ) {
+    reasons.push("HIGHER_TIMEFRAME_CONFLICT");
+  }
+
   if (candidate.engineScore < 75) {
     reasons.push("ENGINE_SCORE_BELOW_MINIMUM");
   }
@@ -59,7 +71,9 @@ export function evaluateCandidate(candidate) {
   if (
     candidate.engineScore >= 65 &&
     candidate.engineScore < 75 &&
-    !reasons.includes("INSUFFICIENT_MARKET_DATA")
+    !reasons.includes("INSUFFICIENT_MARKET_DATA") &&
+    !reasons.includes("INSUFFICIENT_MTF_CONFIRMATION") &&
+    !reasons.includes("HIGHER_TIMEFRAME_CONFLICT")
   ) {
     return {
       decision: ENGINE_DECISIONS.WATCH,
