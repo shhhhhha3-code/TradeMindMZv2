@@ -10,10 +10,9 @@ export function buildCandidates(
 ) {
   const normalized = normalizeMarkets(inputMarkets);
 
-  const enriched = scoreMarkets(normalized)
-    .map((market) => {
+  const enriched = scoreMarkets(
+    normalized.map((market) => {
       const technical = buildTechnicalSnapshot(market);
-
       const multiTimeframe =
         buildMultiTimeframeSnapshot(market);
 
@@ -24,7 +23,7 @@ export function buildCandidates(
         regime: technical.regime,
       };
     })
-    .map(addRiskAssessment);
+  ).map(addRiskAssessment);
 
   return enriched
     .sort((a, b) => b.engineScore - a.engineScore)
