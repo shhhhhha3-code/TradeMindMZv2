@@ -67,6 +67,7 @@ export function calculateEngineScore(market) {
   const ema21 = finite(market?.ema21 ?? market?.indicators?.ema21);
   const macd = finite(market?.macd ?? market?.indicators?.macd);
   const atrPct = finite(market?.atrPct ?? market?.indicators?.atrPct);
+  const mtf = market?.multiTimeframe ?? null;
 
   const hasRichTechnicalData =
     ema9 !== null ||
@@ -176,6 +177,18 @@ export function calculateEngineScore(market) {
       { when: v => v >= 1.5, score: 6 },
       { when: () => true, score: 0 },
     ]);
+  }
+
+  /*
+   * Build 2: multi-timeframe confirmation becomes a bounded 15% component.
+   * The base deterministic score keeps 85% weight, while 15% comes from
+   * 15M/60M/4H alignment. This avoids allowing one timeframe to dominate.
+   */
+  if (mtf && mtf.status !== "INSUFFICIENT") {
+    const mtfScore = finite(mtf.score, 0);
+    total =
+      total * 0.85 +
+      clamp(mtfScore) * 0.15;
   }
 
   return Math.round(clamp(total));
