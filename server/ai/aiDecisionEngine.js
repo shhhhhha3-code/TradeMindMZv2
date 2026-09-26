@@ -82,6 +82,21 @@ function engineHardBlock(
       candidate?.indicators?.volumeRatio
     );
 
+  const dataQuality =
+    String(
+      candidate?.dataQuality?.status ?? ""
+    ).toUpperCase();
+
+  const mtfStatus =
+    String(
+      candidate?.multiTimeframe?.status ?? ""
+    ).toUpperCase();
+
+  const mtfAlignment =
+    String(
+      candidate?.multiTimeframe?.alignment ?? ""
+    ).toUpperCase();
+
   const riskLevel =
     String(
       candidate?.risk?.level ??
@@ -145,6 +160,24 @@ function engineHardBlock(
     );
   }
 
+  if (dataQuality === "INSUFFICIENT") {
+    reasons.push(
+      "INSUFFICIENT_MARKET_DATA"
+    );
+  }
+
+  if (mtfStatus === "INSUFFICIENT") {
+    reasons.push(
+      "INSUFFICIENT_MTF_CONFIRMATION"
+    );
+  }
+
+  if (mtfAlignment === "CONFLICTING") {
+    reasons.push(
+      "HIGHER_TIMEFRAME_CONFLICT"
+    );
+  }
+
   return reasons;
 }
 
@@ -169,6 +202,9 @@ Hard rules:
 - RSI between 35 and 70
 - Volume ratio >= 0.8
 - HIGH risk cannot be selected
+- Insufficient market data cannot be selected
+- Insufficient multi-timeframe confirmation cannot be selected
+- A conflicting higher timeframe cannot be selected
 
 You MUST NOT override a deterministic engine block.
 
