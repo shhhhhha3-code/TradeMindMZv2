@@ -6138,12 +6138,22 @@ function Positions(){
   const [ai,setAi] = useState({});
   const [aiLoading,setAiLoading] = useState({});
   const [marketSnapshot,setMarketSnapshot] = useState(null);
+  const [tradeCriteria,setTradeCriteria] = useState(null);
 
   const loadPositions = async () => {
     setRefreshing(true);
     setError("");
 
     try {
+      try {
+        const criteriaResponse = await fetch(apiUrl("/api/ai/trade-criteria"), { cache: "no-store" });
+        const criteriaPayload = await criteriaResponse.json().catch(() => null);
+        if (criteriaResponse.ok && criteriaPayload?.success && criteriaPayload?.criteria) {
+          setTradeCriteria(criteriaPayload.criteria);
+        }
+      } catch (criteriaError) {
+        console.warn("Trade criteria unavailable; using local defaults:", criteriaError);
+      }
       const tracked = loadTrackedPositions().filter(
         position => String(position?.status || "LIVE").toUpperCase() === "LIVE"
       );
