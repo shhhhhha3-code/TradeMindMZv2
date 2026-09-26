@@ -10,3 +10,5 @@ export {
 export {
   analyzePositionWithAI,
 } from "./positionAI.js";
+
+export { runTradeMindCopilot } from "./copilotEngine.js";
