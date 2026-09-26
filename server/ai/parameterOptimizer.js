@@ -91,10 +91,10 @@ function writeState(state) {
 function summarizeHistory(limit = 500) {
   const result = getPaperLearning({ limit });
   const records = Array.isArray(result?.records) ? result.records : [];
-  const closed = records.filter(r => r?.outcome && r.outcome !== "OPEN");
-  const wins = closed.filter(r => Number(r.pnl) > 0).length;
-  const losses = closed.filter(r => Number(r.pnl) < 0).length;
-  const pnl = closed.reduce((sum, r) => sum + (Number(r.pnl) || 0), 0);
+  const closed = records.filter(r => r?.result && r.result !== "UNKNOWN");
+  const wins = closed.filter(r => Number(r.pnlPercent) > 0).length;
+  const losses = closed.filter(r => Number(r.pnlPercent) < 0).length;
+  const pnl = closed.reduce((sum, r) => sum + (Number(r.pnlPercent) || 0), 0);
   return {
     samples: closed.length,
     wins,
@@ -102,7 +102,7 @@ function summarizeHistory(limit = 500) {
     winRate: closed.length ? Number((wins / closed.length * 100).toFixed(2)) : null,
     pnl: Number(pnl.toFixed(4)),
     recent: closed.slice(0, 100).map(r => ({
-      pnl: r.pnl, outcome: r.outcome, engineScore: r.engineScore,
+      pnlPercent: r.pnlPercent, result: r.result, engineScore: r.engineScore,
       confidence: r.confidence, risk: r.risk, regime: r.regime,
       mtfAlignment: r.mtfAlignment, mtfConfirmation: r.mtfConfirmation,
     })),
