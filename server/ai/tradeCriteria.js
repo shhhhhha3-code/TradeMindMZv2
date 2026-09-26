@@ -49,37 +49,19 @@ function sanitizeCriteria(
 
   const minimumScore =
     Math.round(
-      Math.max(
-        0,
-        Math.min(
-          100,
-          number(
-            input.minimumScore,
-            defaults.minimumScore
-          )
-        )
-      )
+      Math.max(70, Math.min(85, number(input.minimumScore, defaults.minimumScore)))
     );
 
   const minimumConfidence =
     Math.round(
-      Math.max(
-        0,
-        Math.min(
-          100,
-          number(
-            input.minimumConfidence,
-            defaults.minimumConfidence
-          )
-        )
-      )
+      Math.max(75, Math.min(90, number(input.minimumConfidence, defaults.minimumConfidence)))
     );
 
   const minimumRiskReward =
     Math.max(
-      0.1,
+      1.8,
       Math.min(
-        20,
+        3,
         number(
           input.minimumRiskReward,
           defaults.minimumRiskReward
@@ -88,34 +70,16 @@ function sanitizeCriteria(
     );
 
   const minimumRsi =
-    Math.max(
-      0,
-      Math.min(
-        100,
-        number(
-          input.minimumRsi,
-          defaults.minimumRsi
-        )
-      )
-    );
+    Math.max(25, Math.min(45, number(input.minimumRsi, defaults.minimumRsi)));
 
   const maximumRsi =
-    Math.max(
-      0,
-      Math.min(
-        100,
-        number(
-          input.maximumRsi,
-          defaults.maximumRsi
-        )
-      )
-    );
+    Math.max(60, Math.min(80, number(input.maximumRsi, defaults.maximumRsi)));
 
   const minimumVolumeRatio =
     Math.max(
-      0,
+      0.6,
       Math.min(
-        20,
+        1.2,
         number(
           input.minimumVolumeRatio,
           defaults.minimumVolumeRatio
@@ -128,30 +92,12 @@ function sanitizeCriteria(
 
   const highRiskScore =
     Math.round(
-      Math.max(
-        0,
-        Math.min(
-          100,
-          number(
-            highRiskInput.minimumScore,
-            defaults.highRisk.minimumScore
-          )
-        )
-      )
+      Math.max(80, Math.min(95, number(highRiskInput.minimumScore, defaults.highRisk.minimumScore)))
     );
 
   const highRiskConfidence =
     Math.round(
-      Math.max(
-        0,
-        Math.min(
-          100,
-          number(
-            highRiskInput.minimumConfidence,
-            defaults.highRisk.minimumConfidence
-          )
-        )
-      )
+      Math.max(85, Math.min(95, number(highRiskInput.minimumConfidence, defaults.highRisk.minimumConfidence)))
     );
 
   return {
