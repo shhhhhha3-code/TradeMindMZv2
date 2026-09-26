@@ -203,10 +203,87 @@ function parseKlines(payload) {
   return parsed.sort((a, b) => a.time - b.time);
 }
 
+function buildTimeframeMetrics({
+  candles,
+  ticker = {},
+}) {
+  if (candles.length < 40) {
+    return null;
+  }
+
+  const closes = candles.map((candle) => candle.close);
+  const highs = candles.map((candle) => candle.high);
+  const lows = candles.map((candle) => candle.low);
+  const volumes = candles.map((candle) => candle.volume);
+
+  const price = closes[closes.length - 1];
+  const ema9Value = ema(closes, 9);
+  const ema21Value = ema(closes, 21);
+  const rsiValue = rsi(closes, 14);
+  const macdValue = macd(closes);
+  const atrValue = atr(closes, highs, lows, 14);
+  const atrPct = price > 0
+    ? (atrValue / price) * 100
+    : 0;
+
+  const recentVolume = average(volumes.slice(-5));
+  const historicalVolume = average(volumes.slice(-25));
+  const volumeRatio = historicalVolume > 0
+    ? recentVolume / historicalVolume
+    : 1;
+
+  const tickerOpen = number(ticker.open, 0);
+  const tickerClose = number(ticker.close, price);
+  const change24h = tickerOpen > 0
+    ? ((tickerClose - tickerOpen) / tickerOpen) * 100
+    : 0;
+
+  let bullish = 0;
+  let bearish = 0;
+
+  if (ema9Value > ema21Value) bullish += 1;
+  else bearish += 1;
+
+  if (price > ema9Value) bullish += 1;
+  else bearish += 1;
+
+  if (macdValue > 0) bullish += 1;
+  else bearish += 1;
+
+  if (change24h > 0) bullish += 1;
+  else if (change24h < 0) bearish += 1;
+
+  const direction =
+    bullish === bearish
+      ? "NEUTRAL"
+      : bullish > bearish
+        ? "BUY"
+        : "SELL";
+
+  return {
+    direction,
+    trend:
+      direction === "BUY"
+        ? "BULLISH"
+        : direction === "SELL"
+          ? "BEARISH"
+          : "NEUTRAL",
+    rsi: rsiValue,
+    ema9: ema9Value,
+    ema21: ema21Value,
+    macd: macdValue,
+    atr: atrValue,
+    atrPct,
+    volumeRatio,
+    change24h,
+  };
+}
+
 function scoreCandidate({
   symbol,
   candles,
   ticker = {},
+  timeframes = {},
 }) {
   if (candles.length < 40) {
     return null;
@@ -542,6 +619,8 @@ function scoreCandidate({
       change24h,
     },
 
+    timeframes,
+
     ticker,
 
     reasoning:
@@ -599,9 +678,10 @@ function getSymbolValue(row, keys) {
 }
 
 export async function scanPionexMarket({
-  interval = "1D",
+  interval = "15M",
   candleLimit = 100,
   maxMarkets = 25,
+  multiTimeframe = true,
 } = {}) {
   const [tickerPayload, symbolPayload] =
     await Promise.all([
@@ -700,11 +780,77 @@ export async function scanPionexMarket({
       const candles =
         parseKlines(payload);
 
+      const timeframes = {};
+
+      if (multiTimeframe) {
+        timeframes["15M"] =
+          interval.toUpperCase() === "15M"
+            ? buildTimeframeMetrics({
+                candles,
+                ticker: item.ticker,
+              })
+            : null;
+
+        for (const higherTimeframe of ["60M", "4H"]) {
+          try {
+            const higherPayload =
+              await getMarketKlines({
+                symbol: item.symbol,
+                interval: higherTimeframe,
+                limit: candleLimit,
+              });
+
+            const higherCandles =
+              parseKlines(higherPayload);
+
+            timeframes[higherTimeframe] =
+              buildTimeframeMetrics({
+                candles: higherCandles,
+                ticker: item.ticker,
+              });
+          } catch (error) {
+            console.warn(
+              `Scanner skipped ${item.symbol} ${higherTimeframe} timeframe:`,
+              error?.message || error
+            );
+
+            timeframes[higherTimeframe] = null;
+          }
+        }
+
+        if (!timeframes["15M"]) {
+          try {
+            const primaryPayload =
+              interval.toUpperCase() === "15M"
+                ? null
+                : await getMarketKlines({
+                    symbol: item.symbol,
+                    interval: "15M",
+                    limit: candleLimit,
+                  });
+
+            if (primaryPayload) {
+              timeframes["15M"] =
+                buildTimeframeMetrics({
+                  candles: parseKlines(primaryPayload),
+                  ticker: item.ticker,
+                });
+            }
+          } catch (error) {
+            console.warn(
+              `Scanner skipped ${item.symbol} 15M timeframe:`,
+              error?.message || error
+            );
+          }
+        }
+      }
+
       const candidate =
         scoreCandidate({
           symbol: item.symbol,
           candles,
           ticker: item.ticker,
+          timeframes,
         });
 
       if (candidate) {
@@ -732,6 +878,12 @@ export async function scanPionexMarket({
       new Date().toISOString(),
 
     engine: engineResult,
+
+    multiTimeframe: {
+      enabled: multiTimeframe,
+      primaryInterval: interval.toUpperCase(),
+      confirmationIntervals: ["15M", "60M", "4H"],
+    },
 
     engineDecision:
       engineResult.decision,
