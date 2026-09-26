@@ -3,6 +3,7 @@ import { buildTechnicalSnapshot } from "./technicalEngine.js";
 import { scoreMarkets } from "./scoringEngine.js";
 import { addRiskAssessment } from "./riskEngine.js";
 import { buildMultiTimeframeSnapshot } from "./multiTimeframeEngine.js";
+import { getAdaptiveLearningV7 } from "../server/paper/adaptiveLearningV7.js";
 
 export function buildCandidates(
   inputMarkets = [],
@@ -53,6 +54,15 @@ export function buildCandidates(
       volumeRatio: market.volumeRatio,
       risk: market.risk,
       dataQuality: market.dataQuality,
-      source: "TradeMindMZ Engine V3 Multi-Timeframe",
+      adaptiveLearning: getAdaptiveLearningV7({
+        symbol: market.symbol,
+        direction: market.direction,
+        engineScore: market.engineScore,
+        confidence: market.confidence,
+        risk: market.risk?.level,
+        regime: market.regime,
+        multiTimeframe: market.multiTimeframe,
+      }),
+      source: "TradeMindMZ Engine V3 Multi-Timeframe + Adaptive Learning V7",
     }));
 }
