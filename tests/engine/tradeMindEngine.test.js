@@ -186,3 +186,55 @@ test("Build 1 exposes regime and technical quality fields", () => {
   assert.equal(candidate.atrPct, 1.8);
   assert.equal(candidate.dataQuality.status, "GOOD");
 });
+
+
+test("Build 2 blocks trades when higher timeframes conflict", () => {
+  const result = runTradeMindEngine([
+    {
+      symbol: "CONFLICTUSDT",
+      price: 100,
+      direction: "BUY",
+      rsi: 55,
+      volumeRatio: 1.3,
+      riskReward: 2.8,
+      change24h: 2,
+      ema9: 103,
+      ema21: 100,
+      macd: 1.2,
+      atrPct: 1.8,
+      timeframes: {
+        "15M": {
+          direction: "BUY",
+          rsi: 55,
+          macd: 1,
+          ema9: 103,
+          ema21: 100,
+          atrPct: 1.8,
+        },
+        "60M": {
+          direction: "SELL",
+          rsi: 45,
+          macd: -1,
+          ema9: 98,
+          ema21: 100,
+          atrPct: 1.8,
+        },
+        "4H": {
+          direction: "SELL",
+          rsi: 45,
+          macd: -1.5,
+          ema9: 97,
+          ema21: 100,
+          atrPct: 1.8,
+        },
+      },
+    },
+  ]);
+
+  assert.equal(result.decision, "NO_TRADE");
+  assert.ok(
+    result.recommendation.reasons.includes(
+      "HIGHER_TIMEFRAME_CONFLICT"
+    )
+  );
+});
