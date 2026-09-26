@@ -40,6 +40,7 @@ import {
   clearPaperMonitorHealthHistory,
 } from "./runtimeHealth.js";
 import { calculatePaperHealthScore } from "./paperHealthScore.js";
+import { getAdaptiveLearningV7, getAdaptiveLearningPolicy } from "./adaptiveLearningV7.js";
 
 
 const router =
@@ -374,6 +375,49 @@ router.get(
     }
   },
 );
+
+router.post(
+  "/learning/adaptive-v7",
+  (req, res) => {
+    try {
+      res.json(
+        getAdaptiveLearningV7(
+          req.body || {}
+        )
+      );
+    } catch (error) {
+      console.error("Adaptive Learning V7 failed:", error);
+      res.status(500).json({
+        success: false,
+        error:
+          error?.message ||
+          "Adaptive Learning V7 failed",
+      });
+    }
+  },
+);
+
+router.get(
+  "/learning/adaptive-v7",
+  (_req, res) => {
+    try {
+      res.json({
+        success: true,
+        policy: getAdaptiveLearningPolicy(),
+        learning: getAdaptiveLearningV7({}),
+      });
+    } catch (error) {
+      console.error("Adaptive Learning V7 policy failed:", error);
+      res.status(500).json({
+        success: false,
+        error:
+          error?.message ||
+          "Adaptive Learning V7 policy failed",
+      });
+    }
+  },
+);
+
 
 router.get(
   "/learning/adaptive-v5",
