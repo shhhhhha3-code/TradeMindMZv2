@@ -104,6 +104,26 @@ async function callOpenAI(payload) {
   );
 }
 
+export async function callAICopilotProvider(provider, payload) {
+  const systemPrompt = `${payload.systemPrompt}\nReturn JSON only: {"answer":"..."}`;
+
+  if (provider === "groq") {
+    return callGroq({
+      ...payload,
+      systemPrompt,
+    });
+  }
+
+  if (provider === "openai") {
+    return callOpenAI({
+      ...payload,
+      systemPrompt,
+    });
+  }
+
+  throw new Error(`Unsupported AI provider: ${provider}`);
+}
+
 export async function callAIProvider(
   provider,
   payload
