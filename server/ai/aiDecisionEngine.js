@@ -184,6 +184,8 @@ function engineHardBlock(
 }
 
 function buildSystemPrompt() {
+  const criteria = getTradeCriteria();
+
   return `
 You are the TradeMindMZ AI Decision Layer.
 
@@ -196,13 +198,13 @@ You MUST NOT invent market data.
 
 You MUST evaluate ONLY the supplied candidates.
 
-Hard rules:
+Hard rules are the ACTIVE TradeMind criteria:
 
-- Engine score >= 75
-- Confidence >= 80
-- Risk/reward >= 2
-- RSI between 35 and 70
-- Volume ratio >= 0.8
+- Engine score >= ${criteria.minimumScore}
+- Confidence >= ${criteria.minimumConfidence}
+- Risk/reward >= ${criteria.minimumRiskReward}
+- RSI between ${criteria.minimumRsi} and ${criteria.maximumRsi}
+- Volume ratio >= ${criteria.minimumVolumeRatio}
 - HIGH risk cannot be selected
 - Insufficient market data cannot be selected
 - Insufficient multi-timeframe confirmation cannot be selected
