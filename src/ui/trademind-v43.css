@@ -798,3 +798,44 @@
       column;
   }
 }
+
+
+/* Build 5.4 — decision consistency / explainability */
+.tmz-position-decision {
+  margin-bottom: 10px;
+}
+
+.tmz-entry-blockers {
+  margin: 10px 0 12px;
+  padding: 12px;
+  border: 1px solid rgba(255, 180, 70, .18);
+  border-radius: 10px;
+  background: rgba(255, 180, 70, .045);
+}
+
+.tmz-entry-blockers > span {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+  color: rgba(255, 190, 100, .78);
+}
+
+.tmz-entry-blockers > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 0;
+  font-size: 11px;
+}
+
+.tmz-entry-blockers > div b {
+  color: rgba(255,255,255,.78);
+}
+
+.tmz-entry-blockers > div span {
+  color: rgba(255,255,255,.45);
+  text-align: right;
+}
