@@ -318,7 +318,7 @@ export function getParameterOptimizerStatus() {
 export function markParameterValidation({ proposalId, status = "PENDING", details = {} } = {}) {
   const state = readState();
   if (!state.proposal || state.proposal.id !== proposalId) throw new Error("No matching parameter proposal.");
-  if (!["PENDING", "PASSED", "FAILED"].includes(status)) throw new Error("Invalid validation status.");
+  if (!["PENDING", "FAILED"].includes(status)) throw new Error("PASSED can only be produced by the internal regime-aware validator.");
   state.proposal.validation = { ...state.proposal.validation, status, details, validatedAt: new Date().toISOString() };
   writeState(state);
   return { success: true, proposal: state.proposal };
