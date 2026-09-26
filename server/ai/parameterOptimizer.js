@@ -21,16 +21,14 @@ export const PARAMETER_BOUNDS = Object.freeze({
   highRiskMinimumConfidence: { min: 85, max: 95, step: 1 },
 });
 
-function finite(value) { const n = Number(value); return Number.isFinite(n) ? n : null; }
+const VALIDATION_POLICY = Object.freeze({
+  minSamples: 50,
+  minHoldoutSamples: 15,
+  holdoutRatio: 0.25,
+  minImprovementPct: 0,
+});
 
-function clampToBounds(key, value) {
-  const bounds = PARAMETER_BOUNDS[key];
-  const n = finite(value);
-  if (!bounds || n === null) return null;
-  const clamped = Math.max(bounds.min, Math.min(bounds.max, n));
-  const steps = Math.round((clamped - bounds.min) / bounds.step);
-  return Number((bounds.min + steps * bounds.step).toFixed(4));
-}
+function finite(value) { const n = Number(value); return Number.isFinite(n) ? n : null; }
 
 function flattenCriteria(criteria) {
   return {
@@ -60,6 +58,15 @@ function unflatten(v) {
   };
 }
 
+function clampToBounds(key, value) {
+  const bounds = PARAMETER_BOUNDS[key];
+  const n = finite(value);
+  if (!bounds || n === null) return null;
+  const clamped = Math.max(bounds.min, Math.min(bounds.max, n));
+  const steps = Math.round((clamped - bounds.min) / bounds.step);
+  return Number((bounds.min + steps * bounds.step).toFixed(4));
+}
+
 export function validateParameterProposal(proposed = {}) {
   const current = flattenCriteria(getTradeCriteria());
   const normalized = {};
@@ -68,9 +75,7 @@ export function validateParameterProposal(proposed = {}) {
     const value = clampToBounds(key, proposed[key]);
     if (value === null) { errors.push("INVALID_" + key); continue; }
     normalized[key] = value;
-    if (Math.abs(value - current[key]) > PARAMETER_BOUNDS[key].step * 5) {
-      errors.push("CHANGE_TOO_LARGE_" + key);
-    }
+    if (Math.abs(value - current[key]) > PARAMETER_BOUNDS[key].step * 5) errors.push("CHANGE_TOO_LARGE_" + key);
   }
   if (normalized.minimumRsi >= normalized.maximumRsi) errors.push("RSI_RANGE_INVALID");
   return { valid: errors.length === 0, normalized, errors, current };
@@ -88,22 +93,97 @@ function writeState(state) {
   return state;
 }
 
-function summarizeHistory(limit = 500) {
-  const result = getPaperLearning({ limit });
-  const records = Array.isArray(result?.records) ? result.records : [];
+function summarize(records) {
   const closed = records.filter(r => r?.result && r.result !== "UNKNOWN");
   const wins = closed.filter(r => Number(r.pnlPercent) > 0).length;
-  const losses = closed.filter(r => Number(r.pnlPercent) < 0).length;
   const pnl = closed.reduce((sum, r) => sum + (Number(r.pnlPercent) || 0), 0);
   return {
     samples: closed.length,
     wins,
-    losses,
+    losses: closed.filter(r => Number(r.pnlPercent) < 0).length,
     winRate: closed.length ? Number((wins / closed.length * 100).toFixed(2)) : null,
-    pnl: Number(pnl.toFixed(4)),
-    recent: closed.slice(0, 100).map(r => ({
+    avgPnl: closed.length ? Number((pnl / closed.length).toFixed(4)) : null,
+    totalPnl: Number(pnl.toFixed(4)),
+  };
+}
+
+function loadClosedRecords(limit = 5000) {
+  const result = getPaperLearning({ limit: Math.min(Math.max(Number(limit) || 500, 50), 500) });
+  return Array.isArray(result?.history) ? result.history.filter(r => r?.result && r.result !== "UNKNOWN") : [];
+}
+
+function recordPassesCriteria(record, criteria) {
+  const score = finite(record.engineScore);
+  const confidence = finite(record.confidence);
+  const rr = finite(record.riskReward);
+  const rsi = finite(record.rsi);
+  const volume = finite(record.volumeRatio);
+  const risk = String(record.risk || "").toUpperCase();
+  if (score === null || confidence === null || rr === null || rsi === null || volume === null) return false;
+  if (score < criteria.minimumScore || confidence < criteria.minimumConfidence || rr < criteria.minimumRiskReward) return false;
+  if (rsi < criteria.minimumRsi || rsi > criteria.maximumRsi || volume < criteria.minimumVolumeRatio) return false;
+  if (risk === "HIGH" && (score < criteria.highRisk.minimumScore || confidence < criteria.highRisk.minimumConfidence)) return false;
+  return true;
+}
+
+function evaluateDataset(records, criteria) {
+  const eligible = records.filter(r => recordPassesCriteria(r, criteria));
+  const stats = summarize(eligible);
+  return { ...stats, eligibleSamples: eligible.length };
+}
+
+export function validateProposalWithWalkForward({ proposalId } = {}) {
+  const state = readState();
+  const proposal = state.proposal;
+  if (!proposal || proposal.id !== proposalId) throw new Error("No matching parameter proposal.");
+
+  const records = loadClosedRecords();
+  if (records.length < VALIDATION_POLICY.minSamples) {
+    throw new Error("Walk-forward validation requires at least 50 closed paper-trading records.");
+  }
+
+  const split = Math.max(VALIDATION_POLICY.minHoldoutSamples, Math.floor(records.length * (1 - VALIDATION_POLICY.holdoutRatio)));
+  const train = records.slice(0, split);
+  const holdout = records.slice(split);
+  if (holdout.length < VALIDATION_POLICY.minHoldoutSamples) throw new Error("Insufficient holdout records.");
+
+  const currentCriteria = unflatten(proposal.current);
+  const proposedCriteria = unflatten(proposal.proposed);
+
+  const trainCurrent = evaluateDataset(train, currentCriteria);
+  const trainProposed = evaluateDataset(train, proposedCriteria);
+  const holdoutCurrent = evaluateDataset(holdout, currentCriteria);
+  const holdoutProposed = evaluateDataset(holdout, proposedCriteria);
+
+  const holdoutDelta = Number(((holdoutProposed.totalPnl || 0) - (holdoutCurrent.totalPnl || 0)).toFixed(4));
+  const trainDelta = Number(((trainProposed.totalPnl || 0) - (trainCurrent.totalPnl || 0)).toFixed(4));
+  const passed =
+    trainProposed.eligibleSamples > 0 &&
+    holdoutProposed.eligibleSamples > 0 &&
+    trainDelta >= VALIDATION_POLICY.minImprovementPct &&
+    holdoutDelta >= VALIDATION_POLICY.minImprovementPct;
+
+  proposal.validation = {
+    status: passed ? "PASSED" : "FAILED",
+    method: "WALK_FORWARD_HOLDOUT",
+    validatedAt: new Date().toISOString(),
+    policy: VALIDATION_POLICY,
+    train: { samples: train.length, current: trainCurrent, proposed: trainProposed, deltaPnl: trainDelta },
+    holdout: { samples: holdout.length, current: holdoutCurrent, proposed: holdoutProposed, deltaPnl: holdoutDelta },
+    automaticPromotion: false,
+  };
+  writeState({ ...state, status: passed ? "VALIDATED" : "VALIDATION_FAILED", proposal });
+  return { success: true, status: proposal.validation.status, proposal, validation: proposal.validation };
+}
+
+function summarizeHistory(limit = 500) {
+  const records = loadClosedRecords(limit);
+  return {
+    ...summarize(records),
+    recent: records.slice(-100).reverse().map(r => ({
       pnlPercent: r.pnlPercent, result: r.result, engineScore: r.engineScore,
-      confidence: r.confidence, risk: r.risk, regime: r.regime,
+      confidence: r.confidence, risk: r.risk, riskReward: r.riskReward,
+      rsi: r.rsi, volumeRatio: r.volumeRatio, regime: r.regime,
       mtfAlignment: r.mtfAlignment, mtfConfirmation: r.mtfConfirmation,
     })),
   };
@@ -113,10 +193,9 @@ async function askCopilot(provider, current, history, question) {
   const systemPrompt = [
     "You are the TradeMindMZ Parameter Optimization Copilot.",
     "Propose parameter changes only from supplied evidence.",
-    "Never invent backtest results or market data.",
-    "All changes are proposals only; they are NOT active until explicitly promoted.",
-    "Respect the supplied parameter bounds and prefer small changes.",
-    "If evidence is insufficient, return current values unchanged.",
+    "Never invent backtest, walk-forward or holdout results.",
+    "All changes are proposals only and are NOT active until validated and explicitly promoted.",
+    "Respect parameter bounds and prefer small changes.",
     "Return JSON only with proposed, rationale, evidence, expectedImpact.",
   ].join("\n");
   const userPrompt = JSON.stringify({ question, current, bounds: PARAMETER_BOUNDS, history }, null, 2);
@@ -129,19 +208,14 @@ export async function createParameterProposal({ question = "Review recent paper-
   const providers = getAvailableProviders();
   const config = getServerAIConfig();
   const order = [preferredProvider, config.defaultProvider, ...providers].filter((p, i, list) => p && providers.includes(p) && list.indexOf(p) === i);
-
   if (!order.length) return { success: false, status: "NO_PROVIDER", current, history };
-  if (history.samples < 50) {
-    return { success: false, status: "INSUFFICIENT_SAMPLES", requiredSamples: 50, current, history };
-  }
+  if (history.samples < VALIDATION_POLICY.minSamples) return { success: false, status: "INSUFFICIENT_SAMPLES", requiredSamples: VALIDATION_POLICY.minSamples, current, history };
 
-  const errors = [];
   for (const provider of order) {
     try {
       const ai = await askCopilot(provider, current, history, question);
       const validation = validateParameterProposal(ai?.proposed || ai?.parameters || ai);
-      if (!validation.valid) { errors.push({ provider, errors: validation.errors }); continue; }
-
+      if (!validation.valid) continue;
       const proposal = {
         id: "PM-" + Date.now(),
         status: "PROPOSED",
@@ -152,17 +226,14 @@ export async function createParameterProposal({ question = "Review recent paper-
         rationale: String(ai?.rationale || "Copilot parameter proposal").slice(0, 2000),
         evidence: ai?.evidence || history,
         expectedImpact: String(ai?.expectedImpact || "Unknown until validation").slice(0, 1000),
-        validation: { status: "PENDING", walkForwardRequired: true, holdoutRequired: true, automaticPromotion: false },
+        validation: { status: "PENDING", method: "WALK_FORWARD_HOLDOUT", automaticPromotion: false },
       };
-
       const state = readState();
       writeState({ status: "PROPOSED", proposal, history: [proposal, ...(state.history || [])].slice(0, 20) });
       return { success: true, ...proposal };
-    } catch (error) {
-      errors.push({ provider, error: error?.message || String(error) });
-    }
+    } catch (error) { console.error("Parameter proposal failed:", error); }
   }
-  return { success: false, status: "AI_FAILED", current, history, providerErrors: errors };
+  return { success: false, status: "AI_FAILED", current, history };
 }
 
 export function getParameterOptimizerStatus() {
@@ -173,7 +244,7 @@ export function getParameterOptimizerStatus() {
     state: state.status,
     proposal: state.proposal,
     history: state.history || [],
-    policy: { automaticPromotion: false, automaticTrading: false, minSamples: 50, maxSingleParameterChangeSteps: 5, bounds: PARAMETER_BOUNDS },
+    policy: { ...VALIDATION_POLICY, automaticPromotion: false, automaticTrading: false, bounds: PARAMETER_BOUNDS },
   };
 }
 
