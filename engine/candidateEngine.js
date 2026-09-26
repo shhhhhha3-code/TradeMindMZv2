@@ -53,6 +53,6 @@ export function buildCandidates(
       volumeRatio: market.volumeRatio,
       risk: market.risk,
       dataQuality: market.dataQuality,
-      source: "TradeMindMZ Engine V3 Foundation",
+      source: "TradeMindMZ Engine V3 Multi-Timeframe",
     }));
 }
