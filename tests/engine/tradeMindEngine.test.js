@@ -5,6 +5,10 @@ import {
   runTradeMindEngine,
 } from "../../engine/index.js";
 
+import {
+  calculateEngineScore,
+} from "../../engine/scoringEngine.js";
+
 function market({
   symbol,
   score,
@@ -98,4 +102,87 @@ test("TradeMind Engine returns INSUFFICIENT_DATA for an empty market set", () =>
   assert.equal(result.top5.length, 0);
   assert.equal(result.decision, "INSUFFICIENT_DATA");
   assert.equal(result.recommendation, null);
+});
+
+
+test("Build 1 scoring is direction-symmetric for equivalent bullish and bearish setups", () => {
+  const common = {
+    price: 100,
+    rsi: 55,
+    volumeRatio: 1.2,
+    riskReward: 2.5,
+    change24h: 2,
+    ema9: 102,
+    ema21: 100,
+    macd: 1.5,
+    atrPct: 2,
+  };
+
+  const buyScore = calculateEngineScore({
+    ...common,
+    direction: "BUY",
+  });
+
+  const sellScore = calculateEngineScore({
+    ...common,
+    direction: "SELL",
+    change24h: -2,
+    ema9: 98,
+    ema21: 100,
+    macd: -1.5,
+  });
+
+  assert.equal(buyScore, sellScore);
+});
+
+test("Build 1 blocks candidates with missing critical market data", () => {
+  const result = runTradeMindEngine([
+    {
+      symbol: "MISSINGUSDT",
+      score: 95,
+      confidence: 95,
+      price: 100,
+      direction: "BUY",
+      rsi: null,
+      volumeRatio: 1.2,
+      riskReward: 2.5,
+    },
+  ]);
+
+  assert.equal(
+    result.decision,
+    "NO_TRADE"
+  );
+  assert.ok(
+    result.recommendation.reasons.includes(
+      "INSUFFICIENT_MARKET_DATA"
+    )
+  );
+});
+
+test("Build 1 exposes regime and technical quality fields", () => {
+  const result = runTradeMindEngine([
+    {
+      symbol: "REGIMEUSDT",
+      price: 100,
+      direction: "BUY",
+      rsi: 55,
+      volumeRatio: 1.3,
+      riskReward: 2.8,
+      change24h: 2,
+      ema9: 103,
+      ema21: 100,
+      macd: 1.2,
+      atr: 1.8,
+      atrPct: 1.8,
+    },
+  ]);
+
+  const candidate = result.top5[0];
+
+  assert.equal(candidate.regime, "TRENDING");
+  assert.equal(candidate.ema9, 103);
+  assert.equal(candidate.macd, 1.2);
+  assert.equal(candidate.atrPct, 1.8);
+  assert.equal(candidate.dataQuality.status, "GOOD");
 });
