@@ -24,6 +24,14 @@ test("Build 5.1 rejects unsafe proposal changes", () => {
   assert.ok(result.errors.some((x) => x.startsWith("CHANGE_TOO_LARGE_")));
 });
 
+test("Build 5.2 exposes regime-aware validation policy", async () => {
+  const mod = await import("../../server/ai/parameterOptimizer.js");
+  const status = mod.getParameterOptimizerStatus();
+  assert.equal(status.policy.rollingWindows, 3);
+  assert.equal(status.policy.minRegimeSamples, 10);
+  assert.equal(status.policy.automaticPromotion, false);
+});
+
 test("Build 5.1 accepts a bounded proposal", () => {
   const result = validateParameterProposal({
     minimumScore: 76,
