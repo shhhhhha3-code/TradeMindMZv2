@@ -73,6 +73,13 @@ export function assessDataQuality(market) {
     .map(([key]) => key);
 
   const warnings = [];
+  const multiTimeframe = market?.multiTimeframe;
+
+  if (multiTimeframe?.status === "INSUFFICIENT") {
+    warnings.push("MTF_CONFIRMATION_INSUFFICIENT");
+  } else if (multiTimeframe?.alignment === "CONFLICTING") {
+    warnings.push("MTF_HIGHER_TIMEFRAME_CONFLICT");
+  }
 
   const atrPct = finite(
     market?.atrPct ??
@@ -84,7 +91,13 @@ export function assessDataQuality(market) {
   }
 
   return {
-    status: missing.length ? "INSUFFICIENT" : warnings.length ? "DEGRADED" : "GOOD",
+    status: missing.length
+      ? "INSUFFICIENT"
+      : multiTimeframe?.status === "INSUFFICIENT"
+        ? "INSUFFICIENT"
+        : warnings.length
+          ? "DEGRADED"
+          : "GOOD",
     missing,
     warnings,
   };
