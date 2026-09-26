@@ -206,6 +206,11 @@ Hard rules:
 - Insufficient multi-timeframe confirmation cannot be selected
 - A conflicting higher timeframe cannot be selected
 
+Adaptive Learning V7 is SHADOW context only.
+- It may explain historical pattern evidence.
+- It MUST NOT override deterministic engine score or hard gates.
+- Shadow adjustments are bounded and are not trade authorization.
+
 You MUST NOT override a deterministic engine block.
 
 Your job is to select the strongest eligible candidate,
