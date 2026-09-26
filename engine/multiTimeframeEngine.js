@@ -128,6 +128,21 @@ export function buildMultiTimeframeSnapshot(
   const direction = directionOf(market);
   const supplied = market?.timeframes ?? {};
 
+  if (!Object.keys(supplied).length) {
+    return {
+      enabled: false,
+      direction,
+      status: "DISABLED",
+      confirmation: "DISABLED",
+      alignment: "UNKNOWN",
+      score: 0,
+      availableTimeframes: 0,
+      confirmedTimeframes: 0,
+      weights: TIMEFRAME_WEIGHTS,
+      timeframes: {},
+    };
+  }
+
   const timeframes = {};
 
   for (const timeframe of ["15M", "60M", "4H"]) {
@@ -221,6 +236,7 @@ export function buildMultiTimeframeSnapshot(
           : "UNAVAILABLE";
 
   return {
+    enabled: true,
     direction,
     status,
     confirmation,
