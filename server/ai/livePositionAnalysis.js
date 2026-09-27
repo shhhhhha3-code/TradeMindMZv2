@@ -66,6 +66,15 @@ Analyze only the supplied data.
   };
 }
 
+function normalizeMarketType(value, symbol = "") {
+  const explicit = String(value || "").trim().toUpperCase();
+  if (explicit === "SPOT" || explicit === "PERP") return explicit;
+  const normalizedSymbol = String(symbol || "").trim().toUpperCase();
+  return normalizedSymbol.endsWith("_PERP") || normalizedSymbol.includes(".PERP/")
+    ? "PERP"
+    : null;
+}
+
 function normalize(result) {
   const recommendations = [
     "HOLD",
@@ -228,10 +237,53 @@ export async function analyzeLivePosition({
     }
   );
 
+  const expectedMarketType =
+    normalizeMarketType(
+      position?.marketType,
+      position?.symbol
+    );
+
+  const suppliedMarketType =
+    normalizeMarketType(
+      market?.snapshotMeta?.marketType ||
+      market?.marketType,
+      market?.symbol || position?.symbol
+    );
+
+  if (
+    expectedMarketType &&
+    suppliedMarketType &&
+    expectedMarketType !== suppliedMarketType
+  ) {
+    throw new Error(
+      `MARKET_SNAPSHOT_MISMATCH: position=${expectedMarketType}, market=${suppliedMarketType}`
+    );
+  }
+
+  const snapshotMeta =
+    market?.snapshotMeta &&
+    typeof market.snapshotMeta === "object"
+      ? {
+          ...market.snapshotMeta,
+          marketType:
+            market.snapshotMeta.marketType ||
+            suppliedMarketType ||
+            expectedMarketType ||
+            null,
+        }
+      : null;
+
+  const marketForAnalysis = snapshotMeta
+    ? {
+        ...market,
+        snapshotMeta,
+      }
+    : market;
+
   const payload =
     buildPositionPrompt(
       historyPosition,
-      market
+      marketForAnalysis
     );
 
   const provider =
@@ -281,6 +333,13 @@ export async function analyzeLivePosition({
     provider,
 
     analysis,
+
+    marketSnapshot: snapshotMeta
+      ? {
+          ...snapshotMeta,
+          authoritative: true,
+        }
+      : null,
 
     historySaved:
       Boolean(history),
