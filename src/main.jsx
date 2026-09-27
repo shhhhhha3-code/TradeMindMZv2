@@ -878,6 +878,40 @@ function LivePionexBalance(){
 
 function TopFiveCommandCenter() {
 
+  const [tradeCriteria, setTradeCriteria] = useState({
+    minimumScore: 75,
+    minimumConfidence: 80,
+    minimumRiskReward: 2,
+    minimumRsi: 35,
+    maximumRsi: 70,
+    minimumVolumeRatio: 0.8,
+  });
+
+  useEffect(() => {
+    let active = true;
+    const loadCriteria = async () => {
+      try {
+        const response = await fetch(
+          apiUrl("/api/ai/trade-criteria"),
+          { cache: "no-store" }
+        );
+        const payload = await response.json().catch(() => null);
+        if (active && response.ok && payload?.success && payload?.criteria) {
+          setTradeCriteria(payload.criteria);
+        }
+      } catch {
+        // Keep safe local defaults until the server criteria are available.
+      }
+    };
+
+    loadCriteria();
+    const timer = setInterval(loadCriteria, 60_000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, []);
+
   const {
     data,
     loading,
@@ -993,8 +1027,9 @@ function TopFiveCommandCenter() {
     const rr = candidateRR(item);
 
     if (
-      score >= 90 &&
-      confidence >= 80
+      score >= tradeCriteria.minimumScore &&
+      confidence >= tradeCriteria.minimumConfidence &&
+      rr >= tradeCriteria.minimumRiskReward
     ) {
       return {
         label: "TRADE",
@@ -1003,8 +1038,8 @@ function TopFiveCommandCenter() {
     }
 
     if (
-      score >= 75 &&
-      confidence >= 80
+      score >= tradeCriteria.minimumScore &&
+      confidence >= tradeCriteria.minimumConfidence
     ) {
       return {
         label: "WATCH",
@@ -1048,7 +1083,7 @@ function TopFiveCommandCenter() {
           </div>
 
           <p>
-            Pionex scanner → local scoring → AI comparison
+            Pionex scanner → local scoring → AI comparison · active criteria {tradeCriteria.minimumScore}/{tradeCriteria.minimumConfidence}
           </p>
         </div>
 
@@ -2707,10 +2742,10 @@ function Dashboard(){
 
 
           {[
-            ["Minimum AI score","90","PASS"],
-            ["Minimum confidence","80%","PASS"],
-            ["Risk / Reward","1.0","STRATEGY"],
-            ["RSI range","35–70","CHECK"]
+            ["Minimum Engine score", String(tradeCriteria.minimumScore), "PASS"],
+            ["Minimum confidence", String(tradeCriteria.minimumConfidence) + "%", "PASS"],
+            ["Risk / Reward", String(tradeCriteria.minimumRiskReward), "CHECK"],
+            ["RSI range", String(tradeCriteria.minimumRsi) + "–" + String(tradeCriteria.maximumRsi), "CHECK"]
 
           ].map(
             ([label,value,status]) => (
