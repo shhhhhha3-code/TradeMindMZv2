@@ -42,6 +42,7 @@ test("health endpoint is online", async () => {
   assert.equal(body?.status, "ONLINE");
   assert.equal(body?.pionex, "READ_ONLY");
   assert.equal(body?.trading, false);
+  assert.equal(body?.copilot, true);
 });
 
 test("paper trades endpoint returns JSON", async () => {
