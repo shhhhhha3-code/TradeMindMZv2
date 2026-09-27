@@ -525,7 +525,7 @@ async function runLiveAiAnalysis({
             result.contractType ||
             "PIONEX USDT-M PERPETUAL",
           universe: result.scanned,
-          engine: "TradeMindMZ Engine V3 Multi-Timeframe",
+          engine: "TradeMindMZ Engine V2",
           ai: "TradeMindMZ AI Decision Layer V1",
           aiInput: "ENGINE TOP 5 ONLY",
           aiCadence: "7 MINUTES",
