@@ -1022,20 +1022,32 @@ function TopFiveCommandCenter() {
     );
 
   const getDecision = (item) => {
-    const score = candidateScore(item);
-    const confidence = candidateConfidence(item);
-    const rr = candidateRR(item);
+    const engineDecision =
+      String(item?.decision || "").toUpperCase();
 
-    if (
-      score >= tradeCriteria.minimumScore &&
-      confidence >= tradeCriteria.minimumConfidence &&
-      rr >= tradeCriteria.minimumRiskReward
-    ) {
+    if (engineDecision === "TRADE") {
       return {
         label: "TRADE",
         className: "tm42-trade",
       };
     }
+
+    if (engineDecision === "WATCH") {
+      return {
+        label: "WATCH",
+        className: "tm42-watch",
+      };
+    }
+
+    if (engineDecision === "NO_TRADE") {
+      return {
+        label: "NO TRADE",
+        className: "tm42-no-trade",
+      };
+    }
+
+    const score = candidateScore(item);
+    const confidence = candidateConfidence(item);
 
     if (
       score >= tradeCriteria.minimumScore &&
@@ -5460,7 +5472,11 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
       .toUpperCase()
       .replace(/[^A-Z0-9]/g, "");
 
-  const technicalSymbol = normalizeSignalSymbol(recommended?.symbol);
+  const technicalSymbol = normalizeSignalSymbol(
+    recommended?.symbol ||
+    earlyPreviewCandidate?.symbol ||
+    rawCandidates?.[0]?.symbol
+  );
   const technicalSource =
     (Array.isArray(data?.candidates)
       ? data.candidates.find(candidate =>
@@ -5474,7 +5490,7 @@ function Signals({bought,setBought,setManualPurchaseOpen,setPurchaseDefaults}){
     (normalizeSignalSymbol(earlyPreviewCandidate?.symbol) === technicalSymbol
       ? earlyPreviewCandidate
       : null) ||
-    {};
+    (rawCandidates?.[0] || {});
 
   const technicalIndicators = technicalSource?.indicators || {};
 
