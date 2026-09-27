@@ -121,6 +121,6 @@ export function buildCandidates(
         market.risk,
 
       source:
-        "TradeMindMZ Engine V1",
+        "TradeMindMZ Engine V2",
     }));
 }
