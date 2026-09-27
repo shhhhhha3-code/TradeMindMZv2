@@ -64,3 +64,18 @@ test("Build 5.4 summary keeps entry eligibility and position status separate", (
   assert.equal(summary.entryStatus.status, "NOT_ELIGIBLE");
   assert.equal(summary.riskAction, "HOLD");
 });
+
+
+test("CRITICAL risk blocks a new entry", () => {
+  const result = evaluateEntryEligibility({
+    engineScore: 80,
+    confidence: 90,
+    riskReward: 2.2,
+    rsi: 55,
+    volumeRatio: 1,
+    riskLevel: "CRITICAL",
+  });
+
+  assert.equal(result.status, "NOT_ELIGIBLE");
+  assert.equal(result.failedChecks.some(check => check.key === "risk"), true);
+});
