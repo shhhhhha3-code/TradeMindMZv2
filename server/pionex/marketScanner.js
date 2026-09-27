@@ -671,6 +671,12 @@ function extractSymbols(payload) {
   return rows;
 }
 
+function normalizeMarketType(value) {
+  return String(value || "PERP").toUpperCase() === "SPOT"
+    ? "SPOT"
+    : "PERP";
+}
+
 function isUsdtSymbol(symbol) {
   const s =
     String(symbol || "").toUpperCase();
@@ -680,6 +686,15 @@ function isUsdtSymbol(symbol) {
     !s.includes("USDC") &&
     !s.includes("BUSD")
   );
+}
+
+function isMarketTypeSymbol(symbol, marketType) {
+  const s = String(symbol || "").toUpperCase();
+  if (!isUsdtSymbol(s)) return false;
+
+  return marketType === "PERP"
+    ? s.endsWith("_PERP") || s.includes(".PERP/")
+    : !s.endsWith("_PERP") && !s.includes(".PERP/");
 }
 
 function getSymbolValue(row, keys) {
@@ -697,11 +712,18 @@ export async function scanPionexMarket({
   candleLimit = 100,
   maxMarkets = 25,
   multiTimeframe = true,
+  marketType = "PERP",
 } = {}) {
+  const normalizedMarketType =
+    normalizeMarketType(marketType);
+
   const [tickerPayload, symbolPayload] =
     await Promise.all([
-      getMarketTickers(),
-      getMarketSymbols(),
+      getMarketTickers({ type: normalizedMarketType }),
+      getMarketSymbols({
+        type: normalizedMarketType,
+        status: "TRADING",
+      }),
     ]);
 
   const tickers =
@@ -737,11 +759,21 @@ export async function scanPionexMarket({
         ]) || ""
       ).toUpperCase()
     )
-    .filter(isUsdtSymbol);
+    .filter((symbol) =>
+      isMarketTypeSymbol(
+        symbol,
+        normalizedMarketType
+      )
+    );
 
   const tickerNames =
     [...tickerMap.keys()]
-      .filter(isUsdtSymbol);
+      .filter((symbol) =>
+        isMarketTypeSymbol(
+          symbol,
+          normalizedMarketType
+        )
+      );
 
   const universe =
     [
@@ -931,6 +963,11 @@ export async function scanPionexMarket({
 
   return {
     success: true,
+    marketType: normalizedMarketType,
+    contractType:
+      normalizedMarketType === "PERP"
+        ? "USDT-M PERPETUAL"
+        : "SPOT",
     scanned:
       rankedUniverse.length,
     candidates: candidatesWithBehavior,
