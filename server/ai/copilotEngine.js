@@ -1,6 +1,7 @@
 import { getServerAIConfig, getAvailableProviders } from "./aiConfig.js";
 import { callAICopilotProvider } from "./providers.js";
 import { engineHardBlock } from "./aiDecisionEngine.js";
+import { getMarketBehaviorStats } from "../paper/marketBehaviorLearning.js";
 
 const MAX_CANDIDATES = 5;
 const MAX_CONTEXT_CHARS = 12000;
@@ -41,11 +42,24 @@ function compactCandidate(candidate = {}) {
   };
 }
 
-function buildCopilotPrompt({ question, candidates, history = {}, portfolio = {} }) {
+function compactMarketBehavior(stats = {}) {
+  return {
+    totalRecords: stats.totalRecords ?? 0,
+    activeSignals: stats.activeSignals ?? 0,
+    closedSignals: stats.closedSignals ?? 0,
+    overall: stats.overall ?? {},
+    byRegime: Array.isArray(stats.byRegime) ? stats.byRegime.slice(0, 8) : [],
+    byDirection: Array.isArray(stats.byDirection) ? stats.byDirection.slice(0, 4) : [],
+    byMtfAlignment: Array.isArray(stats.byMtfAlignment) ? stats.byMtfAlignment.slice(0, 6) : [],
+  };
+}
+
+function buildCopilotPrompt({ question, candidates, history = {}, portfolio = {}, marketBehavior = {} }) {
   const safeContext = {
     candidates: candidates.slice(0, MAX_CANDIDATES).map(compactCandidate),
     history,
     portfolio,
+    marketBehavior: compactMarketBehavior(marketBehavior),
   };
 
   let context = JSON.stringify(safeContext, null, 2);
@@ -61,6 +75,8 @@ function buildCopilotPrompt({ question, candidates, history = {}, portfolio = {}
       "The deterministic TradeMind Engine is authoritative for trade eligibility.",
       "Never override or weaken an engine hard block.",
       "Adaptive Learning V7 is SHADOW ONLY and cannot authorize a trade.",
+      "Market Behavior Learning is observational evidence only. It describes historical price paths after TradeMind signals and cannot authorize a trade.",
+      "Use MAE/MFE, checkpoint returns, regime, direction, and MTF behavior as evidence when supplied. Do not treat small samples as reliable patterns.",
       "Do not place, modify, or claim to have placed any trade.",
       "If the supplied data is insufficient, say so clearly.",
       "When discussing a candidate, distinguish deterministic engine facts from AI interpretation.",
@@ -133,11 +149,15 @@ export async function runTradeMindCopilot({
     };
   }
 
+  const marketBehavior =
+    getMarketBehaviorStats();
+
   const payload = buildCopilotPrompt({
     question,
     candidates: normalizedCandidates,
     history,
     portfolio,
+    marketBehavior,
   });
 
   const responses = [];
