@@ -86,17 +86,41 @@ function openInterestForSymbol(payload, symbol) {
   return rows.find((row) => String(row?.symbol || "").toUpperCase() === String(symbol).toUpperCase()) || null;
 }
 
-export async function captureMarketMicrostructure(candidates = [], { maxDetailedSymbols = 3 } = {}) {
+export async function captureMarketMicrostructure(
+  candidates = [],
+  {
+    maxDetailedSymbols = 3,
+    marketType = "PERP",
+  } = {}
+) {
   const list = Array.isArray(candidates) ? candidates : [];
   if (!list.length) return {};
 
-  const [indexesResult, openInterestResult] = await Promise.allSettled([
-    getFuturesIndexes(),
-    getOpenInterests(),
-  ]);
+  const normalizedMarketType =
+    String(marketType || "PERP").toUpperCase() === "SPOT"
+      ? "SPOT"
+      : "PERP";
 
-  const indexes = indexesResult.status === "fulfilled" ? indexesResult.value : null;
-  const openInterests = openInterestResult.status === "fulfilled" ? openInterestResult.value : null;
+  const [indexesResult, openInterestResult] =
+    normalizedMarketType === "PERP"
+      ? await Promise.allSettled([
+          getFuturesIndexes(),
+          getOpenInterests(),
+        ])
+      : [
+          { status: "fulfilled", value: null },
+          { status: "fulfilled", value: null },
+        ];
+
+  const indexes =
+    indexesResult.status === "fulfilled"
+      ? indexesResult.value
+      : null;
+
+  const openInterests =
+    openInterestResult.status === "fulfilled"
+      ? openInterestResult.value
+      : null;
 
   const result = {};
 
@@ -120,6 +144,7 @@ export async function captureMarketMicrostructure(candidates = [], { maxDetailed
 
     result[symbol] = {
       symbol,
+      marketType: normalizedMarketType,
       capturedAt: new Date().toISOString(),
       ...depth,
       ...trades,
