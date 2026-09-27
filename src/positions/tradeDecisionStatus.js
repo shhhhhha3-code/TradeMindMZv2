@@ -40,11 +40,11 @@ export function evaluateEntryEligibility(values = {}, criteria = {}) {
     { key: "volume", label: "Volume", actual: volume, target: c.minimumVolumeRatio, passed: volume !== null && volume >= c.minimumVolumeRatio },
   ];
 
-  if (risk === "HIGH") {
+  if (risk === "HIGH" || risk === "CRITICAL") {
     checks.push({
       key: "risk",
       label: "Market risk",
-      actual: "HIGH",
+      actual: risk,
       target: "LOW / MEDIUM",
       passed: false,
     });
