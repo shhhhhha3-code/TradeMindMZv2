@@ -243,7 +243,8 @@ async function sendQualifiedTradePush(supabase, payload, marketType = "PERP") {
     Number.isFinite(engineScore) ? "Engine " + Math.round(engineScore) : null,
     Number.isFinite(confidence) ? "AI " + Math.round(confidence) + "%" : null,
     Number.isFinite(entry) ? "Entry " + entry : null,
-    "TP +3% / SL -3%",
+    Number.isFinite(takeProfit) ? "TP " + takeProfit : null,
+    Number.isFinite(stopLoss) ? "SL " + stopLoss : null,
   ].filter(Boolean).join(" • ");
 
   const fcmResponse = await fetch(
@@ -350,35 +351,35 @@ function applyFixedTradePlan(candidates = [], { marketType = "PERP" } = {}) {
 
   return (Array.isArray(candidates) ? candidates : []).map((candidate) => {
     const entry = Number(candidate?.entry ?? candidate?.price);
-    const direction = String(
-      candidate?.direction || candidate?.side || candidate?.trend || ""
-    ).toUpperCase();
+    const stopLoss = Number(candidate?.stopLoss);
+    const takeProfit = Number(candidate?.takeProfit);
+    const riskReward = Number(candidate?.riskReward);
 
-    if (!Number.isFinite(entry) || entry <= 0) {
+    if (
+      !Number.isFinite(entry) ||
+      entry <= 0 ||
+      !Number.isFinite(stopLoss) ||
+      !Number.isFinite(takeProfit) ||
+      !Number.isFinite(riskReward)
+    ) {
       return candidate;
     }
 
-    const isShort =
-      normalizedMarketType === "PERP" &&
-      (direction === "SHORT" || direction === "SELL");
-
-    const stopLoss = isShort
-      ? entry * 1.03
-      : entry * 0.97;
-    const takeProfit = isShort
-      ? entry * 0.97
-      : entry * 1.03;
+    const stopLossPercent = Math.abs(stopLoss - entry) / entry * 100;
+    const takeProfitPercent = Math.abs(takeProfit - entry) / entry * 100;
 
     return {
       ...candidate,
       entry,
       stopLoss,
       takeProfit,
-      riskReward: 1,
+      riskReward,
+      marketType: normalizedMarketType,
       strategyPlan: {
         allocationPercent: 100,
-        takeProfitPercent: 3,
-        stopLossPercent: 3,
+        takeProfitPercent: Number(takeProfitPercent.toFixed(3)),
+        stopLossPercent: Number(stopLossPercent.toFixed(3)),
+        riskReward: Number(riskReward.toFixed(2)),
         leverage: normalizedMarketType === "PERP"
           ? Number(candidate?.leverage) || 3
           : 1,
@@ -386,7 +387,6 @@ function applyFixedTradePlan(candidates = [], { marketType = "PERP" } = {}) {
     };
   });
 }
-
 function deriveMarketRegime(candidates = []) {
   const rows = Array.isArray(candidates) ? candidates : [];
   const btc = rows.find(row => /^(BTC|BTC_USDT)/i.test(String(row?.symbol || "")));
@@ -525,7 +525,7 @@ async function runLiveAiAnalysis({
             result.contractType ||
             "PIONEX USDT-M PERPETUAL",
           universe: result.scanned,
-          engine: "TradeMindMZ Engine V2",
+          engine: "TradeMindMZ Engine V3 Multi-Timeframe",
           ai: "TradeMindMZ AI Decision Layer V1",
           aiInput: "ENGINE TOP 5 ONLY",
           aiCadence: "7 MINUTES",
@@ -533,7 +533,7 @@ async function runLiveAiAnalysis({
           automaticTrading: false,
           readOnly: true,
           persistedServerSide: true,
-          riskFilter: "ENGINE SCORE 90+ + AI CONFIDENCE + RSI + VOLUME + NET EDGE + FIXED 3% TP/SL",
+          riskFilter: "ACTIVE ENGINE CRITERIA + AI CONFIDENCE + RSI + VOLUME + RISK/REWARD + NET EDGE",
           marketRegime: marketRegime.regime,
           actionableOnlyWhen: marketType === "SPOT"
             ? "AI TRADE + BUY ONLY + RISK FILTER PASS"
@@ -2094,9 +2094,9 @@ function normalizeTradeCriteria(input = {}) {
     : globalThis.__tradeMindCriteria || {};
   const n = (v, d) => Number.isFinite(Number(v)) ? Number(v) : d;
   return {
-    minimumScore: Math.round(Math.max(0, Math.min(100, n(source.minimumScore,90)))),
+    minimumScore: Math.round(Math.max(0, Math.min(100, n(source.minimumScore,75)))),
     minimumConfidence: Math.round(Math.max(0, Math.min(100, n(source.minimumConfidence,80)))),
-    minimumRiskReward: Number(Math.max(.1, Math.min(20, n(source.minimumRiskReward,1))).toFixed(2)),
+    minimumRiskReward: Number(Math.max(.1, Math.min(20, n(source.minimumRiskReward,2))).toFixed(2)),
     minimumRsi: Number(Math.max(0, Math.min(100, n(source.minimumRsi,35))).toFixed(2)),
     maximumRsi: Number(Math.max(0, Math.min(100, n(source.maximumRsi,70))).toFixed(2)),
     minimumVolumeRatio: Number(Math.max(0, Math.min(20, n(source.minimumVolumeRatio,.8))).toFixed(2)),
