@@ -6289,14 +6289,6 @@ function Positions(){
       }
       setMarketSnapshots(snapshots);
 
-      const marketCandidates = Object.values(snapshots).flatMap(snapshot =>
-        Array.isArray(snapshot?.candidates)
-          ? snapshot.candidates
-          : Array.isArray(snapshot?.engineTop5)
-            ? snapshot.engineTop5
-            : []
-      );
-
       const samePosition = (a,b) => {
         const symbolA = String(a?.symbol || "").toUpperCase();
         const symbolB = String(b?.symbol || "").toUpperCase();
@@ -6374,22 +6366,30 @@ function Positions(){
             trackedPositionId: trackedPosition.id,
             stopLoss: trackedPosition.stopLoss,
             takeProfit: trackedPosition.takeProfit,
-            engineScore: Number.isFinite(Number(trackedPosition.engineScore))
-              ? Number(trackedPosition.engineScore)
-              : merged[liveIndex]?.engineScore ?? enrichedTracked.engineScore,
-            rsi: Number.isFinite(Number(trackedPosition.rsi))
-              ? Number(trackedPosition.rsi)
-              : merged[liveIndex]?.rsi ?? enrichedTracked.rsi,
-            volumeRatio: Number.isFinite(Number(trackedPosition.volumeRatio))
-              ? Number(trackedPosition.volumeRatio)
-              : merged[liveIndex]?.volumeRatio ?? enrichedTracked.volumeRatio,
-            marketConfidence: Number.isFinite(Number(trackedPosition.marketConfidence))
-              ? Number(trackedPosition.marketConfidence)
-              : merged[liveIndex]?.marketConfidence ?? enrichedTracked.marketConfidence,
-            marketRiskReward: Number.isFinite(Number(trackedPosition.marketRiskReward))
-              ? Number(trackedPosition.marketRiskReward)
-              : merged[liveIndex]?.marketRiskReward ?? enrichedTracked.marketRiskReward,
-            marketUpdatedAt: trackedPosition.marketUpdatedAt || merged[liveIndex]?.marketUpdatedAt || enrichedTracked.marketUpdatedAt,
+            engineScore:
+              enrichedTracked.engineScore ??
+              merged[liveIndex]?.engineScore ??
+              null,
+            rsi:
+              enrichedTracked.rsi ??
+              merged[liveIndex]?.rsi ??
+              null,
+            volumeRatio:
+              enrichedTracked.volumeRatio ??
+              merged[liveIndex]?.volumeRatio ??
+              null,
+            marketConfidence:
+              enrichedTracked.marketConfidence ??
+              merged[liveIndex]?.marketConfidence ??
+              null,
+            marketRiskReward:
+              enrichedTracked.marketRiskReward ??
+              merged[liveIndex]?.marketRiskReward ??
+              null,
+            marketUpdatedAt:
+              enrichedTracked.marketUpdatedAt ||
+              merged[liveIndex]?.marketUpdatedAt ||
+              null,
             holdTimeMinMinutes: trackedPosition.holdTimeMinMinutes,
             holdTimeMaxMinutes: trackedPosition.holdTimeMaxMinutes,
             holdTimeReason: trackedPosition.holdTimeReason,
@@ -6445,9 +6445,6 @@ function Positions(){
         // the position stuck on WAITING.
         try {
           setAiLoading(prev => ({ ...prev, [key]: true }));
-
-          const symbolForMarket =
-            String(position.symbol || "").trim().toUpperCase();
 
           const positionMarketType = normalizeMarketType(
             position?.marketType,
