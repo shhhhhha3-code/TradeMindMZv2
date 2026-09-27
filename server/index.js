@@ -2,6 +2,7 @@ import "dotenv/config";
 import { analyzeLivePosition } from "./ai/livePositionAnalysis.js";
 import { getLearningStats } from "./ai/learningStats.js";
 import { getSignalHistory } from "./ai/signalHistory.js";
+import { getMarketBehaviorStats, resetMarketBehavior } from "./paper/marketBehaviorLearning.js";
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
@@ -154,6 +155,28 @@ app.get("/api/ai/signal-history", async (req, res) => {
         error instanceof Error
           ? error.message
           : String(error)
+    });
+  }
+});
+
+app.get("/api/ai/market-behavior", (_req, res) => {
+  try {
+    res.json(getMarketBehaviorStats());
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error?.message || "Market behavior stats failed.",
+    });
+  }
+});
+
+app.post("/api/ai/market-behavior/reset", (_req, res) => {
+  try {
+    res.json(resetMarketBehavior());
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error?.message || "Market behavior reset failed.",
     });
   }
 });
