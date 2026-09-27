@@ -527,9 +527,20 @@ export function scorePionexCandidate({
     fundingRate: number(ticker?.fundingRate ?? ticker?.funding_rate ?? ticker?.fundingRate8h),
     openInterest: number(ticker?.openInterest ?? ticker?.open_interest),
     marketType: normalizedMarketType,
-    contractType: marketType === "PERP" ? "USDT-M PERPETUAL" : "SPOT",
+    contractType: normalizedMarketType === "PERP" ? "USDT-M PERPETUAL" : "SPOT",
     leverage: marketType === "PERP" ? Number(leverage) || STRATEGY_LEVERAGE : 1,
-    strategy: { allocationPercent: 100, takeProfitPercent: 3, stopLossPercent: 3 },
+    strategy: {
+      allocationPercent: 100,
+      takeProfitPercent:
+        Number(
+          ((Math.abs(takeProfit - entry) / entry) * 100).toFixed(3)
+        ),
+      stopLossPercent:
+        Number(
+          ((Math.abs(stopLoss - entry) / entry) * 100).toFixed(3)
+        ),
+      riskReward: Number(riskReward.toFixed(2)),
+    },
     marginAsset: marketType === "PERP" ? "USDT" : null,
     timeframe: interval,
 
