@@ -9,6 +9,8 @@ export const MARKET_BEHAVIOR_POLICY = Object.freeze({
   maxActiveSignals: 200,
   signalCooldownMinutes: 15,
   checkpointsMinutes: [1, 3, 5, 15, 30, 60],
+  checkpointToleranceMinutes: 0.75,
+  maxObservationsPerSignal: 180,
   horizonMinutes: 60,
   outcomeFlatThresholdPct: 0.05,
 });
@@ -82,10 +84,52 @@ function checkpointFor(signal, elapsedMinutes, price, at) {
 function signalFingerprint(candidate) {
   return [
     candidate?.symbol || "",
+    String(candidate?.marketType || "PERP").toUpperCase(),
     directionOf(candidate?.direction),
     String(candidate?.regime || "UNKNOWN"),
     String(candidate?.multiTimeframe?.alignment || "UNKNOWN"),
   ].join("|");
+}
+
+function observationFor(price, at) {
+  return {
+    at: new Date(at).toISOString(),
+    price,
+  };
+}
+
+function findCheckpointObservation(signal, checkpointMinutes) {
+  const targetAt =
+    Date.parse(signal.createdAt || "") +
+    checkpointMinutes * 60_000;
+
+  const tolerance =
+    MARKET_BEHAVIOR_POLICY.checkpointToleranceMinutes * 60_000;
+
+  const observations = Array.isArray(signal.observations)
+    ? signal.observations
+    : [];
+
+  let best = null;
+  let bestDistance = Infinity;
+
+  for (const observation of observations) {
+    const observedAt = Date.parse(observation?.at || "");
+    const price = finite(observation?.price);
+
+    if (!Number.isFinite(observedAt) || price === null) continue;
+
+    const distance = Math.abs(observedAt - targetAt);
+    if (distance <= tolerance && distance < bestDistance) {
+      best = {
+        at: observedAt,
+        price,
+      };
+      bestDistance = distance;
+    }
+  }
+
+  return best;
 }
 
 export function getMarketBehaviorRecords() {
@@ -130,8 +174,16 @@ export function recordSignalCandidates(candidates = [], microstructureBySymbol =
       regime: candidate.regime || null,
       mtfConfirmation: candidate?.multiTimeframe?.confirmation || null,
       mtfAlignment: candidate?.multiTimeframe?.alignment || null,
+      marketType:
+        String(
+          candidate?.marketType ||
+          (String(symbol).toUpperCase().endsWith("_PERP") ? "PERP" : "SPOT")
+        ).toUpperCase() === "SPOT"
+          ? "SPOT"
+          : "PERP",
       fingerprint,
       initialMicrostructure: micro,
+      observations: [],
       checkpoints: [],
       maxFavorablePct: 0,
       maxAdversePct: 0,
@@ -169,6 +221,29 @@ export function updateMarketBehavior({ prices = {}, microstructureBySymbol = {},
     const returnPct = directionalReturn(signal.direction, signal.entry, price);
     if (returnPct === null) continue;
 
+    if (!Array.isArray(signal.observations)) {
+      signal.observations = [];
+    }
+
+    const observation = observationFor(price, at);
+    const lastObservation = signal.observations[signal.observations.length - 1];
+
+    if (
+      !lastObservation ||
+      Date.parse(lastObservation.at || "") !== Date.parse(observation.at)
+    ) {
+      signal.observations.push(observation);
+      if (
+        signal.observations.length >
+        MARKET_BEHAVIOR_POLICY.maxObservationsPerSignal
+      ) {
+        signal.observations =
+          signal.observations.slice(
+            -MARKET_BEHAVIOR_POLICY.maxObservationsPerSignal
+          );
+      }
+    }
+
     signal.maxFavorablePct = Math.max(signal.maxFavorablePct || 0, returnPct);
     signal.maxAdversePct = Math.min(signal.maxAdversePct || 0, returnPct);
     signal.maxFavorableR = Math.max(signal.maxFavorableR || 0, rMultiple(signal, returnPct) ?? 0);
@@ -178,10 +253,29 @@ export function updateMarketBehavior({ prices = {}, microstructureBySymbol = {},
     if (latestMicro) signal.latestMicrostructure = latestMicro;
 
     for (const checkpoint of MARKET_BEHAVIOR_POLICY.checkpointsMinutes) {
-      const exists = signal.checkpoints.some((item) => item.minutes === checkpoint);
-      if (!exists && elapsedMinutes >= checkpoint) {
-        signal.checkpoints.push(checkpointFor(signal, checkpoint, price, at));
-      }
+      const exists =
+        signal.checkpoints.some(
+          (item) => item.minutes === checkpoint
+        );
+
+      if (exists) continue;
+
+      const observationForCheckpoint =
+        findCheckpointObservation(
+          signal,
+          checkpoint
+        );
+
+      if (!observationForCheckpoint) continue;
+
+      signal.checkpoints.push(
+        checkpointFor(
+          signal,
+          checkpoint,
+          observationForCheckpoint.price,
+          observationForCheckpoint.at
+        )
+      );
     }
 
     updated += 1;
@@ -253,6 +347,7 @@ export function getMarketBehaviorStats() {
         : 0,
     },
     byRegime: groupBy(records, "regime"),
+    byMarketType: groupBy(records, "marketType"),
     byDirection: groupBy(records, "direction"),
     byMtfAlignment: groupBy(records, "mtfAlignment"),
     bySymbol: groupBy(records, "symbol"),
