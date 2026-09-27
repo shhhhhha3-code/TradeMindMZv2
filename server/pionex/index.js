@@ -165,6 +165,8 @@ router.get(
             Number(req.query.limit || 100),
           maxMarkets:
             Number(req.query.maxMarkets || 25),
+          marketType:
+            req.query.marketType || "PERP",
         });
 
       /*
@@ -314,7 +316,7 @@ router.get(
           marketSource: "PIONEX",
 
           engine:
-            "TradeMindMZ Engine V1",
+            "TradeMindMZ Engine V3 Multi-Timeframe",
 
           ai:
             "TradeMindMZ AI Decision Layer V1",
