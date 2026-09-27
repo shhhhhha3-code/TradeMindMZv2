@@ -117,7 +117,25 @@ function buildTradeExplanation(candidate, aiDecision) {
   };
 }
 
+function getCriteria() {
+  const configured = globalThis.__tradeMindCriteria || {};
+  const n = (value, fallback) =>
+    Number.isFinite(Number(value)) ? Number(value) : fallback;
+
+  const minimumRsi = n(configured.minimumRsi, 35);
+
+  return {
+    minimumScore: Math.max(70, Math.min(85, Math.round(n(configured.minimumScore, 75)))),
+    minimumConfidence: Math.max(75, Math.min(90, Math.round(n(configured.minimumConfidence, 80)))),
+    minimumRiskReward: Math.max(1.8, Math.min(3, n(configured.minimumRiskReward, 2))),
+    minimumRsi,
+    maximumRsi: Math.max(minimumRsi, Math.min(80, n(configured.maximumRsi, 70))),
+    minimumVolumeRatio: Math.max(0.6, Math.min(1.2, n(configured.minimumVolumeRatio, 0.8))),
+  };
+}
+
 function hardBlocks(candidate, { marketType = "PERP" } = {}) {
+  const criteria = getCriteria();
   const score = Number(candidate?.engineScore ?? candidate?.score);
   const confidence = Number(candidate?.confidence);
   const rr = Number(candidate?.riskReward);
@@ -127,12 +145,25 @@ function hardBlocks(candidate, { marketType = "PERP" } = {}) {
   const direction = String(candidate?.direction || "").toUpperCase();
   const normalizedMarketType = String(marketType || "PERP").toUpperCase();
   const reasons = [];
-  if (Number.isFinite(score) && score < 90) reasons.push("ENGINE_SCORE_BELOW_MINIMUM");
-  if (Number.isFinite(confidence) && confidence < 80) reasons.push("CONFIDENCE_BELOW_MINIMUM");
-  if (Number.isFinite(rsi) && (rsi < 35 || rsi > 70)) reasons.push("RSI_OUTSIDE_RANGE");
-  if (Number.isFinite(volume) && volume < 0.8) reasons.push("VOLUME_BELOW_MINIMUM");
+
+  if (!Number.isFinite(score)) reasons.push("MISSING_ENGINE_SCORE");
+  else if (score < criteria.minimumScore) reasons.push("ENGINE_SCORE_BELOW_MINIMUM");
+
+  if (!Number.isFinite(confidence)) reasons.push("MISSING_CONFIDENCE");
+  else if (confidence < criteria.minimumConfidence) reasons.push("CONFIDENCE_BELOW_MINIMUM");
+
+  if (!Number.isFinite(rr)) reasons.push("MISSING_RISK_REWARD");
+  else if (rr < criteria.minimumRiskReward) reasons.push("RISK_REWARD_BELOW_MINIMUM");
+
+  if (!Number.isFinite(rsi)) reasons.push("MISSING_RSI");
+  else if (rsi < criteria.minimumRsi || rsi > criteria.maximumRsi) reasons.push("RSI_OUTSIDE_RANGE");
+
+  if (!Number.isFinite(volume)) reasons.push("MISSING_VOLUME_RATIO");
+  else if (volume < criteria.minimumVolumeRatio) reasons.push("VOLUME_BELOW_MINIMUM");
+
   if (risk === "HIGH") reasons.push("ENGINE_HIGH_RISK");
   if (normalizedMarketType === "SPOT" && direction !== "BUY") reasons.push("SPOT_BUY_ONLY");
+
   return reasons;
 }
 
@@ -187,10 +218,12 @@ async function runDecision(candidates = [], preferredProvider = "groq", options 
     ema21: candidate?.ema21 ?? candidate?.indicators?.ema21 ?? null,
     macd: candidate?.macd ?? candidate?.indicators?.macd ?? null,
     riskLevel: candidate?.risk?.level ?? candidate?.riskLevel ?? null,
+    dataQuality: candidate?.dataQuality?.status ?? null,
+    decision: candidate?.decision ?? null,
   }));
 
   const payload = {
-    systemPrompt: `You are the TradeMindMZ AI Decision Layer. A deterministic TradeMindMZ Engine has already evaluated the market candidates. Evaluate ONLY the supplied candidates. Never invent market data. Strategy rules are hard: score >= 90, confidence >= 80, RSI 35-70, volume ratio >= 0.8, and HIGH risk cannot be selected. Execution is fixed at +3% TP / -3% SL; 1:1 risk/reward is intentional and must not reject a score-90+ setup. For SPOT, only BUY is actionable because Spot does not create a short position. For score-90+ candidates that pass the deterministic checks, prefer TRADE unless the supplied data contains a concrete contradiction. Return JSON only: {"decision":"TRADE|WATCH|NO_TRADE","symbol":"SYMBOL","confidence":0,"risk":"LOW|MEDIUM|HIGH","reason":"short explanation","holdTimeMinMinutes":0,"holdTimeMaxMinutes":0,"holdTimeReason":"brief reason based only on supplied timeframe, volatility, entry/TP distance and momentum"}. Only provide a meaningful hold-time range when decision is TRADE; otherwise use 0/0 and an empty reason. Hold time is an estimate, not a guarantee.`,
+    systemPrompt: `You are the TradeMindMZ AI Decision Layer. A deterministic TradeMindMZ Engine has already evaluated the market candidates. Evaluate ONLY the supplied candidates. Never invent market data. Strategy rules are hard: the active TradeMind criteria are authoritative (default score >= 75, confidence >= 80, risk/reward >= 2, RSI 35-70, volume ratio >= 0.8), HIGH risk cannot be selected, and missing data cannot be selected. For SPOT, only BUY is actionable because Spot does not create a short position. For score-90+ candidates that pass the deterministic checks, prefer TRADE unless the supplied data contains a concrete contradiction. Return JSON only: {"decision":"TRADE|WATCH|NO_TRADE","symbol":"SYMBOL","confidence":0,"risk":"LOW|MEDIUM|HIGH","reason":"short explanation","holdTimeMinMinutes":0,"holdTimeMaxMinutes":0,"holdTimeReason":"brief reason based only on supplied timeframe, volatility, entry/TP distance and momentum"}. Only provide a meaningful hold-time range when decision is TRADE; otherwise use 0/0 and an empty reason. Hold time is an estimate, not a guarantee.`,
     userPrompt: `Market type: ${marketType}. TradeMindMZ Engine TOP 5:\n\n${JSON.stringify(aiCandidates)}`,
   };
 
@@ -211,7 +244,7 @@ async function runDecision(candidates = [], preferredProvider = "groq", options 
       if (decision === "TRADE" && confidence < 80) decision = "WATCH";
       const selectedScore = Number(selected?.engineScore ?? selected?.score);
       const selectedEngineConfidence = Number(selected?.confidence);
-      if (decision === "NO_TRADE" && Number.isFinite(selectedScore) && selectedScore >= 90 && Number.isFinite(selectedEngineConfidence) && selectedEngineConfidence >= 80) decision = "TRADE";
+      if (decision === "NO_TRADE" && hardBlocks(selected, { marketType }).length === 0) decision = "TRADE";
       return {
         success: true,
         decision,
