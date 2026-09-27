@@ -5,12 +5,12 @@ import {
 } from "./pionexClient.js";
 
 import {
-  runTradeMindEngine,
-} from "../../engine/index.js";
+  runTradeMindEngineV2,
+} from "../../engine/v2Pipeline.js";
 
 /*
  * TradeMindMZ V2
- * Pionex → Local Market Scanner
+ * Pionex → Local Market Scanner → TradeMind Engine V2
  *
  * READ-ONLY.
  *
@@ -18,9 +18,10 @@ import {
  * Pionex
  * → market candidates
  * → technical analysis
- * → local score
- * → TOP 5
+ * → TradeMind Engine V2
+ * → final TOP 5
  *
+ * The scanner does not pre-select a final TOP 5.
  * AI is NOT called here.
  */
 
@@ -669,31 +670,16 @@ export async function scanPionexMarket({
     }
   }
 
-  const topFive =
-    candidates
-      .sort((a, b) => {
-        if (b.score !== a.score) {
-          return b.score - a.score;
-        }
-
-        return (
-          b.confidence -
-          a.confidence
-        );
-      })
-      .slice(0, 5);
-
-
-  const engineResult = runTradeMindEngine(
-    topFive,
+  const engineResult = runTradeMindEngineV2(
+    candidates,
     { limit: 5 }
   );
 
-return {
+  return {
     success: true,
     scanned:
       rankedUniverse.length,
-    candidates: topFive,
+    candidates: engineResult.top5,
     updatedAt:
       new Date().toISOString(),
 
@@ -707,6 +693,5 @@ return {
 
     engineTop5:
       engineResult.top5,
-
   };
 }
