@@ -932,12 +932,18 @@ export async function scanPionexMarket({
     marketMicrostructure =
       await captureMarketMicrostructure(
         engineResult.top5,
-        { maxDetailedSymbols: 3 }
+        {
+          maxDetailedSymbols: 3,
+          marketType: normalizedMarketType,
+        }
       );
 
     behaviorJournal =
       recordSignalCandidates(
-        engineResult.top5,
+        engineResult.top5.map((candidate) => ({
+          ...candidate,
+          marketType: normalizedMarketType,
+        })),
         marketMicrostructure
       );
   } catch (error) {
