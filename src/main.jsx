@@ -2682,14 +2682,18 @@ function Dashboard(){
                   );
 
 
+                const engineDecision =
+                  String(market?.decision || "").toUpperCase();
+
                 const status =
-                  score !== null
-                    ? score >= tradeCriteria.minimumScore
-                      ? "BUY"
-                      : score >= tradeCriteria.minimumScore - 10
+                  engineDecision === "TRADE"
+                    ? "BUY"
+                    : engineDecision === "WATCH"
+                      ? "WATCH"
+                      : score !== null &&
+                          score >= tradeCriteria.minimumScore
                         ? "WATCH"
-                        : "FILTERED"
-                    : "FILTERED";
+                        : "FILTERED";
 
 
                 return (
