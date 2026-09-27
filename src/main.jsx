@@ -1798,12 +1798,46 @@ function MarketRegimeRiskCenter() {
 
 function Dashboard(){
 
+  const [tradeCriteria, setTradeCriteria] = useState({
+    minimumScore: 75,
+    minimumConfidence: 80,
+    minimumRiskReward: 2,
+    minimumRsi: 35,
+    maximumRsi: 70,
+    minimumVolumeRatio: 0.8,
+  });
+
   const [data,setData] = useState(null);
   const [wallet,setWallet] = useState(null);
   const [markets,setMarkets] = useState([]);
   const [loading,setLoading] = useState(true);
   const [refreshing,setRefreshing] = useState(false);
   const [error,setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    const loadCriteria = async () => {
+      try {
+        const response = await fetch(
+          apiUrl("/api/ai/trade-criteria"),
+          { cache: "no-store" }
+        );
+        const payload = await response.json().catch(() => null);
+        if (active && response.ok && payload?.success && payload?.criteria) {
+          setTradeCriteria(payload.criteria);
+        }
+      } catch {
+        // Keep safe defaults if criteria are temporarily unavailable.
+      }
+    };
+
+    loadCriteria();
+    const timer = setInterval(loadCriteria, 60_000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, []);
 
   const loadDashboard = async () => {
 
@@ -1830,7 +1864,7 @@ function Dashboard(){
           return response.json();
         }),
 
-        fetch(apiUrl("/api/pionex/market-scan?limit=100&maxMarkets=5"))
+        fetch(apiUrl("/api/pionex/market-scan?limit=100&maxMarkets=5&marketType=PERP"))
         .then(async response => {
           if (!response.ok) {
             throw new Error(
@@ -2638,12 +2672,12 @@ function Dashboard(){
 
                 const status =
                   score !== null
-                    ? score >= 85
+                    ? score >= tradeCriteria.minimumScore
                       ? "BUY"
-                      : score >= 75
+                      : score >= tradeCriteria.minimumScore - 10
                         ? "WATCH"
                         : "FILTERED"
-                    : "WATCH";
+                    : "FILTERED";
 
 
                 return (
