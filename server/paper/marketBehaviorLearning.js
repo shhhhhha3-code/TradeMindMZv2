@@ -327,10 +327,36 @@ function groupBy(records, key) {
   })).sort((a, b) => b.samples - a.samples);
 }
 
+function windowSummary(closed, now, days) {
+  const since = now - days * 24 * 60 * 60 * 1000;
+  const items = closed.filter((item) => {
+    const at = Date.parse(item.closedAt || item.createdAt || "");
+    return Number.isFinite(at) && at >= since;
+  });
+  const favorable = items.filter((item) => item.outcome === "FAVORABLE").length;
+  return {
+    samples: items.length,
+    favorable,
+    adverse: items.filter((item) => item.outcome === "ADVERSE").length,
+    flat: items.filter((item) => item.outcome === "FLAT").length,
+    favorableRate: items.length ? Number((favorable / items.length * 100).toFixed(2)) : 0,
+    avgFinalReturnPct: items.length
+      ? Number((items.reduce((sum, item) => sum + finite(item.finalReturnPct, 0), 0) / items.length).toFixed(4))
+      : 0,
+    avgMfePct: items.length
+      ? Number((items.reduce((sum, item) => sum + finite(item.maxFavorablePct, 0), 0) / items.length).toFixed(4))
+      : 0,
+    avgMaePct: items.length
+      ? Number((items.reduce((sum, item) => sum + finite(item.maxAdversePct, 0), 0) / items.length).toFixed(4))
+      : 0,
+  };
+}
+
 export function getMarketBehaviorStats() {
   const records = readRecords();
   const closed = records.filter((record) => record.status === "CLOSED");
   const active = records.filter((record) => record.status === "ACTIVE");
+  const now = Date.now();
 
   return {
     success: true,
@@ -339,6 +365,11 @@ export function getMarketBehaviorStats() {
     totalRecords: records.length,
     activeSignals: active.length,
     closedSignals: closed.length,
+    windows: {
+      "24h": windowSummary(closed, now, 1),
+      "7d": windowSummary(closed, now, 7),
+      "30d": windowSummary(closed, now, 30),
+    },
     overall: {
       samples: closed.length,
       favorableRate: closed.length
