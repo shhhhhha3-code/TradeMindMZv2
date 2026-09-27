@@ -73,7 +73,16 @@ function sanitizeCriteria(
     Math.max(25, Math.min(45, number(input.minimumRsi, defaults.minimumRsi)));
 
   const maximumRsi =
-    Math.max(60, Math.min(80, number(input.maximumRsi, defaults.maximumRsi)));
+    Math.max(
+      minimumRsi,
+      Math.max(
+        60,
+        Math.min(
+          80,
+          number(input.maximumRsi, defaults.maximumRsi)
+        )
+      )
+    );
 
   const minimumVolumeRatio =
     Math.max(
@@ -182,6 +191,7 @@ export function evaluateTradeCandidate(
 
   const score =
     number(
+      candidate.engineScore ??
       candidate.score,
       null
     );
@@ -236,6 +246,7 @@ export function evaluateTradeCandidate(
   const riskLevel =
     String(
       candidate.riskLevel ||
+      candidate?.risk?.level ||
       "UNKNOWN"
     ).toUpperCase();
 
@@ -364,25 +375,14 @@ export function evaluateTradeCandidate(
       "HIGH risk protection",
     actual:
       riskLevel === "HIGH"
-        ? `${score ?? "—"} / ${confidence ?? "—"}%`
-        : "NOT REQUIRED",
+        ? "BLOCKED"
+        : "NOT HIGH",
     target:
-      riskLevel === "HIGH"
-        ? `${criteria.highRisk.minimumScore} / ${criteria.highRisk.minimumConfidence}%`
-        : "Only enforced for HIGH risk",
+      "HIGH risk is not tradeable",
     operator:
-      riskLevel === "HIGH"
-        ? ">="
-        : "INFO",
+      "BLOCK",
     passed:
-      riskLevel === "HIGH"
-        ? score !== null &&
-          confidence !== null &&
-          score >=
-            criteria.highRisk.minimumScore &&
-          confidence >=
-            criteria.highRisk.minimumConfidence
-        : true,
+      riskLevel !== "HIGH",
   });
 
   const passed =
