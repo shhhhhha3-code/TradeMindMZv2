@@ -488,9 +488,98 @@ export async function getOpenPositions() {
   );
 }
 
-export async function getMarketTickers() {
+export async function getMarketTickers({
+  symbol = null,
+  type = null,
+} = {}) {
+  const query = {};
+  if (symbol) query.symbol = symbol;
+  if (type) query.type = type;
+
   return publicRequest(
     "/api/v1/market/tickers",
+    query,
+    {
+      cacheTtlMs: 5000,
+    }
+  );
+}
+
+export async function getMarketSymbols({
+  type = null,
+  status = null,
+} = {}) {
+  const query = {};
+  if (type) query.type = type;
+  if (status) query.status = status;
+
+  return publicRequest(
+    "/api/v1/common/symbols",
+    query,
+    {
+      cacheTtlMs: 60000,
+    }
+  );
+}
+
+export async function getMarketDepth({
+  symbol,
+  limit = 20,
+} = {}) {
+  if (!symbol) {
+    throw new Error("Symbol is required for market depth.");
+  }
+
+  return publicRequest(
+    "/api/v1/market/depth",
+    {
+      symbol,
+      limit: String(limit),
+    },
+    {
+      cacheTtlMs: 1000,
+    }
+  );
+}
+
+export async function getMarketTrades({
+  symbol,
+  limit = 100,
+} = {}) {
+  if (!symbol) {
+    throw new Error("Symbol is required for market trades.");
+  }
+
+  return publicRequest(
+    "/api/v1/market/trades",
+    {
+      symbol,
+      limit: String(limit),
+    },
+    {
+      cacheTtlMs: 1000,
+    }
+  );
+}
+
+export async function getFuturesIndexes({
+  symbol = null,
+} = {}) {
+  const query = {};
+  if (symbol) query.symbol = symbol;
+
+  return publicRequest(
+    "/api/v1/market/indexes",
+    query,
+    {
+      cacheTtlMs: 5000,
+    }
+  );
+}
+
+export async function getOpenInterests() {
+  return publicRequest(
+    "/api/v1/market/openInterests",
     {},
     {
       cacheTtlMs: 5000,
@@ -498,12 +587,22 @@ export async function getMarketTickers() {
   );
 }
 
-export async function getMarketSymbols() {
+export async function getFundingRates({
+  symbol,
+  limit = 1,
+} = {}) {
+  if (!symbol) {
+    throw new Error("Symbol is required for funding rates.");
+  }
+
   return publicRequest(
-    "/api/v1/common/symbols",
-    {},
+    "/api/v1/market/fundingRates",
     {
-      cacheTtlMs: 60000,
+      symbol,
+      limit: String(limit),
+    },
+    {
+      cacheTtlMs: 5000,
     }
   );
 }
