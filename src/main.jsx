@@ -6896,6 +6896,13 @@ function Positions(){
               rsi: positionRsi,
               volumeRatio,
               riskLevel: authoritativeMarket.riskLevel,
+              engineDecision: authoritativeMarket.decision,
+              dataQualityStatus:
+                positionMarketCandidate?.dataQuality?.status || null,
+              mtfStatus:
+                positionMarketCandidate?.multiTimeframe?.status || null,
+              mtfAlignment:
+                positionMarketCandidate?.multiTimeframe?.alignment || null,
             },
             criteria: tradeCriteria || {},
           });
