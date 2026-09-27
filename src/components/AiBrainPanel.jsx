@@ -182,6 +182,7 @@ export default function AiBrainPanel() {
   const performance = data?.performance || {};
   const windows = performance?.windows || {};
   const selectedPerformance = windows?.[windowKey] || {};
+  const behaviorWindows = behavior?.windows || {};
   const behaviorGroups = Array.isArray(behavior?.byRegime) ? behavior.byRegime.slice(0, 5) : [];
   const decisionGroups = Array.isArray(behavior?.byEngineDecision) ? behavior.byEngineDecision.slice(0, 5) : [];
   const marketGroups = Array.isArray(behavior?.byMarketType) ? behavior.byMarketType.slice(0, 4) : [];
@@ -276,7 +277,7 @@ export default function AiBrainPanel() {
         </div>
 
         <div className="tmz-brain-windows">
-          {WINDOWS.map(([key, label]) => <WindowCard key={key} label={label} data={windows?.[key]} behavior={behavior} />)}
+          {WINDOWS.map(([key, label]) => <WindowCard key={key} label={label} data={windows?.[key]} behavior={behaviorWindows?.[key]} />)}
         </div>
 
         <div className="tmz-brain-learning-banner">
@@ -284,11 +285,11 @@ export default function AiBrainPanel() {
             <span><Sparkles /> LEARNING STATUS</span>
             <strong>{(behavior?.closedSignals ?? 0) > 0 ? "NEW OBSERVATIONS AVAILABLE" : "WAITING FOR MORE OBSERVATIONS"}</strong>
             <p>
-              {behavior?.closedSignals ?? 0} completed market-behavior observations · {behavior?.activeSignals ?? 0} active signal paths.
+              {behaviorWindows?.[windowKey]?.samples ?? 0} completed observations in the selected window · {behavior?.activeSignals ?? 0} active signal paths.
               Learning is observational and does not modify live signals automatically.
             </p>
           </div>
-          <div className="tmz-brain-learning-big">{behavior?.closedSignals ?? 0}</div>
+          <div className="tmz-brain-learning-big">{behaviorWindows?.[windowKey]?.samples ?? 0}</div>
         </div>
 
         <div className="tmz-brain-selected-window">
