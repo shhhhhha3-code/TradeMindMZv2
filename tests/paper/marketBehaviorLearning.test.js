@@ -41,7 +41,10 @@ test("market behavior records signal path with MAE/MFE checkpoints", () => {
   });
 
   const record = getMarketBehaviorRecords()[0];
-  assert.equal(record.checkpoints.length, 2);
+  assert.deepEqual(
+    record.checkpoints.map((item) => item.minutes),
+    [3, 15]
+  );
   assert.equal(record.maxAdversePct, -1);
   assert.equal(record.maxFavorablePct, 3);
 
