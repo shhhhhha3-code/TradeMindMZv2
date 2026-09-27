@@ -194,9 +194,9 @@ export default function AiBrainPanel() {
   const marketAiStatus = checkMap["Market AI"]?.status || "UNKNOWN";
   const groqStatus = checkMap["Groq AI"]?.status || "UNKNOWN";
   const parameterStatus = data?.parameters || {};
-  const activeCriteria = parameterStatus?.activeCriteria || parameterStatus?.current || parameterStatus?.criteria || {};
-  const validation = parameterStatus?.validation || parameterStatus?.lastValidation || {};
+  const activeCriteria = parameterStatus?.active || parameterStatus?.activeCriteria || parameterStatus?.current || parameterStatus?.criteria || {};
   const proposal = parameterStatus?.proposal || parameterStatus?.latestProposal || null;
+  const validation = proposal?.validation || parameterStatus?.validation || parameterStatus?.lastValidation || {};
   const learningSamples = data?.learning?.totalAnalyses ?? 0;
 
   const brainState = tone(schedulerStatus) === "bad" || tone(marketAiStatus) === "bad" ? "ATTENTION" : "ONLINE";
