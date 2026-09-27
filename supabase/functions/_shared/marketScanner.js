@@ -30,8 +30,6 @@ function number(value, fallback = 0) {
   return Number.isFinite(n) ? n : fallback;
 }
 
-const STRATEGY_TP_PCT = 0.03;
-const STRATEGY_SL_PCT = 0.03;
 const STRATEGY_LEVERAGE = 3;
 
 function average(values) {
@@ -381,27 +379,48 @@ export function scorePionexCandidate({
       Math.min(100, Math.round(rawScore))
     );
 
-  // User strategy: fixed +3% TP / -3% SL. Volatility still affects the score.
-  const stopDistance = price * STRATEGY_SL_PCT;
-  const targetDistance = price * STRATEGY_TP_PCT;
+  // Build 5.6: derive executable levels from recent market structure
+  // instead of forcing a fixed 1:1 plan.
+  const structureWindow = candles.slice(
+    Math.max(0, candles.length - 21),
+    Math.max(0, candles.length - 1)
+  );
 
-  const entry =
-    price;
+  const recentSwingHigh = structureWindow.length
+    ? Math.max(...structureWindow.map((candle) => candle.high))
+    : price;
 
-  const stopLoss =
-    direction === "BUY"
-      ? price - stopDistance
-      : price + stopDistance;
+  const recentSwingLow = structureWindow.length
+    ? Math.min(...structureWindow.map((candle) => candle.low))
+    : price;
 
-  const takeProfit =
-    direction === "BUY"
-      ? price + targetDistance
-      : price - targetDistance;
+  const stopDistance = Math.max(atrValue * 1.5, price * 0.01);
+  const entry = price;
+  const stopLoss = direction === "BUY"
+    ? price - stopDistance
+    : price + stopDistance;
 
-  const riskReward =
-    stopDistance > 0
-      ? targetDistance / stopDistance
-      : 0;
+  const structureTargetDistance = direction === "BUY"
+    ? recentSwingHigh - price
+    : price - recentSwingLow;
+
+  const fallbackTargetDistance = Math.max(
+    stopDistance * 2.5,
+    atrValue * 3
+  );
+
+  const targetDistance = Number.isFinite(structureTargetDistance) &&
+    structureTargetDistance >= stopDistance * 2
+      ? structureTargetDistance
+      : fallbackTargetDistance;
+
+  const takeProfit = direction === "BUY"
+    ? price + targetDistance
+    : price - targetDistance;
+
+  const riskReward = stopDistance > 0
+    ? targetDistance / stopDistance
+    : 0;
 
   /*
    * Deterministic directional confidence.
@@ -507,7 +526,7 @@ export function scorePionexCandidate({
     ticker,
     fundingRate: number(ticker?.fundingRate ?? ticker?.funding_rate ?? ticker?.fundingRate8h),
     openInterest: number(ticker?.openInterest ?? ticker?.open_interest),
-    marketType,
+    marketType: normalizedMarketType,
     contractType: marketType === "PERP" ? "USDT-M PERPETUAL" : "SPOT",
     leverage: marketType === "PERP" ? Number(leverage) || STRATEGY_LEVERAGE : 1,
     strategy: { allocationPercent: 100, takeProfitPercent: 3, stopLossPercent: 3 },
@@ -610,20 +629,24 @@ export async function scanPionexMarket({
     );
   }
 
+  const isMarketTypeSymbol = (symbol) => {
+    const value = String(symbol || "").toUpperCase();
+    if (!isUsdtSymbol(value)) return false;
+    return normalizedMarketType === "PERP"
+      ? value.endsWith("_PERP") || value.includes(".PERP/")
+      : !value.endsWith("_PERP") && !value.includes(".PERP/");
+  };
+
   const marketNames = symbols
     .map((row) =>
       String(
-        getSymbolValue(row, [
-          "symbol",
-          "market",
-        ]) || ""
+        getSymbolValue(row, ["symbol", "market"]) || ""
       ).toUpperCase()
     )
-    .filter(isUsdtSymbol);
+    .filter(isMarketTypeSymbol);
 
-  const tickerNames =
-    [...tickerMap.keys()]
-      .filter(isUsdtSymbol);
+  const tickerNames = [...tickerMap.keys()]
+    .filter(isMarketTypeSymbol);
 
   const universe =
     [
@@ -700,7 +723,7 @@ export async function scanPionexMarket({
               symbol: item.symbol,
               candles,
               ticker: item.ticker,
-              marketType,
+              marketType: normalizedMarketType,
               leverage,
               interval,
             });
