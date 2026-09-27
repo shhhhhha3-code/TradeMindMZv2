@@ -14,6 +14,15 @@ import {
   recordPaperMonitorHealth,
 } from "./runtimeHealth.js";
 
+import {
+  getMarketTickers,
+} from "../pionex/pionexClient.js";
+
+import {
+  getMarketBehaviorRecords,
+  updateMarketBehavior,
+} from "./marketBehaviorLearning.js";
+
 const DEFAULT_INTERVAL_MS =
   30_000;
 
@@ -30,6 +39,8 @@ let state = {
   lastError: null,
   lastClosedNow: 0,
   lastLearningAdded: 0,
+  lastBehaviorUpdated: 0,
+  lastBehaviorClosed: 0,
   runCount: 0,
   failureCount: 0,
   consecutiveFailures: 0,
@@ -56,6 +67,73 @@ async function runOnce() {
     const learningSync =
       syncPaperLearning();
 
+    /*
+     * Build 5.5: update the signal journal from live Pionex prices.
+     * This remains read-only and uses public market data only.
+     */
+    const activeBehaviorSignals =
+      getMarketBehaviorRecords().filter(
+        (record) => record.status === "ACTIVE"
+      );
+
+    let behaviorUpdate = {
+      updated: 0,
+      closed: 0,
+      active: activeBehaviorSignals.length,
+    };
+
+    if (activeBehaviorSignals.length) {
+      const needsPerp =
+        activeBehaviorSignals.some((record) =>
+          String(record.symbol || "").toUpperCase().endsWith("_PERP")
+        );
+      const needsSpot =
+        activeBehaviorSignals.some((record) =>
+          !String(record.symbol || "").toUpperCase().endsWith("_PERP")
+        );
+
+      const [perpResult, spotResult] =
+        await Promise.all([
+          needsPerp
+            ? getMarketTickers({ type: "PERP" })
+            : Promise.resolve(null),
+          needsSpot
+            ? getMarketTickers({ type: "SPOT" })
+            : Promise.resolve(null),
+        ]);
+
+      const prices = {};
+
+      for (const payload of [perpResult, spotResult]) {
+        const tickers =
+          payload?.data?.tickers ??
+          payload?.tickers ??
+          [];
+
+        for (const ticker of tickers) {
+          const symbol =
+            String(ticker?.symbol || "").toUpperCase();
+
+          const close =
+            Number(ticker?.close);
+
+          if (
+            symbol &&
+            Number.isFinite(close) &&
+            close > 0
+          ) {
+            prices[symbol] = close;
+          }
+        }
+      }
+
+      behaviorUpdate =
+        updateMarketBehavior({
+          prices,
+          at: Date.now(),
+        });
+    }
+
     state.lastRunAt =
       new Date().toISOString();
 
@@ -76,6 +154,16 @@ async function runOnce() {
     state.lastLearningAdded =
       Number(
         learningSync?.added || 0
+      );
+
+    state.lastBehaviorUpdated =
+      Number(
+        behaviorUpdate?.updated || 0
+      );
+
+    state.lastBehaviorClosed =
+      Number(
+        behaviorUpdate?.closed || 0
       );
 
     state.consecutiveFailures = 0;
