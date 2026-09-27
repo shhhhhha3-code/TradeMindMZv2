@@ -8,6 +8,14 @@ import {
   runTradeMindEngineV2,
 } from "../../engine/v2Pipeline.js";
 
+import {
+  captureMarketMicrostructure,
+} from "./marketMicrostructure.js";
+
+import {
+  recordSignalCandidates,
+} from "../paper/marketBehaviorLearning.js";
+
 /*
  * TradeMindMZ V3
  * Pionex → Multi-Timeframe Market Scanner → TradeMind Engine V3
@@ -876,11 +884,56 @@ export async function scanPionexMarket({
     { limit: 5 }
   );
 
+  /*
+   * Build 5.5: capture the market state around the final Engine setups.
+   * This is observational only. It does not change Engine Score or execute
+   * trades. The behavior journal later measures the actual price path.
+   */
+  let marketMicrostructure = {};
+  let behaviorJournal = {
+    success: false,
+    added: 0,
+    signals: [],
+  };
+
+  try {
+    marketMicrostructure =
+      await captureMarketMicrostructure(
+        engineResult.top5,
+        { maxDetailedSymbols: 3 }
+      );
+
+    behaviorJournal =
+      recordSignalCandidates(
+        engineResult.top5,
+        marketMicrostructure
+      );
+  } catch (error) {
+    console.warn(
+      "Market behavior capture skipped:",
+      error?.message || error
+    );
+  }
+
+  const candidatesWithBehavior =
+    engineResult.top5.map((candidate) => ({
+      ...candidate,
+      marketBehavior: {
+        signalJournalId:
+          behaviorJournal.signals?.find(
+            (signal) =>
+              signal.symbol === candidate.symbol
+          )?.id || null,
+        microstructure:
+          marketMicrostructure[candidate.symbol] || null,
+      },
+    }));
+
   return {
     success: true,
     scanned:
       rankedUniverse.length,
-    candidates: engineResult.top5,
+    candidates: candidatesWithBehavior,
     updatedAt:
       new Date().toISOString(),
 
@@ -899,6 +952,14 @@ export async function scanPionexMarket({
       engineResult.recommendation,
 
     engineTop5:
-      engineResult.top5,
+      candidatesWithBehavior,
+
+    marketBehavior: {
+      enabled: true,
+      signalsAdded:
+        behaviorJournal.added || 0,
+      microstructureSymbols:
+        Object.keys(marketMicrostructure),
+    },
   };
 }
