@@ -79,3 +79,23 @@ test("CRITICAL risk blocks a new entry", () => {
   assert.equal(result.status, "NOT_ELIGIBLE");
   assert.equal(result.failedChecks.some(check => check.key === "risk"), true);
 });
+
+
+test("Engine NO_TRADE and MTF conflict cannot appear eligible", () => {
+  const result = evaluateEntryEligibility({
+    engineScore: 80,
+    confidence: 90,
+    riskReward: 2.2,
+    rsi: 55,
+    volumeRatio: 1,
+    riskLevel: "MEDIUM",
+    engineDecision: "NO_TRADE",
+    dataQualityStatus: "SUFFICIENT",
+    mtfStatus: "SUFFICIENT",
+    mtfAlignment: "CONFLICTING",
+  });
+
+  assert.equal(result.status, "NOT_ELIGIBLE");
+  assert.equal(result.failedChecks.some(check => check.key === "engineDecision"), true);
+  assert.equal(result.failedChecks.some(check => check.key === "mtfAlignment"), true);
+});
