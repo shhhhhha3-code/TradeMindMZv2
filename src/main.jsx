@@ -21,6 +21,7 @@ import { fetchDashboardData } from "./services/dashboardService.js";
 import { initTradePushNotifications, setQualifiedTradeNotificationsEnabled } from "./services/pushNotificationService.js";
 import { fetchServerPositionMonitoring } from "./services/serverPositionMonitoringService.js";
 import { buildPositionDecisionSummary } from "./positions/tradeDecisionStatus.js";
+import { buildAuthoritativeMarketSnapshot, findSnapshotCandidate, normalizeMarketType } from "./positions/marketSnapshot.js";
 import "./ui/trademind-v3.css";
 import "./ui/trademind-v4.css";
 import "./ui/trademind-v41.css";
@@ -6226,7 +6227,7 @@ function Positions(){
   const [error,setError] = useState("");
   const [ai,setAi] = useState({});
   const [aiLoading,setAiLoading] = useState({});
-  const [marketSnapshot,setMarketSnapshot] = useState(null);
+  const [marketSnapshots,setMarketSnapshots] = useState({});
   const [tradeCriteria,setTradeCriteria] = useState(null);
 
   const loadPositions = async () => {
@@ -6269,27 +6270,32 @@ function Positions(){
         }
       }
 
-      let snapshot = marketSnapshot;
-      try {
-        snapshot = await fetchLatestAiSignal({
-          interval: "15M",
-          maxMarkets: 25,
-          preferredProvider: "groq",
-        });
-        setMarketSnapshot(snapshot);
-      } catch (snapshotError) {
-        console.warn(
-          "Persisted market snapshot unavailable for position AI:",
-          snapshotError
-        );
+      const snapshots = {};
+      for (const type of ["PERP", "SPOT"]) {
+        try {
+          const snapshot = await fetchLatestAiSignal({
+            interval: "15M",
+            maxMarkets: 25,
+            marketType: type,
+            preferredProvider: "groq",
+          });
+          if (snapshot) snapshots[type] = snapshot;
+        } catch (snapshotError) {
+          console.warn(
+            `Persisted ${type} market snapshot unavailable for position AI:`,
+            snapshotError
+          );
+        }
       }
+      setMarketSnapshots(snapshots);
 
-      const marketCandidates =
+      const marketCandidates = Object.values(snapshots).flatMap(snapshot =>
         Array.isArray(snapshot?.candidates)
           ? snapshot.candidates
           : Array.isArray(snapshot?.engineTop5)
             ? snapshot.engineTop5
-            : [];
+            : []
+      );
 
       const samePosition = (a,b) => {
         const symbolA = String(a?.symbol || "").toUpperCase();
@@ -6311,10 +6317,15 @@ function Positions(){
           position => samePosition(position, trackedPosition)
         );
 
-        const market = marketCandidates.find(candidate =>
-          String(candidate?.symbol || "").toUpperCase() ===
-          String(trackedPosition?.symbol || "").toUpperCase()
-        ) || null;
+        const trackedMarketType = normalizeMarketType(
+          trackedPosition?.marketType,
+          trackedPosition?.symbol
+        );
+        const trackedSnapshot = snapshots[trackedMarketType] || null;
+        const market = findSnapshotCandidate(
+          trackedSnapshot,
+          trackedPosition?.symbol
+        );
 
         const enrichedTracked = {
           ...trackedPosition,
@@ -6336,7 +6347,11 @@ function Positions(){
           marketRiskReward: Number.isFinite(Number(market?.riskReward))
             ? Number(market.riskReward)
             : null,
-          marketUpdatedAt: snapshot?.updatedAt || snapshot?.createdAt || null,
+          marketUpdatedAt:
+            trackedSnapshot?.updatedAt ||
+            trackedSnapshot?.persistedAt ||
+            null,
+          marketType: trackedMarketType,
           currentPrice:
             Number.isFinite(Number(trackedPosition.currentPrice))
               ? Number(trackedPosition.currentPrice)
@@ -6434,9 +6449,34 @@ function Positions(){
           const symbolForMarket =
             String(position.symbol || "").trim().toUpperCase();
 
-          const market = marketCandidates.find(candidate =>
-            String(candidate?.symbol || "").toUpperCase() === symbolForMarket
-          ) || {};
+          const positionMarketType = normalizeMarketType(
+            position?.marketType,
+            position?.symbol
+          );
+          const positionSnapshot = snapshots[positionMarketType] || null;
+          const marketCandidate = findSnapshotCandidate(
+            positionSnapshot,
+            position?.symbol
+          );
+          const market = marketCandidate
+            ? {
+                ...marketCandidate,
+                snapshotMeta: {
+                  marketType: positionMarketType,
+                  contractType: positionSnapshot?.contractType || null,
+                  updatedAt:
+                    positionSnapshot?.updatedAt ||
+                    positionSnapshot?.persistedAt ||
+                    null,
+                  snapshotId:
+                    positionSnapshot?.snapshotId ||
+                    positionSnapshot?.persistedAt ||
+                    positionSnapshot?.updatedAt ||
+                    null,
+                  source: "PERSISTED_ENGINE_SNAPSHOT",
+                },
+              }
+            : {};
 
           const result = await analyzePositionWithAI(position, market);
 
@@ -6496,9 +6536,34 @@ function Positions(){
           const symbolForMarket =
             String(position.symbol || "").trim().toUpperCase();
 
-          const market = marketCandidates.find(candidate =>
-            String(candidate?.symbol || "").toUpperCase() === symbolForMarket
-          ) || {};
+          const positionMarketType = normalizeMarketType(
+            position?.marketType,
+            position?.symbol
+          );
+          const positionSnapshot = snapshots[positionMarketType] || null;
+          const marketCandidate = findSnapshotCandidate(
+            positionSnapshot,
+            position?.symbol
+          );
+          const market = marketCandidate
+            ? {
+                ...marketCandidate,
+                snapshotMeta: {
+                  marketType: positionMarketType,
+                  contractType: positionSnapshot?.contractType || null,
+                  updatedAt:
+                    positionSnapshot?.updatedAt ||
+                    positionSnapshot?.persistedAt ||
+                    null,
+                  snapshotId:
+                    positionSnapshot?.snapshotId ||
+                    positionSnapshot?.persistedAt ||
+                    positionSnapshot?.updatedAt ||
+                    null,
+                  source: "PERSISTED_ENGINE_SNAPSHOT",
+                },
+              }
+            : {};
 
           const result = await analyzePositionWithAI(position, market);
 
@@ -6800,11 +6865,29 @@ function Positions(){
                 ? "warning"
                 : "positive";
 
-          const engineScore = Number(position.engineScore);
-          const positionRsi = Number(position.rsi);
-          const volumeRatio = Number(position.volumeRatio);
-          const marketConfidence = Number(position.marketConfidence);
-          const marketRiskReward = Number(position.marketRiskReward);
+          const positionMarketType = normalizeMarketType(
+            position?.marketType,
+            position?.symbol
+          );
+          const positionSnapshot =
+            marketSnapshots[positionMarketType] || null;
+          const positionMarketCandidate =
+            findSnapshotCandidate(
+              positionSnapshot,
+              position?.symbol
+            );
+          const authoritativeMarket =
+            buildAuthoritativeMarketSnapshot({
+              position,
+              candidate: positionMarketCandidate,
+              snapshot: positionSnapshot,
+            });
+
+          const engineScore = authoritativeMarket.engineScore;
+          const positionRsi = authoritativeMarket.rsi;
+          const volumeRatio = authoritativeMarket.volumeRatio;
+          const marketConfidence = authoritativeMarket.confidence;
+          const marketRiskReward = authoritativeMarket.riskReward;
 
           const decisionSummary = buildPositionDecisionSummary({
             analysis,
@@ -6815,7 +6898,7 @@ function Positions(){
               riskReward: marketRiskReward,
               rsi: positionRsi,
               volumeRatio,
-              riskLevel: position.riskLevel || position.risk?.level || null,
+              riskLevel: authoritativeMarket.riskLevel,
             },
             criteria: tradeCriteria || {},
           });
@@ -6950,6 +7033,24 @@ function Positions(){
                   </b>
                 </div>
 
+                <div className="metric tmz-engine-snapshot">
+                  <span>ENGINE SNAPSHOT</span>
+                  <b className={authoritativeMarket.decision === "TRADE" ? "positive" : authoritativeMarket.decision === "WATCH" ? "warning" : "neutral"}>
+                    {authoritativeMarket.marketType} · {authoritativeMarket.ageSeconds !== null ? (authoritativeMarket.ageSeconds < 60 ? authoritativeMarket.ageSeconds + "s" : Math.floor(authoritativeMarket.ageSeconds / 60) + "m") : "—"} old
+                  </b>
+                </div>
+
+                {authoritativeMarket.decisionReasons.length > 0 && (
+                  <div className="tmz-entry-blockers">
+                    <span>ENGINE BLOCKERS</span>
+                    {authoritativeMarket.decisionReasons.slice(0, 4).map(reason => (
+                      <div key={reason}>
+                        <b>{String(reason).replaceAll("_", " ")}</b>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {entryStatus.failedChecks.length ? (
                   <div className="tmz-entry-blockers">
                     <span>WHY NOT A NEW ENTRY?</span>
@@ -7044,10 +7145,8 @@ function Positions(){
                         Market data age
                         <b>
                           {(() => {
-                            const stamp = position.marketUpdatedAt || marketSnapshot?.updatedAt || marketSnapshot?.persistedAt;
-                            const ts = stamp ? new Date(stamp).getTime() : NaN;
-                            if (!Number.isFinite(ts)) return "—";
-                            const seconds = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+                            const seconds = authoritativeMarket.ageSeconds;
+                            if (!Number.isFinite(seconds)) return "—";
                             return seconds < 60 ? seconds + "s" : Math.floor(seconds / 60) + "m";
                           })()}
                         </b>
