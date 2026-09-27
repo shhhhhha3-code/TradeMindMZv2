@@ -2754,6 +2754,7 @@ async function handle(req) {
             .update({
               status:"RUNNING",
               started_at:schedulerStartedAt,
+              heartbeat_at:schedulerStartedAt,
               error:null,
             })
             .eq("id", schedulerRunId);
@@ -2763,7 +2764,11 @@ async function handle(req) {
       if (!schedulerRunId) {
         const { data: schedulerRun } = await admin
           .from("trademind_scheduler_runs")
-          .insert({ status:"RUNNING", started_at:schedulerStartedAt })
+          .insert({
+            status:"RUNNING",
+            started_at:schedulerStartedAt,
+            heartbeat_at:schedulerStartedAt,
+          })
           .select("id")
           .single();
         schedulerRunId = schedulerRun?.id || null;
@@ -2774,7 +2779,10 @@ async function handle(req) {
         if (!schedulerRunId) return;
         try {
           await admin.from("trademind_scheduler_runs")
-            .update({ current_stage: stage })
+            .update({
+              current_stage: stage,
+              heartbeat_at: new Date().toISOString(),
+            })
             .eq("id", schedulerRunId);
         } catch (stageError) {
           console.warn("Scheduler stage update failed:", stageError?.message || stageError);
@@ -2796,12 +2804,10 @@ async function handle(req) {
       const perpDurationMs = Date.now() - perpStartedAt;
 
       if (payload?.persistenceError) {
-        return response({
-          success: false,
-          status: "AI_SNAPSHOT_PERSISTENCE_ERROR",
-          error: payload.persistenceError,
-          latestAnalysis: payload,
-        }, 500);
+        throw new Error(
+          "AI snapshot persistence failed: " +
+          String(payload.persistenceError)
+        );
       }
 
       await updateSchedulerStage("PERP_PUSH");
@@ -3184,7 +3190,7 @@ async function handle(req) {
     if (supabaseOk) {
       try {
         const admin = supabaseAdmin();
-        const schedulerFields = "id,status,created_at,started_at,finished_at,duration_ms,perp_duration_ms,spot_duration_ms,monitoring_duration_ms,current_stage,perp_snapshot_at,spot_snapshot_at,position_monitoring_count,spot_monitoring_count,perp_scanned,perp_candidates,perp_provider,perp_decision,perp_push_status,spot_scanned,spot_candidates,spot_provider,spot_decision,spot_push_status,error";
+        const schedulerFields = "id,status,created_at,started_at,heartbeat_at,finished_at,duration_ms,perp_duration_ms,spot_duration_ms,monitoring_duration_ms,current_stage,perp_snapshot_at,spot_snapshot_at,position_monitoring_count,spot_monitoring_count,perp_scanned,perp_candidates,perp_provider,perp_decision,perp_push_status,spot_scanned,spot_candidates,spot_provider,spot_decision,spot_push_status,error";
         const [{ data: latestRun }, { data: latestSuccess }, { data: latestActive }] = await Promise.all([
           admin.from("trademind_scheduler_runs").select(schedulerFields).order("created_at",{ascending:false}).limit(1).maybeSingle(),
           admin.from("trademind_scheduler_runs").select(schedulerFields).eq("status","SUCCESS").order("created_at",{ascending:false}).limit(1).maybeSingle(),
@@ -3255,14 +3261,27 @@ async function handle(req) {
           : "ERROR";
 
     const schedulerFinishedAt = schedulerHeartbeat?.finished_at || null;
-    const schedulerAgeMs = schedulerFinishedAt
-      ? Math.max(0, Date.now() - new Date(schedulerFinishedAt).getTime())
-      : null;
+    const schedulerHeartbeatAt =
+      schedulerHeartbeat?.heartbeat_at ||
+      schedulerHeartbeat?.started_at ||
+      schedulerHeartbeat?.created_at ||
+      null;
+    const schedulerAgeMs =
+      schedulerFinishedAt
+        ? Math.max(0, Date.now() - new Date(schedulerFinishedAt).getTime())
+        : schedulerHeartbeatAt
+          ? Math.max(0, Date.now() - new Date(schedulerHeartbeatAt).getTime())
+          : null;
     const schedulerDurationMs = Number(schedulerHeartbeat?.duration_ms);
     const schedulerSlow = Number.isFinite(schedulerDurationMs) && schedulerDurationMs >= 90000;
     const activeScheduler = schedulerHeartbeat?.activeRun || null;
-    const activeSchedulerAgeMs = activeScheduler?.started_at
-      ? Math.max(0, Date.now() - new Date(activeScheduler.started_at).getTime())
+    const activeSchedulerHeartbeatAt =
+      activeScheduler?.heartbeat_at ||
+      activeScheduler?.started_at ||
+      activeScheduler?.created_at ||
+      null;
+    const activeSchedulerAgeMs = activeSchedulerHeartbeatAt
+      ? Math.max(0, Date.now() - new Date(activeSchedulerHeartbeatAt).getTime())
       : null;
     const schedulerFresh = Boolean(
       schedulerHeartbeat?.status === "SUCCESS" &&
@@ -3361,6 +3380,7 @@ async function handle(req) {
           httpStatus: (schedulerActive || schedulerFresh) ? 200 : 503,
           details: {
             lastRun: schedulerFinishedAt,
+            heartbeatAt: schedulerHeartbeatAt,
             ageSeconds: Number.isFinite(schedulerAgeMs) ? Math.round(schedulerAgeMs / 1000) : null,
             activeStatus: activeScheduler?.status || null,
             activeStage: activeScheduler?.current_stage || null,
