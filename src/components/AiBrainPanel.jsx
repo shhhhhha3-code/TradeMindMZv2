@@ -151,14 +151,13 @@ export default function AiBrainPanel() {
       const results = await Promise.allSettled([
         fetchJson("/api/diagnostics"),
         fetchJson("/api/ai/market-behavior"),
-        fetchJson("/api/ai/performance-summary"),
         fetchJson("/api/ai/copilot/parameters"),
         fetchJson("/api/ai/learning-stats"),
       ]);
-      const [diagnostics, behavior, performance, parameters, learning] = results.map((r) =>
+      const [diagnostics, behavior, parameters, learning] = results.map((r) =>
         r.status === "fulfilled" ? r.value : { success: false, error: r.reason?.message || "Unavailable" }
       );
-      setData({ diagnostics, behavior, performance, parameters, learning, fetchedAt: new Date().toISOString() });
+      setData({ diagnostics, behavior, parameters, learning, fetchedAt: new Date().toISOString() });
       const failed = results.filter((r) => r.status === "rejected").length;
       if (failed === results.length) throw new Error("AI HJERNE data sources are unavailable.");
     } catch (err) {
@@ -179,8 +178,7 @@ export default function AiBrainPanel() {
   const checkMap = useMemo(() => Object.fromEntries(checks.map((item) => [item.name, item])), [checks]);
 
   const behavior = data?.behavior || {};
-  const performance = data?.performance || {};
-  const windows = performance?.windows || {};
+  const windows = behavior?.windows || {};
   const selectedPerformance = windows?.[windowKey] || {};
   const behaviorWindows = behavior?.windows || {};
   const behaviorGroups = Array.isArray(behavior?.byRegime) ? behavior.byRegime.slice(0, 5) : [];
@@ -293,9 +291,9 @@ export default function AiBrainPanel() {
         </div>
 
         <div className="tmz-brain-selected-window">
-          <Metric label={`${windowKey.toUpperCase()} CLOSED`} value={selectedPerformance?.closed ?? 0} detail="Closed trade outcomes" icon={Target} />
-          <Metric label="WIN RATE" value={pct(selectedPerformance?.winRate)} detail={`${selectedPerformance?.wins ?? 0} wins · ${selectedPerformance?.losses ?? 0} losses`} icon={Gauge} />
-          <Metric label="NET P&L" value={pct(selectedPerformance?.netPnl, 2)} detail={`Average ${pct(selectedPerformance?.avgPnl, 2)}`} icon={Activity} />
+          <Metric label={`${windowKey.toUpperCase()} OBSERVED`} value={selectedPerformance?.samples ?? 0} detail="Completed market-behavior observations" icon={Target} />
+          <Metric label="FAVORABLE RATE" value={pct(selectedPerformance?.favorableRate)} detail={`${selectedPerformance?.favorable ?? 0} favorable · ${selectedPerformance?.adverse ?? 0} adverse`} icon={Gauge} />
+          <Metric label="AVG RETURN" value={pct(selectedPerformance?.avgFinalReturnPct, 2)} detail="Final observed return" icon={Activity} />
           <Metric label="BEHAVIOR SAMPLES" value={behavior?.closedSignals ?? 0} detail={`MFE ${pct(behavior?.overall?.avgMfePct, 2)} · MAE ${pct(behavior?.overall?.avgMaePct, 2)}`} icon={Database} />
         </div>
       </Section>
