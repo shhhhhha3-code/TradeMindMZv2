@@ -31,6 +31,10 @@ export function evaluateEntryEligibility(values = {}, criteria = {}) {
   const rsi = finite(values.rsi);
   const volume = finite(values.volumeRatio);
   const risk = String(values.riskLevel || values.risk || "").toUpperCase();
+  const engineDecision = String(values.engineDecision || "").toUpperCase();
+  const dataQuality = String(values.dataQualityStatus || values.dataQuality || "").toUpperCase();
+  const mtfStatus = String(values.mtfStatus || "").toUpperCase();
+  const mtfAlignment = String(values.mtfAlignment || "").toUpperCase();
 
   const checks = [
     { key: "score", label: "Engine score", actual: score, target: c.minimumScore, passed: score !== null && score >= c.minimumScore },
@@ -46,6 +50,46 @@ export function evaluateEntryEligibility(values = {}, criteria = {}) {
       label: "Market risk",
       actual: risk,
       target: "LOW / MEDIUM",
+      passed: false,
+    });
+  }
+
+  if (["TRADE", "WATCH", "NO_TRADE", "INSUFFICIENT_DATA"].includes(engineDecision)) {
+    checks.push({
+      key: "engineDecision",
+      label: "Engine decision",
+      actual: engineDecision,
+      target: "TRADE",
+      passed: engineDecision === "TRADE",
+    });
+  }
+
+  if (dataQuality === "INSUFFICIENT") {
+    checks.push({
+      key: "dataQuality",
+      label: "Market data quality",
+      actual: "INSUFFICIENT",
+      target: "SUFFICIENT",
+      passed: false,
+    });
+  }
+
+  if (mtfStatus === "INSUFFICIENT") {
+    checks.push({
+      key: "mtfStatus",
+      label: "Multi-timeframe confirmation",
+      actual: "INSUFFICIENT",
+      target: "SUFFICIENT",
+      passed: false,
+    });
+  }
+
+  if (mtfAlignment === "CONFLICTING") {
+    checks.push({
+      key: "mtfAlignment",
+      label: "Higher timeframe alignment",
+      actual: "CONFLICTING",
+      target: "ALIGNED / MIXED",
       passed: false,
     });
   }
@@ -103,6 +147,10 @@ export function buildPositionDecisionSummary({ analysis = {}, pnlPercent = null,
     rsi: market.rsi,
     volumeRatio: market.volumeRatio,
     riskLevel: market.riskLevel,
+    engineDecision: market.engineDecision,
+    dataQualityStatus: market.dataQualityStatus,
+    mtfStatus: market.mtfStatus,
+    mtfAlignment: market.mtfAlignment,
   }, criteria);
 
   return {
