@@ -106,6 +106,26 @@ function engineHardBlock(
       ""
     ).toUpperCase();
 
+  if (score === null) {
+    reasons.push("MISSING_ENGINE_SCORE");
+  }
+
+  if (confidence === null) {
+    reasons.push("MISSING_CONFIDENCE");
+  }
+
+  if (rr === null) {
+    reasons.push("MISSING_RISK_REWARD");
+  }
+
+  if (rsi === null) {
+    reasons.push("MISSING_RSI");
+  }
+
+  if (volumeRatio === null) {
+    reasons.push("MISSING_VOLUME_RATIO");
+  }
+
   if (
     score !== null &&
     score < criteria.minimumScore
