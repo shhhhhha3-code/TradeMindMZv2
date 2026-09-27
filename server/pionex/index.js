@@ -160,7 +160,7 @@ router.get(
       const result =
         await scanPionexMarket({
           interval:
-            req.query.interval || "1D",
+            req.query.interval || "15M",
           candleLimit:
             Number(req.query.limit || 100),
           maxMarkets:
