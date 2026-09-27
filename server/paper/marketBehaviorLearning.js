@@ -171,6 +171,14 @@ export function recordSignalCandidates(candidates = [], microstructureBySymbol =
       riskReward: finite(candidate.riskReward),
       rsi: finite(candidate.rsi),
       volumeRatio: finite(candidate.volumeRatio),
+      engineDecision:
+        String(candidate?.decision || "UNKNOWN").toUpperCase(),
+      dataQualityStatus:
+        String(candidate?.dataQuality?.status || "UNKNOWN").toUpperCase(),
+      riskLevel:
+        String(candidate?.risk?.level || candidate?.riskLevel || "UNKNOWN").toUpperCase(),
+      riskPoints:
+        finite(candidate?.risk?.points),
       regime: candidate.regime || null,
       mtfConfirmation: candidate?.multiTimeframe?.confirmation || null,
       mtfAlignment: candidate?.multiTimeframe?.alignment || null,
@@ -348,6 +356,7 @@ export function getMarketBehaviorStats() {
     },
     byRegime: groupBy(records, "regime"),
     byMarketType: groupBy(records, "marketType"),
+    byEngineDecision: groupBy(records, "engineDecision"),
     byDirection: groupBy(records, "direction"),
     byMtfAlignment: groupBy(records, "mtfAlignment"),
     bySymbol: groupBy(records, "symbol"),
