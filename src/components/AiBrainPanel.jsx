@@ -152,11 +152,12 @@ export default function AiBrainPanel() {
         fetchJson("/api/ai/learning-stats"),
         fetchJson("/api/ai/position-monitoring"),
         fetchJson("/api/ai/signal-history?limit=20"),
+        fetchJson("/api/ai/trade-criteria"),
       ]);
-      const [diagnostics, performance, learning, positionMonitoring, signalHistory] = results.map((r) =>
+      const [diagnostics, performance, learning, positionMonitoring, signalHistory, tradeCriteria] = results.map((r) =>
         r.status === "fulfilled" ? r.value : { success: false, error: r.reason?.message || "Unavailable" }
       );
-      setData({ diagnostics, performance, learning, positionMonitoring, signalHistory, fetchedAt: new Date().toISOString() });
+      setData({ diagnostics, performance, learning, positionMonitoring, signalHistory, tradeCriteria, fetchedAt: new Date().toISOString() });
       const failed = results.filter((r) => r.status === "rejected").length;
       if (failed === results.length) throw new Error("AI HJERNE data sources are unavailable.");
     } catch (err) {
@@ -192,7 +193,7 @@ export default function AiBrainPanel() {
   const schedulerIsFresh = schedulerHeartbeatAge !== null && schedulerHeartbeatAge <= (scheduler?.cadenceMinutes ?? 7) * 60 * 1.75;
   const marketAiStatus = checkMap["Market AI"]?.status || "UNKNOWN";
   const groqStatus = checkMap["Groq AI"]?.status || "UNKNOWN";
-  const activeCriteria = {};
+  const activeCriteria = data?.tradeCriteria?.criteria || {};
   const proposal = null;
   const validation = {};
   const learningSamples = performance?.learning?.samples ?? data?.learning?.totalAnalyses ?? 0;
@@ -347,7 +348,7 @@ export default function AiBrainPanel() {
             const display = typeof value === "object" ? JSON.stringify(value) : String(value);
             return <div key={key}><span>{key.replace(/([A-Z])/g, " $1").toUpperCase()}</span><b>{display}</b></div>;
           })}
-          {!Object.keys(activeCriteria || {}).length ? <div className="tmz-brain-empty">Active parameter criteria are not exposed by this Edge API yet.</div> : null}
+          {!Object.keys(activeCriteria || {}).length ? <div className="tmz-brain-empty">Active parameter criteria unavailable.</div> : null}
         </div>
         <div className="tmz-brain-validation">
           <div><span>MODE</span><b>SHADOW / GOVERNED</b></div>
