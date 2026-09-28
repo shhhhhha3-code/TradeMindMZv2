@@ -12,6 +12,7 @@ permissions:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -23,6 +24,28 @@ jobs:
         uses: supabase/setup-cli@v2
         with:
           version: latest
+
+      - name: Validate Supabase deployment credentials
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          if [ -z "$SUPABASE_ACCESS_TOKEN" ]; then
+            echo "::error::SUPABASE_ACCESS_TOKEN secret is missing."
+            exit 1
+          fi
+          if [ -z "$SUPABASE_PROJECT_ID" ]; then
+            echo "::error::SUPABASE_PROJECT_ID secret is missing."
+            exit 1
+          fi
+          echo "Supabase deployment credentials are present. Validating token/project access..."
+          supabase projects list >/tmp/supabase-projects.txt
+          grep -F "$SUPABASE_PROJECT_ID" /tmp/supabase-projects.txt >/dev/null || {
+            echo "::error::SUPABASE_ACCESS_TOKEN cannot access SUPABASE_PROJECT_ID."
+            exit 1
+          }
+          echo "Supabase credentials validated."
 
       - name: Deploy Edge API
         env:
@@ -58,8 +81,8 @@ jobs:
 
       - name: Runtime sanity check
         run: |
-          set +e
-          curl -sS -w "\nHTTP_STATUS:%{http_code}\n" \
+          set -euo pipefail
+          curl --fail-with-body -sS -w "\nHTTP_STATUS:%{http_code}\n" \
             "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/diagnostics" \
             -o /tmp/trademind-diagnostics.json
           echo "=== diagnostics ==="
@@ -86,16 +109,13 @@ jobs:
 
       - name: Smoke test live AI pipeline and persistence
         run: |
-          set +e
-          curl -sS -w "\nHTTP_STATUS:%{http_code}\n" \
+          set -euo pipefail
+          curl --fail-with-body -sS -w "\nHTTP_STATUS:%{http_code}\n" \
             "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/live-scan?force=1&interval=15M&marketType=PERP&leverage=2&maxMarkets=25" \
             -o /tmp/trademind-live.json
-          CURL_STATUS=$?
-          set -e
           echo "Live AI raw response:"
           cat /tmp/trademind-live.json
           echo
-          echo "curl status: $CURL_STATUS"
           python - <<'PY'
           import json
           with open("/tmp/trademind-live.json", "r", encoding="utf-8") as f:
