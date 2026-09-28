@@ -112,21 +112,21 @@ function Section({ eyebrow, title, icon: Icon, children, className = "" }) {
 }
 
 function WindowCard({ label, data, behavior }) {
-  const closed = data?.closed ?? 0;
+  const closed = data?.closed ?? data?.trades ?? 0;
   const winRate = finite(data?.winRate);
-  const pnl = finite(data?.netPnl);
+  const pnl = finite(data?.netPnl ?? data?.totalPnlPercent);
   const samples = behavior?.samples ?? 0;
   return (
     <div className={`tmz-brain-window ${pnl > 0 ? "positive" : pnl < 0 ? "negative" : ""}`}>
       <div className="tmz-brain-window-head">
         <span>LAST {label}</span>
-        <b>{closed} CLOSED</b>
+        <b>{closed} TRADES</b>
       </div>
       <strong>{pnl === null ? "—" : `${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}%`}</strong>
       <div className="tmz-brain-window-grid">
         <span><small>WIN RATE</small><b>{winRate === null ? "—" : `${winRate.toFixed(1)}%`}</b></span>
         <span><small>W / L</small><b>{data?.wins ?? 0} / {data?.losses ?? 0}</b></span>
-        <span><small>AVG</small><b>{num(data?.avgPnl)}%</b></span>
+        <span><small>AVG</small><b>{num(data?.avgPnl ?? data?.avgPnlPercent)}%</b></span>
         <span><small>PF</small><b>{data?.profitFactor == null ? "—" : num(data.profitFactor)}</b></span>
         <span><small>OBSERVED</small><b>{samples}</b></span>
       </div>
@@ -197,6 +197,8 @@ export default function AiBrainPanel() {
   const proposal = parameterStatus?.proposal || parameterStatus?.latestProposal || null;
   const validation = proposal?.validation || parameterStatus?.validation || parameterStatus?.lastValidation || {};
   const learningSamples = data?.learning?.totalAnalyses ?? 0;
+  const paperLearning = data?.learning?.paperLearning || {};
+  const tradeWindows = paperLearning?.windows || {};
 
   const brainState = tone(schedulerStatus) === "bad" || tone(marketAiStatus) === "bad" ? "ATTENTION" : "ONLINE";
 
@@ -275,15 +277,15 @@ export default function AiBrainPanel() {
         </div>
 
         <div className="tmz-brain-windows">
-          {WINDOWS.map(([key, label]) => <WindowCard key={key} label={label} data={windows?.[key]} behavior={behaviorWindows?.[key]} />)}
+          {WINDOWS.map(([key, label]) => <WindowCard key={key} label={label} data={tradeWindows?.[key]} behavior={behaviorWindows?.[key]} />)}
         </div>
 
         <div className="tmz-brain-learning-banner">
           <div>
             <span><Sparkles /> LEARNING STATUS</span>
-            <strong>{(behavior?.closedSignals ?? 0) > 0 ? "NEW OBSERVATIONS AVAILABLE" : "WAITING FOR MORE OBSERVATIONS"}</strong>
+            <strong>{((tradeWindows?.[windowKey]?.trades ?? 0) > 0 || (behaviorWindows?.[windowKey]?.samples ?? 0) > 0) ? "NEW LEARNING AVAILABLE" : "WAITING FOR MORE OBSERVATIONS"}</strong>
             <p>
-              {behaviorWindows?.[windowKey]?.samples ?? 0} completed observations in the selected window · {behavior?.activeSignals ?? 0} active signal paths.
+              {tradeWindows?.[windowKey]?.trades ?? 0} completed trades + {behaviorWindows?.[windowKey]?.samples ?? 0} completed market observations in the selected window · {behavior?.activeSignals ?? 0} active signal paths.
               Learning is observational and does not modify live signals automatically.
             </p>
           </div>
@@ -291,7 +293,8 @@ export default function AiBrainPanel() {
         </div>
 
         <div className="tmz-brain-selected-window">
-          <Metric label={`${windowKey.toUpperCase()} OBSERVED`} value={selectedPerformance?.samples ?? 0} detail="Completed market-behavior observations" icon={Target} />
+          <Metric label={`${windowKey.toUpperCase()} TRADES`} value={tradeWindows?.[windowKey]?.trades ?? 0} detail="Completed paper trades used for learning" icon={Target} />
+          <Metric label={`${windowKey.toUpperCase()} OBSERVED`} value={selectedPerformance?.samples ?? 0} detail="Completed market-behavior observations" icon={Database} />
           <Metric label="FAVORABLE RATE" value={pct(selectedPerformance?.favorableRate)} detail={`${selectedPerformance?.favorable ?? 0} favorable · ${selectedPerformance?.adverse ?? 0} adverse`} icon={Gauge} />
           <Metric label="AVG RETURN" value={pct(selectedPerformance?.avgFinalReturnPct, 2)} detail="Final observed return" icon={Activity} />
           <Metric label="BEHAVIOR SAMPLES" value={behavior?.closedSignals ?? 0} detail={`MFE ${pct(behavior?.overall?.avgMfePct, 2)} · MAE ${pct(behavior?.overall?.avgMaePct, 2)}`} icon={Database} />
