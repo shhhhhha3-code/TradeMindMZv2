@@ -195,10 +195,9 @@ export default function AiBrainPanel() {
   const schedulerIsFresh = schedulerHeartbeatAge !== null && schedulerHeartbeatAge <= (scheduler?.cadenceMinutes ?? 7) * 60 * 1.75;
   const marketAiStatus = checkMap["Market AI"]?.status || "UNKNOWN";
   const groqStatus = checkMap["Groq AI"]?.status || "UNKNOWN";
-  const parameterStatus = data?.parameters || {};
-  const activeCriteria = parameterStatus?.active || parameterStatus?.activeCriteria || parameterStatus?.current || parameterStatus?.criteria || {};
-  const proposal = parameterStatus?.proposal || parameterStatus?.latestProposal || null;
-  const validation = proposal?.validation || parameterStatus?.validation || parameterStatus?.lastValidation || {};
+  const activeCriteria = {};
+  const proposal = null;
+  const validation = {};
   const learningSamples = performance?.learning?.samples ?? data?.learning?.totalAnalyses ?? 0;
   const positionJournal = data?.positionMonitoring?.journalStats || {};
 
