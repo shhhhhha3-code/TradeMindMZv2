@@ -299,7 +299,7 @@ export default function AiBrainPanel() {
           <Metric label="WIN RATE" value={pct(selectedPerformance?.winRate)} detail={(selectedPerformance?.wins ?? 0) + " wins · " + (selectedPerformance?.losses ?? 0) + " losses"} icon={Gauge} />
           <Metric label="AVG PNL" value={pct(selectedPerformance?.avgPnl, 2)} detail="Average closed-trade result" icon={Activity} />
           <Metric label="PROFIT FACTOR" value={selectedPerformance?.profitFactor == null ? "—" : num(selectedPerformance.profitFactor)} detail="Closed-trade performance" icon={Database} />
-        </div></div>
+        </div>
       </Section>
 
       <div className="tmz-brain-two-col">
