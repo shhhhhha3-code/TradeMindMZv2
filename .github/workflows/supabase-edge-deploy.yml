@@ -143,6 +143,12 @@ jobs:
             "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/learning-stats" \
             -o /tmp/trademind-learning.json
           curl --fail-with-body -sS \
+            "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/performance-summary" \
+            -o /tmp/trademind-performance.json
+          curl --fail-with-body -sS \
+            "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/trade-criteria" \
+            -o /tmp/trademind-criteria.json
+          curl --fail-with-body -sS \
             -X POST \
             -H "Content-Type: application/json" \
             -d '{"balanceUsdt":1000,"entryPrice":100,"stopLoss":98,"riskPercent":1,"maxAllocationPercent":25,"marketType":"SPOT"}' \
@@ -155,15 +161,21 @@ jobs:
           spot=load('/tmp/trademind-spot-live.json')
           monitor=load('/tmp/trademind-spot-monitoring.json')
           learning=load('/tmp/trademind-learning.json')
+          performance=load('/tmp/trademind-performance.json')
+          criteria=load('/tmp/trademind-criteria.json')
           risk=load('/tmp/trademind-risk.json')
           if not spot.get('success') or not spot.get('candidates'): raise SystemExit('SPOT live AI verification failed: '+str(spot))
           if spot.get('marketType') != 'SPOT': raise SystemExit('SPOT live AI returned wrong market type: '+str(spot))
           if not monitor.get('success') or monitor.get('readOnly') is not True or monitor.get('serverSide') is not True: raise SystemExit('SPOT monitoring verification failed: '+str(monitor))
           if not learning.get('success'): raise SystemExit('Learning stats verification failed: '+str(learning))
+          if not performance.get('success') or not performance.get('windows'): raise SystemExit('Performance summary verification failed: '+str(performance))
+          if not criteria.get('success') or not criteria.get('criteria'): raise SystemExit('Trade criteria verification failed: '+str(criteria))
           if not risk.get('success') or risk.get('readOnly') is not True or risk.get('automaticTrading') is not False: raise SystemExit('Risk sizing verification failed: '+str(risk))
           print('SPOT live AI OK:', len(spot['candidates']), 'TOP 5 candidates')
           print('SPOT monitoring OK:', len(monitor.get('holdings') or []), 'holdings')
           print('Learning stats OK:', learning.get('totalAnalyses'))
+          print('Performance summary OK:', list((performance.get('windows') or {}).keys()))
+          print('Trade criteria OK:', criteria.get('criteria'))
           print('Risk sizing OK:', risk.get('positionSizeUsdt'))
           PY
       - name: Verify persisted latest snapshot
