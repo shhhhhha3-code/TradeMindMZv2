@@ -153,11 +153,12 @@ export default function AiBrainPanel() {
         fetchJson("/api/ai/market-behavior"),
         fetchJson("/api/ai/copilot/parameters"),
         fetchJson("/api/ai/learning-stats"),
+        fetchJson("/api/paper/learning"),
       ]);
-      const [diagnostics, behavior, parameters, learning] = results.map((r) =>
+      const [diagnostics, behavior, parameters, learning, paper] = results.map((r) =>
         r.status === "fulfilled" ? r.value : { success: false, error: r.reason?.message || "Unavailable" }
       );
-      setData({ diagnostics, behavior, parameters, learning, fetchedAt: new Date().toISOString() });
+      setData({ diagnostics, behavior, parameters, learning, paper, fetchedAt: new Date().toISOString() });
       const failed = results.filter((r) => r.status === "rejected").length;
       if (failed === results.length) throw new Error("AI HJERNE data sources are unavailable.");
     } catch (err) {
@@ -190,6 +191,8 @@ export default function AiBrainPanel() {
   const marketAi = checkMap["Market AI"]?.details || {};
   const engineStatus = checkMap.Engine || checkMap["Engine V2"] || null;
   const schedulerStatus = checkMap.Scheduler?.status || "UNKNOWN";
+  const schedulerHeartbeatAge = finite(scheduler?.ageSeconds);
+  const schedulerIsFresh = schedulerHeartbeatAge !== null && schedulerHeartbeatAge <= (scheduler?.cadenceMinutes ?? 7) * 60 * 1.75;
   const marketAiStatus = checkMap["Market AI"]?.status || "UNKNOWN";
   const groqStatus = checkMap["Groq AI"]?.status || "UNKNOWN";
   const parameterStatus = data?.parameters || {};
@@ -197,10 +200,12 @@ export default function AiBrainPanel() {
   const proposal = parameterStatus?.proposal || parameterStatus?.latestProposal || null;
   const validation = proposal?.validation || parameterStatus?.validation || parameterStatus?.lastValidation || {};
   const learningSamples = data?.learning?.totalAnalyses ?? 0;
-  const paperLearning = data?.learning?.paperLearning || {};
+  const paperLearning = data?.paper || data?.learning?.paperLearning || {};
   const tradeWindows = paperLearning?.windows || {};
 
-  const brainState = tone(schedulerStatus) === "bad" || tone(marketAiStatus) === "bad" ? "ATTENTION" : "ONLINE";
+  const brainState = schedulerStatus === "ERROR" || tone(marketAiStatus) === "bad" || (schedulerStatus === "STALE" && !schedulerIsFresh)
+    ? "ATTENTION"
+    : "ONLINE";
 
   const freshness = ageSeconds(
     scheduler?.heartbeatAt ||
@@ -245,7 +250,7 @@ export default function AiBrainPanel() {
         <Metric label="ENGINE" value={engineStatus?.status || "ONLINE"} detail="Deterministic decision layer" icon={Cpu} />
         <Metric label="COPILOT / AI" value={groqStatus || "ONLINE"} detail="Analysis only · no execution" icon={Sparkles} />
         <Metric label="MARKET AI" value={marketAiStatus} detail={`${marketAi?.scanned ?? 0} markets · ${marketAi?.candidates ?? 0} candidates`} icon={Zap} />
-        <Metric label="SCHEDULER" value={schedulerStatus} detail={`Heartbeat ${ageLabel(scheduler?.ageSeconds)} · ${scheduler?.cadenceMinutes ?? 7} min`} icon={Clock3} />
+        <Metric label="SCHEDULER" value={schedulerStatus === "STALE" && schedulerIsFresh ? "OK" : schedulerStatus} detail={`Heartbeat ${ageLabel(schedulerHeartbeatAge)} · ${scheduler?.cadenceMinutes ?? 7} min · ${scheduler?.currentStage || "idle"}`} icon={Clock3} />
       </div>
 
       <Section eyebrow="SYSTEM INTELLIGENCE" title="Core health & telemetry" icon={Gauge}>
