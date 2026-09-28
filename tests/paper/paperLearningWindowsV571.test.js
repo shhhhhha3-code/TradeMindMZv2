@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import {
   createPaperTrade,
   evaluatePaperTrade,
+  getPaperTrades,
   resetPaperTrades,
+  DATA_FILE as PAPER_TRADES_FILE,
 } from "../../server/paper/paperTrading.js";
 import {
   getPaperLearningWindows,
