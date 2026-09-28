@@ -111,11 +111,10 @@ function Section({ eyebrow, title, icon: Icon, children, className = "" }) {
   );
 }
 
-function WindowCard({ label, data, behavior }) {
+function WindowCard({ label, data }) {
   const closed = data?.closed ?? data?.trades ?? 0;
   const winRate = finite(data?.winRate);
   const pnl = finite(data?.netPnl ?? data?.totalPnlPercent);
-  const samples = behavior?.samples ?? 0;
   return (
     <div className={`tmz-brain-window ${pnl > 0 ? "positive" : pnl < 0 ? "negative" : ""}`}>
       <div className="tmz-brain-window-head">
@@ -128,7 +127,6 @@ function WindowCard({ label, data, behavior }) {
         <span><small>W / L</small><b>{data?.wins ?? 0} / {data?.losses ?? 0}</b></span>
         <span><small>AVG</small><b>{num(data?.avgPnl ?? data?.avgPnlPercent)}%</b></span>
         <span><small>PF</small><b>{data?.profitFactor == null ? "—" : num(data.profitFactor)}</b></span>
-        <span><small>OBSERVED</small><b>{samples}</b></span>
       </div>
     </div>
   );
