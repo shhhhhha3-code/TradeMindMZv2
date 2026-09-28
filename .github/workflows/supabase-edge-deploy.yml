@@ -39,6 +39,8 @@ jobs:
           import json
           migration_paths = [
               "supabase/migrations/20260920_live_ai_persistence_scheduler.sql",
+              "supabase/migrations/20260925_scheduler_hardening.sql",
+              "supabase/migrations/20260925_scheduler_observability.sql",
               "supabase/migrations/20260927_scheduler_heartbeat_hardening.sql",
           ]
           sql_parts = []
