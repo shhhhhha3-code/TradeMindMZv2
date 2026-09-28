@@ -40,13 +40,10 @@ test("paper learning exposes completed trades in 24h/7d/30d windows", () => {
   // Persist the evaluated trade through the normal learning sync path.
   // The paper trade file is updated by the evaluator/monitor in production;
   // this test writes the same closed representation explicitly.
-  const paperTradesModule = await import("../../server/paper/paperTrading.js");
-  const original = paperTradesModule.getPaperTrades();
+  const original = getPaperTrades();
   original[0] = closed;
   const fs = await import("node:fs");
-  const path = await import("node:path");
-  const dataFile = path.join(process.cwd(), "data", "paper-trades.json");
-  fs.writeFileSync(dataFile, JSON.stringify(original, null, 2), "utf8");
+  fs.writeFileSync(PAPER_TRADES_FILE, JSON.stringify(original, null, 2), "utf8");
 
   const synced = syncPaperLearning();
   assert.equal(synced.added, 1);
