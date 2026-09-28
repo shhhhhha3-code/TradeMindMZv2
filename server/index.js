@@ -18,6 +18,7 @@ import { runTradeMindCopilot } from "./ai/copilotEngine.js";
 import { createParameterProposal, getParameterOptimizerStatus, markParameterValidation, validateProposalWithWalkForward, promoteParameterProposal, rejectParameterProposal } from "./ai/parameterOptimizer.js";
 import { getTradeCriteria, saveTradeCriteria } from "./ai/tradeCriteria.js";
 import paperRouter from "./paper/index.js";
+import { getPaperLearningWindows, syncPaperLearning } from "./paper/paperLearning.js";
 import { getFallbackMarket } from "./market/fallbackMarket.js";
 import {
   startPaperMonitor,
@@ -186,7 +187,18 @@ app.get("/api/ai/learning-stats", async (req, res) => {
     const stats =
       await getLearningStats();
 
-    return res.json(stats);
+    // Keep AI HJERNE connected to completed paper-trade learning,
+    // not only position-AI analysis history.
+    const paperSync = syncPaperLearning();
+    const paperLearning = getPaperLearningWindows();
+
+    return res.json({
+      ...stats,
+      paperLearning: {
+        ...paperLearning,
+        syncAdded: paperSync.added,
+      },
+    });
   } catch (error) {
     console.error(
       "Learning stats failed:",
