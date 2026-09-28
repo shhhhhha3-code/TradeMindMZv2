@@ -566,6 +566,74 @@ export function getPaperLearning({
   };
 }
 
+export function getPaperLearningWindows() {
+  const records = readRecords();
+  const closed = records.filter((record) => record.result && record.result !== "UNKNOWN");
+
+  const summarizeWindow = (items) => {
+    const wins = items.filter((record) => record.result === "WIN");
+    const losses = items.filter((record) => record.result === "LOSS");
+    const flats = items.filter((record) => record.result === "FLAT");
+    const totalPnl = items.reduce(
+      (sum, record) => sum + numberOrZero(record.pnlPercent),
+      0
+    );
+    const grossProfit = wins.reduce(
+      (sum, record) => sum + Math.max(0, numberOrZero(record.pnlPercent)),
+      0
+    );
+    const grossLoss = losses.reduce(
+      (sum, record) => sum + Math.min(0, numberOrZero(record.pnlPercent)),
+      0
+    );
+
+    return {
+      trades: items.length,
+      closed: items.length,
+      wins: wins.length,
+      losses: losses.length,
+      flats: flats.length,
+      winRate: items.length ? round((wins.length / items.length) * 100) : 0,
+      totalPnlPercent: round(totalPnl),
+      avgPnlPercent: items.length ? round(totalPnl / items.length) : 0,
+      profitFactor:
+        grossLoss < 0
+          ? round(grossProfit / Math.abs(grossLoss))
+          : grossProfit > 0
+            ? null
+            : 0,
+      latestEvaluatedAt: items
+        .map((record) => record.evaluatedAt)
+        .filter(Boolean)
+        .sort((a, b) => new Date(b) - new Date(a))[0] || null,
+    };
+  };
+
+  const now = Date.now();
+  const windows = {};
+
+  for (const [key, days] of [["24h", 1], ["7d", 7], ["30d", 30]]) {
+    const since = now - days * 24 * 60 * 60 * 1000;
+    const items = closed.filter((record) => {
+      const at = Date.parse(
+        record.evaluatedAt ||
+        record.tradeCreatedAt ||
+        record.recordedAt ||
+        ""
+      );
+      return Number.isFinite(at) && at >= since;
+    });
+    windows[key] = summarizeWindow(items);
+  }
+
+  return {
+    success: true,
+    generatedAt: new Date().toISOString(),
+    totalClosedTrades: closed.length,
+    windows,
+  };
+}
+
 export function resetPaperLearning() {
   writeRecords([]);
 
