@@ -37,10 +37,16 @@ jobs:
         run: |
           python - <<'PY'
           import json
-          with open("supabase/migrations/20260920_live_ai_persistence_scheduler.sql", "r", encoding="utf-8") as f:
-              sql = f.read()
+          migration_paths = [
+              "supabase/migrations/20260920_live_ai_persistence_scheduler.sql",
+              "supabase/migrations/20260927_scheduler_heartbeat_hardening.sql",
+          ]
+          sql_parts = []
+          for path in migration_paths:
+              with open(path, "r", encoding="utf-8") as f:
+                  sql_parts.append(f.read())
           with open("/tmp/trademind-migration.json", "w", encoding="utf-8") as f:
-              json.dump({"query": sql}, f)
+              json.dump({"query": "\n\n".join(sql_parts)}, f)
           PY
           curl --fail-with-body -sS \
             -X POST "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/database/query" \
@@ -56,6 +62,17 @@ jobs:
             -o /tmp/trademind-diagnostics.json
           echo "=== diagnostics ==="
           cat /tmp/trademind-diagnostics.json
+          echo
+          python - <<'PY'
+          import json
+          with open("/tmp/trademind-diagnostics.json", "r", encoding="utf-8") as f:
+              data = json.load(f)
+          scheduler = next((x for x in data.get("checks", []) if x.get("name") == "Scheduler"), {})
+          details = scheduler.get("details") or {}
+          if not details.get("heartbeatAt"):
+              raise SystemExit("Scheduler heartbeatAt missing after deployment.")
+          print("Scheduler heartbeat OK:", details.get("heartbeatAt"), "age:", details.get("ageSeconds"))
+          PY
           echo
           curl -sS -w "\nHTTP_STATUS:%{http_code}\n" \
             "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/latest?interval=15M&marketType=PERP&leverage=3" \
