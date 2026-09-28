@@ -9,9 +9,14 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: trademind-android-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   android-debug:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,6 +35,16 @@ jobs:
 
       - name: Install web dependencies
         run: npm install
+
+      - name: Validate build configuration
+        env:
+          TRADEMIND_API_URL: ${{ vars.TRADEMIND_API_URL }}
+        run: |
+          if [ -z "$TRADEMIND_API_URL" ]; then
+            echo "::warning::TRADEMIND_API_URL repository variable is not configured; app will use its runtime fallback API base."
+          else
+            echo "TradeMind API URL configured."
+          fi
 
       - name: Build web app
         env:
@@ -105,6 +120,11 @@ jobs:
       - name: Build debug APK
         working-directory: android
         run: ./gradlew assembleDebug
+
+      - name: Write build metadata
+        run: |
+          printf '%s\n' "${GITHUB_SHA}" > android/app/build/outputs/apk/debug/TRADEMIND_COMMIT.txt
+          printf '%s\n' "${GITHUB_RUN_NUMBER}" > android/app/build/outputs/apk/debug/TRADEMIND_BUILD.txt
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
