@@ -213,6 +213,11 @@ export function scorePionexCandidate({
   leverage = STRATEGY_LEVERAGE,
   interval = "15M",
 }) {
+  const normalizedMarketType =
+    String(marketType || "PERP").toUpperCase() === "SPOT"
+      ? "SPOT"
+      : "PERP";
+
   if (candles.length < 40) {
     return null;
   }
