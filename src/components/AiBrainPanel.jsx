@@ -150,15 +150,15 @@ export default function AiBrainPanel() {
     try {
       const results = await Promise.allSettled([
         fetchJson("/api/diagnostics"),
-        fetchJson("/api/ai/market-behavior"),
-        fetchJson("/api/ai/copilot/parameters"),
+        fetchJson("/api/ai/performance-summary"),
         fetchJson("/api/ai/learning-stats"),
-        fetchJson("/api/paper/learning"),
+        fetchJson("/api/ai/position-monitoring"),
+        fetchJson("/api/ai/signal-history?limit=20"),
       ]);
-      const [diagnostics, behavior, parameters, learning, paper] = results.map((r) =>
+      const [diagnostics, performance, learning, positionMonitoring, signalHistory] = results.map((r) =>
         r.status === "fulfilled" ? r.value : { success: false, error: r.reason?.message || "Unavailable" }
       );
-      setData({ diagnostics, behavior, parameters, learning, paper, fetchedAt: new Date().toISOString() });
+      setData({ diagnostics, performance, learning, positionMonitoring, signalHistory, fetchedAt: new Date().toISOString() });
       const failed = results.filter((r) => r.status === "rejected").length;
       if (failed === results.length) throw new Error("AI HJERNE data sources are unavailable.");
     } catch (err) {
@@ -178,14 +178,14 @@ export default function AiBrainPanel() {
   const checks = Array.isArray(diagnostics?.checks) ? diagnostics.checks : [];
   const checkMap = useMemo(() => Object.fromEntries(checks.map((item) => [item.name, item])), [checks]);
 
-  const behavior = data?.behavior || {};
-  const windows = behavior?.windows || {};
-  const selectedPerformance = windows?.[windowKey] || {};
-  const behaviorWindows = behavior?.windows || {};
-  const behaviorGroups = Array.isArray(behavior?.byRegime) ? behavior.byRegime.slice(0, 5) : [];
-  const decisionGroups = Array.isArray(behavior?.byEngineDecision) ? behavior.byEngineDecision.slice(0, 5) : [];
-  const marketGroups = Array.isArray(behavior?.byMarketType) ? behavior.byMarketType.slice(0, 4) : [];
-  const recent = Array.isArray(behavior?.recent) ? behavior.recent.slice(0, 8) : [];
+  const performance = data?.performance || {};
+  const tradeWindows = performance?.windows || {};
+  const selectedPerformance = tradeWindows?.[windowKey] || {};
+  const behaviorWindows = {};
+  const behaviorGroups = [];
+  const decisionGroups = [];
+  const marketGroups = [];
+  const recent = Array.isArray(data?.signalHistory?.history) ? data.signalHistory.history.slice(0, 8) : [];
 
   const scheduler = checkMap.Scheduler?.details || {};
   const marketAi = checkMap["Market AI"]?.details || {};
@@ -199,9 +199,8 @@ export default function AiBrainPanel() {
   const activeCriteria = parameterStatus?.active || parameterStatus?.activeCriteria || parameterStatus?.current || parameterStatus?.criteria || {};
   const proposal = parameterStatus?.proposal || parameterStatus?.latestProposal || null;
   const validation = proposal?.validation || parameterStatus?.validation || parameterStatus?.lastValidation || {};
-  const learningSamples = data?.learning?.totalAnalyses ?? 0;
-  const paperLearning = data?.paper || data?.learning?.paperLearning || {};
-  const tradeWindows = paperLearning?.windows || {};
+  const learningSamples = performance?.learning?.samples ?? data?.learning?.totalAnalyses ?? 0;
+  const positionJournal = data?.positionMonitoring?.journalStats || {};
 
   const brainState = schedulerStatus === "ERROR" || tone(marketAiStatus) === "bad" || (schedulerStatus === "STALE" && !schedulerIsFresh)
     ? "ATTENTION"
@@ -307,7 +306,7 @@ export default function AiBrainPanel() {
       </Section>
 
       <div className="tmz-brain-two-col">
-        <Section eyebrow="MARKET BEHAVIOR" title="What the Engine is observing" icon={Activity}>
+        <Section eyebrow="TRADE OUTCOMES" title="What the Engine is learning from" icon={Activity}>
           <div className="tmz-brain-list">
             {behaviorGroups.length ? behaviorGroups.map((item) => (
               <div className="tmz-brain-list-row" key={String(item.group)}>
@@ -316,11 +315,11 @@ export default function AiBrainPanel() {
                 <em>{pct(item.favorableRate)} favorable</em>
                 <small>avg {pct(item.avgFinalReturnPct, 2)} · MFE {pct(item.avgMfePct, 2)} · MAE {pct(item.avgMaePct, 2)}</small>
               </div>
-            )) : <div className="tmz-brain-empty">Regime data builds automatically as signal paths complete.</div>}
+            )) : <div className="tmz-brain-empty">Closed-trade outcome data is building from the server trade journal.</div>}
           </div>
         </Section>
 
-        <Section eyebrow="DECISION FEEDBACK" title="Engine outcomes" icon={GitBranch}>
+        <Section eyebrow="DECISION FEEDBACK" title="Recent Engine / AI events" icon={GitBranch}>
           <div className="tmz-brain-list">
             {decisionGroups.length ? decisionGroups.map((item) => (
               <div className="tmz-brain-list-row" key={String(item.group)}>
@@ -329,7 +328,7 @@ export default function AiBrainPanel() {
                 <em>{pct(item.favorableRate)} favorable</em>
                 <small>avg {pct(item.avgFinalReturnPct, 2)}</small>
               </div>
-            )) : <div className="tmz-brain-empty">No completed decision feedback yet.</div>}
+            )) : <div className="tmz-brain-empty">No recent Engine / AI history is available.</div>}
           </div>
         </Section>
       </div>
@@ -342,7 +341,7 @@ export default function AiBrainPanel() {
               <strong>{item.samples}</strong>
               <small>{pct(item.favorableRate)} favorable · avg {pct(item.avgFinalReturnPct, 2)}</small>
             </div>
-          )) : <div className="tmz-brain-empty">Microstructure observations will appear here as completed signal paths accumulate.</div>}
+          )) : <div className="tmz-brain-empty">Microstructure journal is not exposed by the current Edge learning API.</div>}
         </div>
       </Section>
 
@@ -352,12 +351,12 @@ export default function AiBrainPanel() {
             const display = typeof value === "object" ? JSON.stringify(value) : String(value);
             return <div key={key}><span>{key.replace(/([A-Z])/g, " $1").toUpperCase()}</span><b>{display}</b></div>;
           })}
-          {!Object.keys(activeCriteria || {}).length ? <div className="tmz-brain-empty">Active criteria unavailable.</div> : null}
+          {!Object.keys(activeCriteria || {}).length ? <div className="tmz-brain-empty">Active parameter criteria are not exposed by this Edge API yet.</div> : null}
         </div>
         <div className="tmz-brain-validation">
           <div><span>MODE</span><b>SHADOW / GOVERNED</b></div>
-          <div><span>VALIDATION</span><b>{validation?.status || "PENDING"}</b></div>
-          <div><span>PROPOSAL</span><b>{proposal ? "AVAILABLE" : "NONE"}</b></div>
+          <div><span>VALIDATION</span><b>{validation?.status || "READ ONLY"}</b></div>
+          <div><span>PROPOSAL</span><b>{proposal ? "AVAILABLE" : "NOT EXPOSED"}</b></div>
           <div><span>AUTO PROMOTION</span><b>OFF</b></div>
         </div>
         <div className="tmz-brain-safety"><ShieldCheck /> Parameter learning can propose and validate changes, but live criteria are not silently modified.</div>
@@ -370,7 +369,7 @@ export default function AiBrainPanel() {
               <i />
               <div>
                 <strong>{item.symbol || "UNKNOWN"} · {item.direction || "—"} · {item.outcome || item.status || "OBSERVATION"}</strong>
-                <span>{item.regime || "UNKNOWN"} · {item.marketType || "PERP"} · Engine {item.engineDecision || "UNKNOWN"}</span>
+                <span>{item.type || "EVENT"} · {item.source || "TRADEMINDMZ"} · {item.provider || "ENGINE"}</span>
               </div>
               <small>{item.closedAt ? new Date(item.closedAt).toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" }) : item.createdAt ? new Date(item.createdAt).toLocaleTimeString("nb-NO", { hour: "2-digit", minute: "2-digit" }) : "—"}</small>
             </div>
