@@ -181,7 +181,6 @@ export default function AiBrainPanel() {
   const performance = data?.performance || {};
   const tradeWindows = performance?.windows || {};
   const selectedPerformance = tradeWindows?.[windowKey] || {};
-  const behaviorWindows = {};
   const behaviorGroups = [];
   const decisionGroups = [];
   const marketGroups = [];
@@ -280,28 +279,28 @@ export default function AiBrainPanel() {
         </div>
 
         <div className="tmz-brain-windows">
-          {WINDOWS.map(([key, label]) => <WindowCard key={key} label={label} data={tradeWindows?.[key]} behavior={behaviorWindows?.[key]} />)}
+          {WINDOWS.map(([key, label]) => <WindowCard key={key} label={label} data={tradeWindows?.[key]}  />)}
         </div>
 
         <div className="tmz-brain-learning-banner">
           <div>
             <span><Sparkles /> LEARNING STATUS</span>
-            <strong>{((tradeWindows?.[windowKey]?.trades ?? 0) > 0 || (behaviorWindows?.[windowKey]?.samples ?? 0) > 0) ? "NEW LEARNING AVAILABLE" : "WAITING FOR MORE OBSERVATIONS"}</strong>
+            <strong>{(tradeWindows?.[windowKey]?.closed ?? tradeWindows?.[windowKey]?.trades ?? 0) > 0 ? "NEW LEARNING AVAILABLE" : "WAITING FOR CLOSED TRADE OUTCOMES"}</strong>
             <p>
-              {tradeWindows?.[windowKey]?.trades ?? 0} completed trades + {behaviorWindows?.[windowKey]?.samples ?? 0} completed market observations in the selected window · {behavior?.activeSignals ?? 0} active signal paths.
+              {tradeWindows?.[windowKey]?.closed ?? tradeWindows?.[windowKey]?.trades ?? 0} closed trades in the selected window · {positionJournal?.open ?? 0} open journal positions.
               Learning is observational and does not modify live signals automatically.
             </p>
           </div>
-          <div className="tmz-brain-learning-big">{behaviorWindows?.[windowKey]?.samples ?? 0}</div>
+          <div className="tmz-brain-learning-big">{tradeWindows?.[windowKey]?.closed ?? tradeWindows?.[windowKey]?.trades ?? 0}</div>
         </div>
 
         <div className="tmz-brain-selected-window">
-          <Metric label={`${windowKey.toUpperCase()} TRADES`} value={tradeWindows?.[windowKey]?.trades ?? 0} detail="Completed paper trades used for learning" icon={Target} />
-          <Metric label={`${windowKey.toUpperCase()} OBSERVED`} value={selectedPerformance?.samples ?? 0} detail="Completed market-behavior observations" icon={Database} />
-          <Metric label="FAVORABLE RATE" value={pct(selectedPerformance?.favorableRate)} detail={`${selectedPerformance?.favorable ?? 0} favorable · ${selectedPerformance?.adverse ?? 0} adverse`} icon={Gauge} />
-          <Metric label="AVG RETURN" value={pct(selectedPerformance?.avgFinalReturnPct, 2)} detail="Final observed return" icon={Activity} />
-          <Metric label="BEHAVIOR SAMPLES" value={behavior?.closedSignals ?? 0} detail={`MFE ${pct(behavior?.overall?.avgMfePct, 2)} · MAE ${pct(behavior?.overall?.avgMaePct, 2)}`} icon={Database} />
-        </div>
+          <Metric label="CLOSED TRADES" value={selectedPerformance?.closed ?? selectedPerformance?.trades ?? 0} detail="Closed Pionex journal trades used for learning" icon={Target} />
+          <Metric label="JOURNAL" value={positionJournal?.total ?? 0} detail={positionJournal?.open + " open · " + positionJournal?.closed + " closed"} icon={Database} />
+          <Metric label="WIN RATE" value={pct(selectedPerformance?.winRate)} detail={(selectedPerformance?.wins ?? 0) + " wins · " + (selectedPerformance?.losses ?? 0) + " losses"} icon={Gauge} />
+          <Metric label="AVG PNL" value={pct(selectedPerformance?.avgPnl, 2)} detail="Average closed-trade result" icon={Activity} />
+          <Metric label="PROFIT FACTOR" value={selectedPerformance?.profitFactor == null ? "—" : num(selectedPerformance.profitFactor)} detail="Closed-trade performance" icon={Database} />
+        </div></div>
       </Section>
 
       <div className="tmz-brain-two-col">
