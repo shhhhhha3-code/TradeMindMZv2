@@ -2885,6 +2885,7 @@ async function handle(req) {
           spot_duration_ms:spotDurationMs,
           monitoring_duration_ms:monitoringDurationMs,
           current_stage:"COMPLETE",
+          heartbeat_at:new Date().toISOString(),
           perp_scanned:Number(payload?.scanned || 0),
           perp_candidates:Array.isArray(payload?.candidates) ? payload.candidates.length : 0,
           perp_provider:payload?.aiDecision?.provider || "groq",
@@ -2918,6 +2919,7 @@ async function handle(req) {
             finished_at:new Date().toISOString(),
             duration_ms:Date.now() - schedulerRequestStartedAt,
             current_stage:"ERROR",
+            heartbeat_at:new Date().toISOString(),
             error:error?.message || String(error),
           }).eq("id",schedulerRunId);
         }
@@ -3266,12 +3268,13 @@ async function handle(req) {
       schedulerHeartbeat?.started_at ||
       schedulerHeartbeat?.created_at ||
       null;
+    // Heartbeat is the authoritative freshness signal. A long-running or
+    // recently completed scheduler must not become stale merely because
+    // finished_at is older than the cadence window.
     const schedulerAgeMs =
-      schedulerFinishedAt
-        ? Math.max(0, Date.now() - new Date(schedulerFinishedAt).getTime())
-        : schedulerHeartbeatAt
-          ? Math.max(0, Date.now() - new Date(schedulerHeartbeatAt).getTime())
-          : null;
+      schedulerHeartbeatAt
+        ? Math.max(0, Date.now() - new Date(schedulerHeartbeatAt).getTime())
+        : null;
     const schedulerDurationMs = Number(schedulerHeartbeat?.duration_ms);
     const schedulerSlow = Number.isFinite(schedulerDurationMs) && schedulerDurationMs >= 90000;
     const activeScheduler = schedulerHeartbeat?.activeRun || null;
