@@ -3199,10 +3199,10 @@ async function handle(req) {
           admin.from("trademind_scheduler_runs").select(schedulerFields).in("status",["QUEUED","RUNNING"]).order("created_at",{ascending:false}).limit(1).maybeSingle(),
         ]);
 
-        // A queued/running scheduler run is healthy activity, not a stale heartbeat.
-        // Use the latest completed SUCCESS run as the heartbeat baseline and expose
-        // the active run separately so diagnostics can show live scheduler progress.
-        schedulerHeartbeat = latestSuccess || latestRun || null;
+        // Prefer a currently running scheduler as the authoritative heartbeat.
+        // Otherwise use the latest completed SUCCESS run. This prevents the UI
+        // from showing an old completed heartbeat while a fresh run is active.
+        schedulerHeartbeat = latestActive || latestSuccess || latestRun || null;
         if (latestActive) {
           schedulerHeartbeat = {
             ...(schedulerHeartbeat || {}),
