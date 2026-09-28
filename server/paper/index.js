@@ -484,8 +484,13 @@ router.get(
             )
         });
 
+      const windows =
+        getPaperLearningWindows();
+
       res.json({
         ...result,
+        windows: windows.windows,
+        totalClosedTrades: windows.totalClosedTrades,
         sync
       });
     } catch (error) {
