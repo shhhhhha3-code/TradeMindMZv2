@@ -11,7 +11,7 @@ import {
   syncPaperLearning,
 } from "../../server/paper/paperLearning.js";
 
-test("paper learning exposes completed trades in 24h/7d/30d windows", () => {
+test("paper learning exposes completed trades in 24h/7d/30d windows", async () => {
   resetPaperTrades();
   resetPaperLearning();
 
