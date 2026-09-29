@@ -325,7 +325,18 @@ async function authorizeSchedulerRequest(req, supabase) {
 
   try {
     const state = await getSchedulerSecretState(supabase);
-    return provided === state.schedulerSecret;
+    if (provided === state.schedulerSecret) {
+      return true;
+    }
+
+    // Scheduler state may be persisted as a JSON wrapper when notification
+    // metadata is updated. Accept that wrapper only when its embedded secret
+    // exactly matches the authoritative scheduler secret.
+    const providedState = parseSchedulerSecretState(provided);
+    return Boolean(
+      providedState.schedulerSecret &&
+      providedState.schedulerSecret === state.schedulerSecret
+    );
   } catch (error) {
     console.error("Scheduler authorization lookup failed:", error);
     return false;
