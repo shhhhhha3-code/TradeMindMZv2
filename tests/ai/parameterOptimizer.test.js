@@ -37,3 +37,12 @@ test("Build 5 validates a bounded proposal", () => {
   assert.equal(result.normalized.minimumScore, 76);
   assert.equal(result.normalized.minimumRiskReward, 2.05);
 });
+
+
+test("Build 5.9 keeps parameter activation human-gated", async () => {
+  const { getParameterOptimizerStatus } = await import("../../server/ai/parameterOptimizer.js");
+  const status = getParameterOptimizerStatus();
+  assert.equal(status.success, true);
+  assert.equal(status.policy.automaticPromotion, false);
+  assert.equal(status.policy.automaticTrading, false);
+});
