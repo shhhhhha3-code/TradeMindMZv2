@@ -230,6 +230,59 @@ jobs:
           print(f"Fresh persisted PERP snapshot OK: age={age_seconds:.1f}s, persistedAt={persisted_at}")
           PY
 
+      - name: Verify API edge-case safety behavior
+        run: |
+          set -euo pipefail
+          BASE="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api"
+
+          echo "Checking invalid risk-sizing input is rejected without enabling trading..."
+          risk_status=$(curl -sS -o /tmp/trademind-risk-invalid.json -w "%{http_code}"             -X POST             -H "Content-Type: application/json"             -d '{"balanceUsdt":1000,"entryPrice":100,"stopLoss":100,"riskPercent":1,"maxAllocationPercent":25,"marketType":"PERP"}'             "$BASE/api/ai/risk-size")
+          cat /tmp/trademind-risk-invalid.json
+          echo
+          python - "$risk_status" <<'PY'
+          import json, sys
+          status = int(sys.argv[1])
+          with open("/tmp/trademind-risk-invalid.json", encoding="utf-8") as f:
+              data = json.load(f)
+          if status != 400:
+              raise SystemExit(f"Invalid risk input returned HTTP {status}, expected 400: {data}")
+          if data.get("success") is not False:
+              raise SystemExit("Invalid risk input unexpectedly reported success: " + str(data))
+          if data.get("readOnly") is not True or data.get("automaticTrading") is not False:
+              raise SystemExit("Invalid risk input changed safety flags: " + str(data))
+          print("Invalid risk sizing correctly rejected with read-only safety preserved.")
+
+          echo "Checking unsupported Copilot action is rejected safely..."
+          copilot_status=$(curl -sS -o /tmp/trademind-copilot-invalid.json -w "%{http_code}"             -X POST             -H "Content-Type: application/json"             -d '{"action":"EXECUTE_TRADE","marketType":"PERP","message":"test"}'             "$BASE/api/ai/copilot")
+          cat /tmp/trademind-copilot-invalid.json
+          echo
+          python - "$copilot_status" <<'PY'
+          import json, sys
+          status = int(sys.argv[1])
+          with open("/tmp/trademind-copilot-invalid.json", encoding="utf-8") as f:
+              data = json.load(f)
+          if status != 400:
+              raise SystemExit(f"Unsupported Copilot action returned HTTP {status}, expected 400: {data}")
+          if data.get("success") is not False:
+              raise SystemExit("Unsupported Copilot action unexpectedly reported success: " + str(data))
+          print("Unsupported Copilot action correctly rejected.")
+          PY
+
+          echo "Checking health endpoint reports read-only trading state..."
+          curl --fail-with-body -sS "$BASE/api/health" -o /tmp/trademind-health.json
+          python - <<'PY'
+          import json
+          with open("/tmp/trademind-health.json", encoding="utf-8") as f:
+              data = json.load(f)
+          if data.get("success") is not True or data.get("status") != "ONLINE":
+              raise SystemExit("Health endpoint is not ONLINE: " + str(data))
+          if data.get("pionex") != "READ_ONLY" or data.get("trading") is not False:
+              raise SystemExit("Health endpoint safety state is incorrect: " + str(data))
+          print("Health/read-only safety gate: PASS")
+          PY
+
+          echo "API edge-case safety verification: PASS"
+
       - name: Dump Supabase Edge runtime logs on failure
         if: always()
         continue-on-error: true
