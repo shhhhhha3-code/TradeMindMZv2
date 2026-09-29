@@ -63,6 +63,7 @@ function TradeMindAiCopilot({fullPage=false}){
   const [message,setMessage]=useState("");
   const [answer,setAnswer]=useState(null);
   const [loading,setLoading]=useState(false);
+  const [conversation,setConversation]=useState([]);
   const [activityStage,setActivityStage]=useState("READY");
   const activityTimers=React.useRef([]);
 
@@ -82,11 +83,21 @@ function TradeMindAiCopilot({fullPage=false}){
       const res=await fetch(apiUrl("/api/ai/copilot"),{
         method:"POST",
         headers:{"Content-Type":"application/json",Accept:"application/json"},
-        body:JSON.stringify({action,marketType,message:text}),
+        body:JSON.stringify({
+          action,
+          marketType,
+          message:text,
+          history:conversation.slice(-6),
+        }),
       });
       const data=await res.json().catch(()=>({}));
       if(!res.ok || !data?.success) throw new Error(data?.error || "TradeMind AI is unavailable.");
       setAnswer(data);
+      setConversation((previous) => [
+        ...previous,
+        { role:"user", content:text },
+        { role:"assistant", content:String(data.answer || "") },
+      ].slice(-8));
       setMessage("");
       setActivityStage("READY");
     }catch(error){
@@ -103,6 +114,8 @@ function TradeMindAiCopilot({fullPage=false}){
     ["WHAT NOW","WHAT_NOW","What should I do right now?"],
     ["MY POSITION","POSITION_CHECK","Review my live Pionex position"],
     ["BEST SETUP","BEST_SETUP","Find the strongest current setup"],
+    ["WHY?","ASK","Why did the latest Copilot signal make that decision?"],
+    ["WHAT CHANGED","ASK","What changed since the previous market analysis?"],
     ["DEEP ANALYSIS","DEEP_ANALYSIS","Combine market, risk and performance"],
     ["LIVE SIGNAL","LIVE_SIGNAL","Run a fresh 15M AI signal"],
     ["SYSTEM STATUS","STATUS","Check scheduler, Pionex and AI status"],
@@ -194,6 +207,9 @@ function TradeMindAiCopilot({fullPage=false}){
                   <span>{answer.marketType === "SPOT" ? "SPOT" : "M-USDT"}</span>
                   <span>{answer.provider ? String(answer.provider).toUpperCase() : "AI CORE"}</span>
                   {answer.dataAgeSeconds != null && <span>{answer.dataAgeSeconds < 60 ? "FRESH DATA" : "DATA AGE "+answer.dataAgeSeconds+"s"}</span>}
+                  {answer.conversationTurnsUsed > 0 && <span>CONTEXT {answer.conversationTurnsUsed} TURNS</span>}
+                  {answer.snapshotDelta?.decisionChanged && <span>DECISION CHANGED</span>}
+                  {answer.snapshotDelta?.regimeChanged && <span>REGIME CHANGED</span>}
                 </div>
                 {answer.finalDecision && <b className={"tmz-copilot-decision "+String(answer.finalDecision).toLowerCase()}>{answer.finalDecision}</b>}
               </>
