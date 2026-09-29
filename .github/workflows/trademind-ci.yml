@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - codex-engine-v2-tests
+      - codex-android-capacitor
   pull_request:
     branches:
       - main
@@ -14,8 +15,9 @@ permissions:
   contents: read
 
 jobs:
-  engine-tests:
+  core-validation:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,6 +33,15 @@ jobs:
 
       - name: Run Engine tests
         run: node --test tests/engine/*.test.js
+
+      - name: Run AI tests
+        run: node --test tests/ai/*.test.js
+
+      - name: Run paper-learning tests
+        run: node --test tests/paper/*.test.js
+
+      - name: Run position tests
+        run: node --test tests/positions/*.test.js
 
       - name: Build frontend
         run: npm run build
