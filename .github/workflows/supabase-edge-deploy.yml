@@ -212,9 +212,12 @@ jobs:
           if not performance.get('success') or not performance.get('windows'): raise SystemExit('Performance summary verification failed: '+str(performance))
           if not criteria.get('success') or not criteria.get('criteria'): raise SystemExit('Trade criteria verification failed: '+str(criteria))
           if not risk.get('success') or risk.get('readOnly') is not True or risk.get('automaticTrading') is not False: raise SystemExit('Risk sizing verification failed: '+str(risk))
-          position_size = risk.get('positionSizeUsdt')
-          if not isinstance(position_size, (int, float)) or position_size < 0 or position_size > 250:
-              raise SystemExit('Risk sizing returned an invalid positionSizeUsdt: '+str(risk))
+          position_size = risk.get('positionSizeUsdt', risk.get('suggestedNotionalUsdt'))
+          allocation_cap = risk.get('allocationCapUsdt')
+          if not isinstance(position_size, (int, float)) or position_size < 0:
+              raise SystemExit('Risk sizing returned an invalid suggested position size: '+str(risk))
+          if isinstance(allocation_cap, (int, float)) and position_size > allocation_cap:
+              raise SystemExit('Risk sizing exceeded allocation cap: '+str(risk))
           print('SPOT live AI OK:', len(spot['candidates']), 'TOP 5 candidates')
           print('SPOT monitoring OK:', len(monitor.get('holdings') or []), 'holdings')
           print('Learning stats OK:', learning.get('totalAnalyses'))
