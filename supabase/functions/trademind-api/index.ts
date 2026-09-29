@@ -2964,6 +2964,31 @@ async function handle(req) {
         "DIAGNOSTICS",
       ]);
 
+      const authoritativeDecision = String(
+        snapshotPayload?.finalDecision || snapshot?.final_decision || "NO_TRADE"
+      ).toUpperCase();
+      const rawAdvice = String(raw?.advice || "").toUpperCase();
+      const staleGuard = dataQuality.level === "STALE" || dataQuality.level === "UNKNOWN";
+      const decisionIntegrity = {
+        authoritativeDecision,
+        modelAdvice: rawAdvice || "NO_ACTION",
+        aligned:
+          authoritativeDecision === "TRADE"
+            ? !["WAIT","NO_ACTION"].includes(rawAdvice)
+            : ["WAIT","NO_ACTION","HOLD","REDUCE_RISK","EXIT_CONSIDERATION"].includes(rawAdvice),
+        freshnessGuard: staleGuard,
+        enforced: false,
+      };
+      let safeAdvice = allowedAdvice.has(rawAdvice) ? rawAdvice : "NO_ACTION";
+      if (authoritativeDecision !== "TRADE" && ["CONSIDER_TRADE"].includes(safeAdvice)) {
+        safeAdvice = "WAIT";
+        decisionIntegrity.enforced = true;
+      }
+      if (staleGuard && ["CONSIDER_TRADE","HOLD"].includes(safeAdvice)) {
+        safeAdvice = "WAIT";
+        decisionIntegrity.enforced = true;
+      }
+
       const modelConfidence = Math.max(
         0,
         Math.min(100, Math.round(Number(raw?.confidence) || 0))
@@ -2984,7 +3009,8 @@ async function handle(req) {
         decisionBasis,
         severity:["INFO","SUCCESS","WARNING","ERROR"].includes(raw?.severity) ? raw.severity : "INFO",
         suggestedAction:allowedSuggestedActions.has(String(raw?.action || "").toUpperCase()) ? String(raw.action).toUpperCase() : action,
-        advice:allowedAdvice.has(String(raw?.advice || "").toUpperCase()) ? String(raw.advice).toUpperCase() : "NO_ACTION",
+        advice:safeAdvice,
+        decisionIntegrity,
         confidence,
         modelConfidence,
         confidenceGuardApplied,
