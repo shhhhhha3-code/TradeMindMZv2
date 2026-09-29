@@ -123,13 +123,15 @@ export async function initTradePushNotifications() {
       vibration: true,
     });
 
+    // Respect the user's saved preference before requesting native
+    // notification permission or registering the device.
+    if (!isEnabled()) return;
+
     const permission = await PushNotifications.checkPermissions();
     if (permission.receive !== "granted") {
       const requested = await PushNotifications.requestPermissions();
       if (requested.receive !== "granted") return;
     }
-
-    if (!isEnabled()) return;
 
     await PushNotifications.register();
   } catch (error) {
