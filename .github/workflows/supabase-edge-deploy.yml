@@ -207,6 +207,29 @@ jobs:
           print("Next analysis:", data.get("nextAnalysisAt"))
           PY
 
+      - name: Verify fresh persisted PERP snapshot after live scan
+        run: |
+          set -euo pipefail
+          curl --fail-with-body -sS             "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/latest?interval=15M&marketType=PERP&leverage=2"             -o /tmp/trademind-live-latest.json
+          python - <<'PY'
+          import json
+          from datetime import datetime, timezone
+          with open("/tmp/trademind-live-latest.json", "r", encoding="utf-8") as f:
+              data = json.load(f)
+          if not data.get("success") or not data.get("available"):
+              raise SystemExit("Fresh PERP snapshot verification failed: " + str(data))
+          snapshot = data.get("snapshot") or {}
+          persisted_at = snapshot.get("persistedAt")
+          if not persisted_at:
+              raise SystemExit("Fresh PERP snapshot is missing persistedAt: " + str(data))
+          age_seconds = (datetime.now(timezone.utc) - datetime.fromisoformat(persisted_at.replace("Z", "+00:00"))).total_seconds()
+          if age_seconds < -30 or age_seconds > 300:
+              raise SystemExit(f"Fresh PERP snapshot is outside the expected 5-minute window: age={age_seconds:.1f}s, persistedAt={persisted_at}")
+          if snapshot.get("marketType") != "PERP" or not snapshot.get("candidates"):
+              raise SystemExit("Fresh PERP snapshot has invalid market/candidate data: " + str(snapshot))
+          print(f"Fresh persisted PERP snapshot OK: age={age_seconds:.1f}s, persistedAt={persisted_at}")
+          PY
+
       - name: Dump Supabase Edge runtime logs on failure
         if: always()
         continue-on-error: true
