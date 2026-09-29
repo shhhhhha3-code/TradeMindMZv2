@@ -2314,6 +2314,15 @@ async function handle(req) {
       const marketType = String(body?.marketType || "PERP").toUpperCase() === "SPOT" ? "SPOT" : "PERP";
       const action = String(body?.action || "ASK").toUpperCase();
       const userMessage = String(body?.message || "").trim().slice(0, 700);
+      const conversationHistory = Array.isArray(body?.history)
+        ? body.history
+            .slice(-6)
+            .map((item) => ({
+              role: item?.role === "assistant" ? "assistant" : "user",
+              content: String(item?.content || "").trim().slice(0, 700),
+            }))
+            .filter((item) => item.content)
+        : [];
       const allowedActions = new Set([
         "ASK",
         "LIVE_SIGNAL",
@@ -2336,7 +2345,18 @@ async function handle(req) {
         action === "DEEP_ANALYSIS";
 
       let snapshot = null;
+      let previousSnapshotRecord = null;
+      const { data: recentSnapshotRows } = await admin
+        .from("market_ai_snapshots")
+        .select("market_type,interval,leverage,scanned,candidates,ai_decision,final_decision,provider,next_analysis_at,payload,created_at")
+        .eq("market_type",marketType)
+        .eq("interval","15M")
+        .eq("leverage",leverage)
+        .order("created_at",{ascending:false})
+        .limit(3);
+
       if (needsFreshScan) {
+        previousSnapshotRecord = recentSnapshotRows?.[0] || null;
         snapshot = await runLiveAiAnalysis({
           interval:"15M",
           candleLimit:100,
@@ -2348,16 +2368,8 @@ async function handle(req) {
           persist:true,
         });
       } else {
-        const { data } = await admin
-          .from("market_ai_snapshots")
-          .select("market_type,interval,leverage,scanned,candidates,ai_decision,final_decision,provider,next_analysis_at,payload,created_at")
-          .eq("market_type",marketType)
-          .eq("interval","15M")
-          .eq("leverage",leverage)
-          .order("created_at",{ascending:false})
-          .limit(1)
-          .maybeSingle();
-        snapshot = data || null;
+        snapshot = recentSnapshotRows?.[0] || null;
+        previousSnapshotRecord = recentSnapshotRows?.[1] || null;
       }
 
       let livePositions = [];
@@ -2402,6 +2414,12 @@ async function handle(req) {
           change24h: candidate.change24h ?? candidate.priceChange24h ?? null,
           rsi: candidate.rsi ?? candidate.indicators?.rsi14 ?? null,
           volumeRatio: candidate.volumeRatio ?? candidate.indicators?.volumeRatio ?? null,
+          ema9: candidate.ema9 ?? candidate.indicators?.ema9 ?? null,
+          ema21: candidate.ema21 ?? candidate.indicators?.ema21 ?? null,
+          macd: candidate.macd ?? candidate.indicators?.macd ?? null,
+          atr: candidate.atr ?? candidate.indicators?.atr ?? null,
+          volatility: candidate.volatility ?? candidate.indicators?.volatility ?? null,
+          trend: candidate.trend ?? candidate.marketTrend ?? null,
         };
       };
 
@@ -2464,6 +2482,49 @@ async function handle(req) {
             : [],
         } : null,
       } : null;
+
+      const compactPreviousSnapshot = previousSnapshotRecord
+        ? {
+            marketType: previousSnapshotRecord.market_type || marketType,
+            createdAt: previousSnapshotRecord.created_at || null,
+            finalDecision: previousSnapshotRecord.final_decision || previousSnapshotRecord.payload?.finalDecision || null,
+            marketRegime: previousSnapshotRecord.payload?.marketRegime?.regime || null,
+            recommended: compactCandidate(previousSnapshotRecord.payload?.recommended),
+            topCandidates: Array.isArray(previousSnapshotRecord.payload?.candidates)
+              ? previousSnapshotRecord.payload.candidates.slice(0, 5).map(compactCandidate).filter(Boolean)
+              : [],
+          }
+        : null;
+
+      const currentRecommended = compactSnapshot?.recommended || null;
+      const previousRecommended = compactPreviousSnapshot?.recommended || null;
+      const snapshotDelta = compactPreviousSnapshot
+        ? {
+            decisionChanged: compactSnapshot?.finalDecision !== compactPreviousSnapshot.finalDecision,
+            previousDecision: compactPreviousSnapshot.finalDecision,
+            currentDecision: compactSnapshot?.finalDecision || null,
+            regimeChanged: compactSnapshot?.marketRegime !== compactPreviousSnapshot.marketRegime,
+            previousRegime: compactPreviousSnapshot.marketRegime,
+            currentRegime: compactSnapshot?.marketRegime || null,
+            recommendedSymbolChanged:
+              String(currentRecommended?.symbol || "") !== String(previousRecommended?.symbol || ""),
+            previousRecommendedSymbol: previousRecommended?.symbol || null,
+            currentRecommendedSymbol: currentRecommended?.symbol || null,
+            scoreDelta:
+              Number.isFinite(Number(currentRecommended?.score)) &&
+              Number.isFinite(Number(previousRecommended?.score))
+                ? Number(currentRecommended.score) - Number(previousRecommended.score)
+                : null,
+            confidenceDelta:
+              Number.isFinite(Number(currentRecommended?.confidence)) &&
+              Number.isFinite(Number(previousRecommended?.confidence))
+                ? Number(currentRecommended.confidence) - Number(previousRecommended.confidence)
+                : null,
+            candidateCountDelta:
+              Number(compactSnapshot?.topCandidates?.length || 0) -
+              Number(compactPreviousSnapshot?.topCandidates?.length || 0),
+          }
+        : null;
 
       const compactScheduler = diagnostics ? {
         status: diagnostics.status,
@@ -2531,6 +2592,9 @@ async function handle(req) {
         marketType,
         userMessage,
         snapshot: compactSnapshot,
+        previousSnapshot: compactPreviousSnapshot,
+        snapshotDelta,
+        conversationHistory,
         openPositions: livePositions.map(compactPosition).filter(Boolean),
         positionFeedError,
         scheduler: compactScheduler,
@@ -2558,6 +2622,9 @@ async function handle(req) {
         "For 'what should I do now' questions, prioritize the user's current open positions first, then the strongest current setup, then explain if no action is warranted.",
         "For BEST_SETUP, compare the supplied TOP candidates using score, confidence, direction, RSI, volume, risk/reward, market regime, and criteria. Do not choose a winner if the data is insufficient; say so.",
         "For DEEP_ANALYSIS, synthesize market regime, current signal, open positions, risk, recent performance, and historical confidence calibration. Be explicit about conflicts and uncertainty.",
+        "Use conversationHistory to resolve follow-up questions such as 'why?', 'what changed?', 'what about ETH?', or 'compare them' without inventing missing context. The latest supplied telemetry remains authoritative over older conversation text.",
+        "Use previousSnapshot and snapshotDelta to explain what changed between the latest observations. A change in score, confidence, symbol, regime, or decision is descriptive only; never turn it into a guaranteed forecast.",
+        "When the user asks WHY, explain the supplied engine reasons, criteria, regime, confidence, RSI, volume, risk/reward, and recent changes in plain language. Do not invent a reason that is not present in the context.",
         "For performance, summarize 24h, 7d and 30d results factually. Treat learning as observational calibration only; never claim the model weights or engine thresholds changed unless explicitly supplied.",
         "Recent losses are context, not proof of what will happen next.",
         "Do not use past performance to promise future returns.",
@@ -2565,6 +2632,8 @@ async function handle(req) {
         "Never place trades, never provide guaranteed profit claims, and never imply automatic execution.",
         'Return JSON only with this exact shape: {"answer":"...","headline":"...","severity":"INFO|SUCCESS|WARNING|ERROR","action":"NONE|LIVE_SIGNAL|BEST_SETUP|WHAT_NOW|POSITION_CHECK|DEEP_ANALYSIS|STATUS|DIAGNOSTICS","advice":"WAIT|HOLD|CONSIDER_TRADE|REDUCE_RISK|EXIT_CONSIDERATION|NO_ACTION","confidence":0,"keyFactors":["..."],"risks":["..."]}.',
         "Keep answer concise but substantive: normally 3-7 sentences. keyFactors and risks should each contain at most 4 short items.",
+        "Prefer explicit labels such as CURRENT, CHANGED, WHY, and RISK when they improve clarity.",
+        "Never claim that parameter optimization or learning changed live trading behavior unless the supplied context explicitly says so.",
       ].join("\n");
 
       const openAiKey = Deno.env.get("OPENAI_API_KEY");
@@ -2699,6 +2768,11 @@ async function handle(req) {
         dataAgeSeconds:snapshot?.created_at
           ? Math.max(0,Math.round((Date.now()-new Date(snapshot.created_at).getTime())/1000))
           : null,
+        previousSnapshotAgeSeconds:previousSnapshotRecord?.created_at
+          ? Math.max(0,Math.round((Date.now()-new Date(previousSnapshotRecord.created_at).getTime())/1000))
+          : null,
+        snapshotDelta,
+        conversationTurnsUsed:conversationHistory.length,
         finalDecision:snapshotPayload?.finalDecision || snapshot?.final_decision || null,
         openPositionCount:livePositions.length,
         readOnly:true,
