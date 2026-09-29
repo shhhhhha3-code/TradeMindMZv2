@@ -386,6 +386,31 @@ jobs:
           print("Smart follow-up:", action)
           PY
 
+      - name: Verify Copilot decision integrity guard
+        run: |
+          set -euo pipefail
+          BASE="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api"
+          status=$(curl -sS -o /tmp/trademind-copilot-integrity.json -w "%{http_code}"             -X POST -H "Content-Type: application/json"             -d '{"action":"ASK","marketType":"PERP","message":"Explain the current decision."}'             "$BASE/api/ai/copilot")
+          export COPILOT_STATUS="$status"
+          python - <<'PY'
+          import json, os
+          with open("/tmp/trademind-copilot-integrity.json", encoding="utf-8") as f:
+              data=json.load(f)
+          if os.environ.get("COPILOT_STATUS") != "200":
+              raise SystemExit("Copilot integrity HTTP failure: " + str(data))
+          guard=data.get("decisionIntegrity") or {}
+          decision=str(guard.get("authoritativeDecision") or data.get("finalDecision") or "NO_TRADE").upper()
+          advice=str(data.get("advice") or "NO_ACTION").upper()
+          if decision != "TRADE" and advice == "CONSIDER_TRADE":
+              raise SystemExit("Safety regression: Copilot recommended CONSIDER_TRADE while authoritative decision is not TRADE.")
+          if data.get("readOnly") is not True or data.get("automaticTrading") is not False or data.get("noOrderPlacement") is not True:
+              raise SystemExit("Copilot read-only contract failed: " + str(data))
+          if not isinstance(guard.get("aligned"), bool) or not isinstance(guard.get("enforced"), bool):
+              raise SystemExit("Decision integrity telemetry is incomplete: " + str(data))
+          print("Copilot decision integrity: PASS")
+          print("Authoritative decision:", decision, "safe advice:", advice, "guard enforced:", guard.get("enforced"))
+          PY
+
       - name: Dump Supabase Edge runtime logs on failure
         if: always()
         continue-on-error: true
