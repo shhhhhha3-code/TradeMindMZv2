@@ -1,8 +1,8 @@
 function number(value) {
+  if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
-
 export function normalizeMarket(market = {}) {
   const indicators = market?.indicators ?? {};
   const ticker = market?.ticker ?? {};
