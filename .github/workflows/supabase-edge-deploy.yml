@@ -225,6 +225,24 @@ jobs:
           print('Trade criteria OK:', criteria.get('criteria'))
           print('Risk sizing OK:', risk.get('positionSizeUsdt'))
           PY
+      - name: Verify persisted SPOT snapshot
+        run: |
+          set -euo pipefail
+          curl --fail-with-body -sS             "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/latest?interval=15M&marketType=SPOT&leverage=1"             -o /tmp/trademind-latest-spot.json
+          python - <<'PY'
+          import json
+          with open("/tmp/trademind-latest-spot.json", "r", encoding="utf-8") as f:
+              data = json.load(f)
+          if not data.get("success") or not data.get("available"):
+              raise SystemExit("Latest SPOT snapshot verification failed: " + str(data))
+          snapshot = data.get("snapshot") or {}
+          if snapshot.get("marketType") != "SPOT":
+              raise SystemExit("Latest SPOT snapshot returned wrong market type: " + str(snapshot))
+          if not snapshot.get("candidates"):
+              raise SystemExit("Latest SPOT snapshot has no candidates")
+          print("Persisted SPOT snapshot OK:", snapshot.get("persistedAt"))
+          PY
+
       - name: Verify persisted latest snapshot
         run: |
           curl --fail-with-body -sS \
