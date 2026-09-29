@@ -169,9 +169,9 @@ jobs:
       - name: Verify SPOT, risk sizing, learning and monitoring APIs
         run: |
           set -e
-          # SPOT live-scan can legitimately return HTTP 429 when the upstream market-data provider is rate-limited.\
-          # Retry that verification call instead of failing the whole deploy immediately.\
-          echo "Running SPOT live-scan verification with bounded retry/backoff..." \
+          # SPOT live-scan can legitimately return HTTP 429 when the upstream market-data provider is rate-limited.
+          # Retry that verification call instead of failing the whole deploy immediately.
+          echo "Running SPOT live-scan verification with bounded retry/backoff..."
           curl --fail-with-body -sS \
             --connect-timeout 10 --max-time 120 \
             --retry 5 --retry-delay 10 --retry-max-time 90 --retry-connrefused \
