@@ -254,6 +254,7 @@ function TradeMindAiCopilot({fullPage=false}){
                   {answer.conversationTurnsUsed > 0 && <span>CONTEXT {answer.conversationTurnsUsed} TURNS</span>}
                   {answer.snapshotDelta?.decisionChanged && <span>DECISION CHANGED</span>}
                   {answer.snapshotDelta?.regimeChanged && <span>REGIME CHANGED</span>}
+                  {answer.decisionIntegrity?.enforced && <span>SAFETY GUARD APPLIED</span>}
                 </div>
                 {answer.finalDecision && <b className={"tmz-copilot-decision "+String(answer.finalDecision).toLowerCase()}>{answer.finalDecision}</b>}
               </>
