@@ -2598,6 +2598,95 @@ async function handle(req) {
           : [],
       } : null;
 
+      const decisionBasis = [];
+      const addDecisionBasis = (category, finding, evidence, source = "TradeMindMZ telemetry") => {
+        if (!finding || !evidence) return;
+        decisionBasis.push({
+          category: String(category),
+          finding: String(finding).slice(0, 180),
+          evidence: String(evidence).slice(0, 260),
+          source: String(source),
+        });
+      };
+
+      if (compactSnapshot?.finalDecision) {
+        addDecisionBasis(
+          "DECISION",
+          "Current engine decision",
+          "FINAL DECISION = " + String(compactSnapshot.finalDecision)
+        );
+      }
+
+      const engineReasons = compactSnapshot?.aiDecision?.engineReasons || [];
+      engineReasons.slice(0, 2).forEach((reason) => {
+        addDecisionBasis(
+          "ENGINE",
+          typeof reason === "object" ? (reason.label || reason.key || "Engine criterion") : String(reason),
+          typeof reason === "object"
+            ? [reason.actual, reason.operator, reason.target].filter((value) => value !== undefined && value !== null && value !== "").join(" ")
+            : "Supplied engine reason"
+        );
+      });
+
+      if (compactSnapshot?.criteria?.failedChecks?.length) {
+        compactSnapshot.criteria.failedChecks.slice(0, 2).forEach((check) => {
+          addDecisionBasis(
+            "CRITERIA",
+            "Criterion not passed: " + String(check.label || check.key || "check"),
+            [
+              check.actual !== undefined ? "actual=" + check.actual : null,
+              check.operator || null,
+              check.target !== undefined ? "target=" + check.target : null,
+            ].filter(Boolean).join(" ")
+          );
+        });
+      }
+
+      if (currentRecommended) {
+        const setupEvidence = [
+          currentRecommended.direction ? "direction=" + currentRecommended.direction : null,
+          currentRecommended.score !== null ? "score=" + currentRecommended.score : null,
+          currentRecommended.confidence !== null ? "confidence=" + currentRecommended.confidence : null,
+          currentRecommended.riskReward !== null ? "R:R=" + currentRecommended.riskReward : null,
+          currentRecommended.rsi !== null ? "RSI=" + currentRecommended.rsi : null,
+          currentRecommended.volumeRatio !== null ? "volume=" + currentRecommended.volumeRatio : null,
+        ].filter(Boolean).join(" · ");
+        addDecisionBasis(
+          "SETUP",
+          "Recommended setup",
+          setupEvidence || "Current recommended candidate supplied"
+        );
+      }
+
+      if (compactSnapshot?.marketRegime) {
+        addDecisionBasis(
+          "REGIME",
+          "Current market regime",
+          [
+            compactSnapshot.marketRegime,
+            compactSnapshot.marketRegimeDetail?.change24h !== null
+              ? "24h=" + compactSnapshot.marketRegimeDetail.change24h
+              : null,
+            compactSnapshot.marketRegimeDetail?.emaAligned !== null
+              ? "EMA aligned=" + compactSnapshot.marketRegimeDetail.emaAligned
+              : null,
+          ].filter(Boolean).join(" · ")
+        );
+      }
+
+      if (snapshotDelta) {
+        const changes = [
+          snapshotDelta.decisionChanged ? "decision changed" : null,
+          snapshotDelta.regimeChanged ? "regime changed" : null,
+          snapshotDelta.recommendedSymbolChanged ? "recommended symbol changed" : null,
+          Number.isFinite(Number(snapshotDelta.scoreDelta)) ? "score delta=" + snapshotDelta.scoreDelta : null,
+          Number.isFinite(Number(snapshotDelta.confidenceDelta)) ? "confidence delta=" + snapshotDelta.confidenceDelta : null,
+        ].filter(Boolean);
+        if (changes.length) {
+          addDecisionBasis("CHANGE", "Compared with previous snapshot", changes.join(" · "));
+        }
+      }
+
       const context = {
         action,
         marketType,
@@ -2605,6 +2694,7 @@ async function handle(req) {
         snapshot: compactSnapshot,
         previousSnapshot: compactPreviousSnapshot,
         snapshotDelta,
+        decisionBasis,
         conversationHistory,
         openPositions: livePositions.map(compactPosition).filter(Boolean),
         positionFeedError,
@@ -2641,7 +2731,7 @@ async function handle(req) {
         "Do not use past performance to promise future returns.",
         "If web search is available, use it only for current external facts/news/market context that are not contained in TradeMindMZ telemetry. Clearly label web-sourced facts versus internal TradeMindMZ data.",
         "Never place trades, never provide guaranteed profit claims, and never imply automatic execution.",
-        'Return JSON only with this exact shape: {"answer":"...","headline":"...","severity":"INFO|SUCCESS|WARNING|ERROR","action":"NONE|LIVE_SIGNAL|BEST_SETUP|WHAT_NOW|POSITION_CHECK|DEEP_ANALYSIS|STATUS|DIAGNOSTICS","advice":"WAIT|HOLD|CONSIDER_TRADE|REDUCE_RISK|EXIT_CONSIDERATION|NO_ACTION","confidence":0,"keyFactors":["..."],"risks":["..."]}.',
+        'Return JSON only with this exact shape: {"answer":"...","headline":"...","severity":"INFO|SUCCESS|WARNING|ERROR","action":"NONE|LIVE_SIGNAL|BEST_SETUP|WHAT_NOW|POSITION_CHECK|DEEP_ANALYSIS|STATUS|DIAGNOSTICS","advice":"WAIT|HOLD|CONSIDER_TRADE|REDUCE_RISK|EXIT_CONSIDERATION|NO_ACTION","confidence":0,"keyFactors":["..."],"risks":["..."],"explanation":"A concise plain-language summary of why the supplied telemetry supports the current decision. Do not reveal hidden chain-of-thought or invent evidence."}.',
         "Keep answer concise but substantive: normally 3-7 sentences. keyFactors and risks should each contain at most 4 short items.",
         "Prefer explicit labels such as CURRENT, CHANGED, WHY, and RISK when they improve clarity.",
         "Never claim that parameter optimization or learning changed live trading behavior unless the supplied context explicitly says so.",
@@ -2858,6 +2948,8 @@ async function handle(req) {
         marketType,
         headline:String(raw?.headline || "TRADEMIND AI"),
         answer:String(raw?.answer || outputText || "I could not produce an answer from the available TradeMindMZ data."),
+        explanation:String(raw?.explanation || "").slice(0, 900),
+        decisionBasis,
         severity:["INFO","SUCCESS","WARNING","ERROR"].includes(raw?.severity) ? raw.severity : "INFO",
         suggestedAction:allowedSuggestedActions.has(String(raw?.action || "").toUpperCase()) ? String(raw.action).toUpperCase() : action,
         advice:allowedAdvice.has(String(raw?.advice || "").toUpperCase()) ? String(raw.advice).toUpperCase() : "NO_ACTION",
