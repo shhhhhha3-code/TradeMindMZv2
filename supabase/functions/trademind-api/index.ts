@@ -2897,12 +2897,22 @@ async function handle(req) {
           delta.recommendedSymbolChanged
             ? "recommended symbol changed from " + String(delta.previousRecommendedSymbol || "UNKNOWN") + " to " + String(delta.currentRecommendedSymbol || "UNKNOWN")
             : null,
+          delta.scoreDelta !== null &&
+          delta.scoreDelta !== undefined &&
+          delta.scoreDelta !== "" &&
           Number.isFinite(Number(delta.scoreDelta))
             ? "score changed by " + String(delta.scoreDelta)
             : null,
+          delta.confidenceDelta !== null &&
+          delta.confidenceDelta !== undefined &&
+          delta.confidenceDelta !== "" &&
           Number.isFinite(Number(delta.confidenceDelta))
             ? "confidence changed by " + String(delta.confidenceDelta) + " points"
             : null,
+          delta.candidateCountDelta !== null &&
+          delta.candidateCountDelta !== undefined &&
+          delta.candidateCountDelta !== "" &&
+          Number.isFinite(Number(delta.candidateCountDelta)) &&
           Number(delta.candidateCountDelta) !== 0
             ? "candidate count changed by " + String(delta.candidateCountDelta)
             : null,
