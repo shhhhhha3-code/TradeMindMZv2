@@ -1,8 +1,8 @@
 function finite(value) {
+  if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
-
 export function calculateMomentum(market) {
   const change = finite(market?.change24h);
 
