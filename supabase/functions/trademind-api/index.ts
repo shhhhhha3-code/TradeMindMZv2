@@ -2732,11 +2732,97 @@ async function handle(req) {
         });
         const groqText = await groqRes.text();
         if (!groqRes.ok) {
-          throw new Error("TradeMind AI fallback failed: "+groqRes.status+" "+groqText.slice(0,300));
+          console.warn(
+            "TradeMind AI fallback provider failed; using context engine fallback:",
+            groqRes.status,
+            groqText.slice(0, 360)
+          );
+        } else {
+          try {
+            const groqParsed = JSON.parse(groqText);
+            outputText = String(groqParsed.choices?.[0]?.message?.content || "").trim();
+            try { raw = JSON.parse(outputText || "{}"); } catch {}
+          } catch (groqParseError) {
+            console.warn(
+              "TradeMind AI fallback response was not valid JSON; using context engine fallback:",
+              groqParseError?.message || groqParseError
+            );
+          }
         }
-        const groqParsed = JSON.parse(groqText);
-        outputText = String(groqParsed.choices?.[0]?.message?.content || "").trim();
-        try { raw = JSON.parse(outputText || "{}"); } catch {}
+      }
+
+      if (!raw) {
+        const current = compactSnapshot?.recommended;
+        const delta = snapshotDelta || {};
+        const changeParts = [
+          delta.decisionChanged
+            ? "decision changed from " + String(delta.previousDecision || "UNKNOWN") + " to " + String(delta.currentDecision || "UNKNOWN")
+            : null,
+          delta.regimeChanged
+            ? "market regime changed from " + String(delta.previousRegime || "UNKNOWN") + " to " + String(delta.currentRegime || "UNKNOWN")
+            : null,
+          delta.recommendedSymbolChanged
+            ? "recommended symbol changed from " + String(delta.previousRecommendedSymbol || "UNKNOWN") + " to " + String(delta.currentRecommendedSymbol || "UNKNOWN")
+            : null,
+          Number.isFinite(Number(delta.scoreDelta))
+            ? "score changed by " + String(delta.scoreDelta)
+            : null,
+          Number.isFinite(Number(delta.confidenceDelta))
+            ? "confidence changed by " + String(delta.confidenceDelta) + " points"
+            : null,
+        ].filter(Boolean);
+
+        const fallbackAnswer = changeParts.length
+          ? "AI provideren er midlertidig utilgjengelige, men Context Engine kan fortsatt lese TradeMind-statusen. CHANGED: " + changeParts.join("; ") + "."
+          : current?.symbol
+            ? "AI provideren er midlertidig utilgjengelige. CURRENT: " +
+              String(current.symbol) +
+              " " +
+              String(current.direction || "") +
+              ", score " +
+              String(current.score ?? "N/A") +
+              ", confidence " +
+              String(current.confidence ?? "N/A") +
+              "%. Ingen ordre er sendt."
+            : "AI provideren er midlertidig utilgjengelige. Context Engine har fortsatt lest siste TradeMind-telemetry, men mangler nok data til en full Copilot-analyse.";
+
+        return response({
+          success:true,
+          provider:"context-engine",
+          model:"deterministic-context-fallback",
+          webSearch:false,
+          action,
+          marketType,
+          headline:"CONTEXT ENGINE",
+          answer:fallbackAnswer,
+          severity:"WARNING",
+          suggestedAction:action,
+          advice:snapshotPayload?.finalDecision === "TRADE" ? "CONSIDER_TRADE" : "WAIT",
+          confidence:0,
+          keyFactors:[
+            current?.symbol ? "Current: " + String(current.symbol) : null,
+            snapshotPayload?.finalDecision ? "Decision: " + String(snapshotPayload.finalDecision) : null,
+            compactSnapshot?.marketRegime ? "Regime: " + String(compactSnapshot.marketRegime) : null,
+            conversationHistory.length ? "Conversation context: " + String(conversationHistory.length) + " turns" : null,
+          ].filter(Boolean).slice(0,4),
+          risks:[
+            "AI provider quota/availability is currently limiting full Copilot reasoning.",
+            "Context Engine fallback does not replace full AI reasoning.",
+          ],
+          dataAgeSeconds:snapshot?.created_at
+            ? Math.max(0,Math.round((Date.now()-new Date(snapshot.created_at).getTime())/1000))
+            : null,
+          previousSnapshotAgeSeconds:previousSnapshotRecord?.created_at
+            ? Math.max(0,Math.round((Date.now()-new Date(previousSnapshotRecord.created_at).getTime())/1000))
+            : null,
+          snapshotDelta,
+          conversationTurnsUsed:conversationHistory.length,
+          finalDecision:snapshotPayload?.finalDecision || snapshot?.final_decision || null,
+          openPositionCount:livePositions.length,
+          readOnly:true,
+          automaticTrading:false,
+          noOrderPlacement:true,
+        });
       }
 
       const allowedAdvice = new Set([
