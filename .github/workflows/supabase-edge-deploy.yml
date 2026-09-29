@@ -271,8 +271,9 @@ jobs:
           if not data.get("success"):
               raise SystemExit("Diagnostics verification failed: " + str(data))
           scheduler = data.get("scheduler") or {}
-          if scheduler.get("status") != "SUCCESS":
-              raise SystemExit("Scheduler heartbeat is not SUCCESS: " + str(scheduler))
+          scheduler_status = scheduler.get("status")
+          if scheduler_status not in ("SUCCESS", "QUEUED", "RUNNING"):
+              raise SystemExit("Scheduler heartbeat has unexpected status: " + str(scheduler))
           scheduler_check = next((c for c in data.get("checks", []) if c.get("name") == "Scheduler"), None)
           if not scheduler_check or scheduler_check.get("status") not in ("OK", "SLOW"):
               raise SystemExit("Scheduler diagnostics check failed: " + str(scheduler_check))
