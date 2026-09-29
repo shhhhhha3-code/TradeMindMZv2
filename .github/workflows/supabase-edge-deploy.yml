@@ -297,6 +297,7 @@ jobs:
 
           copilot_status=$(curl -sS -o /tmp/trademind-copilot-context.json -w "%{http_code}"             -X POST             -H "Content-Type: application/json"             -d '{"action":"ASK","marketType":"PERP","message":"What changed since the previous market analysis?","history":[{"role":"user","content":"What was the previous market state?"},{"role":"assistant","content":"Use the previous supplied TradeMind context and compare it with the current state."}]}'             "$BASE/api/ai/copilot")
 
+          export COPILOT_STATUS="$copilot_status"
           echo "Copilot HTTP status: $copilot_status"
           cat /tmp/trademind-copilot-context.json
           echo
