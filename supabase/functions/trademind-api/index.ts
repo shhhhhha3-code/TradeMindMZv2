@@ -3004,7 +3004,9 @@ async function handle(req) {
             : "Ingen tidligere snapshot er tilgjengelig for en endringsanalyse.";
         const fallbackAnswer = [
           "AI-provideren er midlertidig utilgjengelig.",
-          "Context Engine har derfor brukt siste tilgjengelige TradeMind-telemetry.",
+          freshScanUnavailable
+            ? "En fersk AI-skanning kunne ikke fullføres, så Copilot bruker siste tilgjengelige snapshot."
+            : "Context Engine har derfor brukt siste tilgjengelige TradeMind-telemetry.",
           decisionText,
           engineConfidenceText,
           changeText,
@@ -3055,9 +3057,11 @@ async function handle(req) {
           freshScanSucceeded,
           freshScanUnavailable,
           keyFactors:[
-            current?.symbol ? "Current: " + String(current.symbol) : null,
-            snapshotPayload?.finalDecision ? "Decision: " + String(snapshotPayload.finalDecision) : null,
+            current?.symbol ? "Current candidate: " + String(current.symbol) : null,
+            engineConfidence != null ? "Engine candidate confidence: " + String(engineConfidence) + "%" : null,
+            snapshotPayload?.finalDecision ? "Decision state: " + String(decisionState) : null,
             compactSnapshot?.marketRegime ? "Regime: " + String(compactSnapshot.marketRegime) : null,
+            freshScanUnavailable ? "Fresh scan unavailable; persisted snapshot used." : null,
             conversationHistory.length ? "Conversation context: " + String(conversationHistory.length) + " turns" : null,
           ].filter(Boolean).slice(0,4),
           risks:[
