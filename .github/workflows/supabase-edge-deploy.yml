@@ -312,6 +312,50 @@ jobs:
           print("Overall diagnostics:", data.get("status"))
           PY
 
+      - name: Build 5.17 end-to-end production smoke gate
+        run: |
+          set -euo pipefail
+          BASE="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api"
+          curl --fail-with-body -sS "$BASE/api/diagnostics" -o /tmp/build-517-diagnostics.json
+          curl --fail-with-body -sS "$BASE/api/ai/latest?interval=15M&marketType=PERP&leverage=3" -o /tmp/build-517-perp.json
+          curl --fail-with-body -sS "$BASE/api/ai/latest?interval=15M&marketType=SPOT&leverage=1" -o /tmp/build-517-spot.json
+          curl --fail-with-body -sS "$BASE/api/ai/position-monitoring" -o /tmp/build-517-positions.json
+          python - <<'PY'
+          import json
+          def load(path):
+              with open(path, encoding="utf-8") as f:
+                  return json.load(f)
+          diagnostics = load("/tmp/build-517-diagnostics.json")
+          perp = load("/tmp/build-517-perp.json")
+          spot = load("/tmp/build-517-spot.json")
+          positions = load("/tmp/build-517-positions.json")
+          checks = {item.get("name"): item for item in diagnostics.get("checks", [])}
+          scheduler = checks.get("Scheduler") or {}
+          pionex = checks.get("Pionex") or {}
+          groq = checks.get("Groq AI") or {}
+          if scheduler.get("status") not in ("OK", "SLOW"):
+              raise SystemExit("Build 5.17 scheduler gate failed: " + str(scheduler))
+          if not scheduler.get("details", {}).get("heartbeatAt"):
+              raise SystemExit("Build 5.17 scheduler heartbeat missing: " + str(scheduler))
+          if pionex.get("details", {}).get("readOnly") is not True:
+              raise SystemExit("Build 5.17 Pionex read-only gate failed: " + str(pionex))
+          if groq.get("status") not in ("CONFIGURED", "OK"):
+              raise SystemExit("Build 5.17 Groq configuration gate failed: " + str(groq))
+          for name, payload in (("PERP", perp), ("SPOT", spot)):
+              if not payload.get("success") or not payload.get("available"):
+                  raise SystemExit(f"Build 5.17 {name} persisted snapshot gate failed: {payload}")
+              snapshot = payload.get("snapshot") or {}
+              if not snapshot.get("candidates"):
+                  raise SystemExit(f"Build 5.17 {name} snapshot has no candidates: {payload}")
+          if not positions.get("success") or positions.get("readOnly") is not True or positions.get("serverSide") is not True:
+              raise SystemExit("Build 5.17 position-monitoring safety gate failed: " + str(positions))
+          print("Build 5.17 end-to-end production smoke gate: PASS")
+          print("Scheduler heartbeat:", scheduler.get("details", {}).get("heartbeatAt"))
+          print("PERP snapshot:", (perp.get("snapshot") or {}).get("persistedAt"))
+          print("SPOT snapshot:", (spot.get("snapshot") or {}).get("persistedAt"))
+          print("Position monitoring:", len(positions.get("positions") or []), "open positions")
+          PY
+
       - name: Verify server position monitoring and trade journal API
         run: |
           curl --fail-with-body -sS \
