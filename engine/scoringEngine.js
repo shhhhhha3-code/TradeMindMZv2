@@ -1,8 +1,8 @@
 function finite(value, fallback = null) {
+  if (value === null || value === undefined || value === "") return fallback;
   const n = Number(value);
   return Number.isFinite(n) ? n : fallback;
 }
-
 function clamp(value, min = 0, max = 100) {
   return Math.max(min, Math.min(max, value));
 }
