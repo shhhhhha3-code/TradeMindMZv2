@@ -203,6 +203,19 @@ function TradeMindAiCopilot({fullPage=false}){
                     {answer.dataAgeSeconds != null && <small>{answer.dataAgeSeconds}s DATA AGE</small>}
                   </div>
                 </div>
+                {answer.copilotUiState && (
+                  <div className={`tmz-copilot-state-panel ${answer.decisionState === "AI_DECISION_UNAVAILABLE" ? "unavailable" : answer.decisionState === "CONFIRMED_TRADE" ? "confirmed" : "safe"}`}>
+                    <div className="tmz-copilot-state-main">
+                      <strong>{answer.copilotUiState.label}</strong>
+                      <span>SAFE ACTION: {answer.copilotUiState.safeAction}</span>
+                    </div>
+                    <div className="tmz-copilot-state-metrics">
+                      <span>ENGINE: {answer.copilotUiState.engineDecision || "—"}</span>
+                      <span>AI DECISION: {answer.copilotUiState.aiDecision || "—"}</span>
+                      <span>AI CONFIDENCE: {answer.copilotUiState.aiConfidence == null ? "N/A" : `${answer.copilotUiState.aiConfidence}%`}</span>
+                    </div>
+                  </div>
+                )}
                 {answer.decisionState === "AI_DECISION_UNAVAILABLE" && (
                   <div className="tmz-copilot-decision-state warning">
                     <strong>AI DECISION LAYER UNAVAILABLE</strong>
