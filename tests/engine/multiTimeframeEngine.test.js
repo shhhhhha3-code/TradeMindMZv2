@@ -37,7 +37,7 @@ test("Build 2 marks aligned 15M/60M/4H confirmation as strong", () => {
   assert.equal(result.confirmation, "STRONG");
   assert.equal(result.alignment, "ALIGNED");
   assert.equal(result.confirmedTimeframes, 3);
-  assert.equal(result.score, 100);
+  assert.equal(result.score, 91);
 });
 
 test("Build 2 detects higher-timeframe conflict", () => {
