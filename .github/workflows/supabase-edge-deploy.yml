@@ -106,10 +106,10 @@ jobs:
               json.dump({"query": "select public.trademind_run_ai_scheduler();"}, f)
           PY
           echo "Triggering one scheduler run so the deployment can verify the real server-side scheduler immediately."
-          curl --fail-with-body -sS \\
-            -X POST "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/database/query" \\
-            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \\
-            -H "Content-Type: application/json" \\
+          curl --fail-with-body -sS \
+            -X POST "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
             --data-binary @/tmp/trademind-scheduler-trigger.json
           echo
 
