@@ -2687,6 +2687,25 @@ async function handle(req) {
         }
       }
 
+      const snapshotAgeSeconds = snapshot?.created_at
+        ? Math.max(0, Math.round((Date.now() - new Date(snapshot.created_at).getTime()) / 1000))
+        : null;
+      const candidateCount = Number(compactSnapshot?.topCandidates?.length || 0);
+      const dataQuality = snapshotAgeSeconds == null
+        ? { level:"UNKNOWN", label:"DATA AGE UNKNOWN", stale:false, reason:"No snapshot timestamp was supplied." }
+        : snapshotAgeSeconds <= 180
+          ? { level:"FRESH", label:"FRESH DATA", stale:false, reason:"Snapshot is within the fresh-data window." }
+          : snapshotAgeSeconds <= 600
+            ? { level:"AGING", label:"AGING DATA", stale:false, reason:"Snapshot is usable but older than the fresh-data window." }
+            : { level:"STALE", label:"STALE DATA", stale:true, reason:"Snapshot is older than the 10-minute safety window." };
+      const confidenceCeiling = dataQuality.level === "STALE"
+        ? 55
+        : dataQuality.level === "AGING"
+          ? 75
+          : candidateCount > 0
+            ? 100
+            : 50;
+
       const context = {
         action,
         marketType,
@@ -2696,6 +2715,9 @@ async function handle(req) {
         snapshotDelta,
         decisionBasis,
         conversationHistory,
+        dataQuality,
+        confidenceCeiling,
+        candidateCount,
         openPositions: livePositions.map(compactPosition).filter(Boolean),
         positionFeedError,
         scheduler: compactScheduler,
@@ -2715,6 +2737,8 @@ async function handle(req) {
         "The Pionex position feed is authoritative for current open-position facts. Never replace reported unrealized PNL with an estimate when Pionex supplies it.",
         "FINAL DECISION is authoritative for the configured TradeMindMZ signal: only describe a qualified trade when finalDecision is exactly TRADE. If it is NO_TRADE, say there is no confirmed TradeMindMZ trade.",
         "AI confidence is model confidence, not a probability and not trade approval.",
+        "Treat dataQuality as a hard freshness guard. If dataQuality.level is STALE or UNKNOWN, prefer WAIT/NO_ACTION and explicitly state that the snapshot is too old or missing a timestamp.",
+        "Do not present a high confidence number when confidenceCeiling is lower than the model output. The API will cap the returned confidence to the supplied safety ceiling.",
         "Engine score, AI confidence, trade criteria, final decision, and your advice are different concepts. Never merge them.",
         "For an existing position, first assess current unrealized PNL, direction, entry/current price, risk levels if supplied, market regime, and current signal. Do not tell the user to add to a position unless the supplied evidence explicitly supports it.",
         "If a position is losing and the supplied data shows weakening confirmation or elevated risk, explain the risk clearly and consider REDUCE_RISK or EXIT_CONSIDERATION. Do not invent an exit trigger.",
@@ -2891,6 +2915,10 @@ async function handle(req) {
           suggestedAction:action,
           advice:snapshotPayload?.finalDecision === "TRADE" ? "CONSIDER_TRADE" : "WAIT",
           confidence:0,
+          modelConfidence:0,
+          confidenceGuardApplied:false,
+          dataQuality,
+          confidenceCeiling,
           keyFactors:[
             current?.symbol ? "Current: " + String(current.symbol) : null,
             snapshotPayload?.finalDecision ? "Decision: " + String(snapshotPayload.finalDecision) : null,
@@ -2936,10 +2964,12 @@ async function handle(req) {
         "DIAGNOSTICS",
       ]);
 
-      const confidence = Math.max(
+      const modelConfidence = Math.max(
         0,
         Math.min(100, Math.round(Number(raw?.confidence) || 0))
       );
+      const confidence = Math.min(modelConfidence, confidenceCeiling);
+      const confidenceGuardApplied = confidence < modelConfidence;
 
       return response({
         success:true,
@@ -2956,6 +2986,10 @@ async function handle(req) {
         suggestedAction:allowedSuggestedActions.has(String(raw?.action || "").toUpperCase()) ? String(raw.action).toUpperCase() : action,
         advice:allowedAdvice.has(String(raw?.advice || "").toUpperCase()) ? String(raw.advice).toUpperCase() : "NO_ACTION",
         confidence,
+        modelConfidence,
+        confidenceGuardApplied,
+        dataQuality,
+        confidenceCeiling,
         keyFactors:Array.isArray(raw?.keyFactors) ? raw.keyFactors.slice(0,4).map(String) : [],
         risks:Array.isArray(raw?.risks) ? raw.risks.slice(0,4).map(String) : [],
         dataAgeSeconds:snapshot?.created_at
