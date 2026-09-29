@@ -199,6 +199,11 @@ jobs:
               raise SystemExit("Live AI smoke test failed: " + str(data))
           if not data.get("candidates"):
               raise SystemExit("Live AI smoke test returned no Engine TOP 5 candidates")
+          if data.get("serverSide") is not True:
+              raise SystemExit("Live AI smoke test did not report serverSide=true: " + str(data))
+          pipeline = data.get("decisionPipeline") or {}
+          if pipeline.get("readOnly") is not True or pipeline.get("automaticTrading") is not False:
+              raise SystemExit("Live AI safety contract is incorrect: " + str(pipeline))
           if data.get("persistenceError"):
               raise SystemExit("Live AI snapshot persistence failed: " + str(data["persistenceError"]))
           print("Live AI OK:", len(data["candidates"]), "TOP 5 candidates")
