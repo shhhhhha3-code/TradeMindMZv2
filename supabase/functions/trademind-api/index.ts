@@ -2684,6 +2684,12 @@ async function handle(req) {
         ].filter(Boolean);
         if (changes.length) {
           addDecisionBasis("CHANGE", "Compared with previous snapshot", changes.join(" · "));
+        } else if (snapshotDelta) {
+          addDecisionBasis(
+            "CHANGE",
+            "No material change detected",
+            "Decision, regime, recommended symbol, and comparable score/confidence data are unchanged or unavailable."
+          );
         }
       }
 
@@ -2710,9 +2716,9 @@ async function handle(req) {
         snapshotPayload?.finalDecision || snapshot?.final_decision || "NO_TRADE"
       ).toUpperCase();
       const engineConfidenceValue = Number(
-        snapshotPayload?.aiDecision?.confidence ??
         compactSnapshot?.recommended?.confidence ??
-        snapshotPayload?.recommended?.confidence
+        snapshotPayload?.recommended?.confidence ??
+        snapshotPayload?.aiDecision?.confidence
       );
       const engineConfidence = Number.isFinite(engineConfidenceValue)
         ? Math.max(0, Math.min(100, Math.round(engineConfidenceValue)))
@@ -2897,6 +2903,9 @@ async function handle(req) {
           Number.isFinite(Number(delta.confidenceDelta))
             ? "confidence changed by " + String(delta.confidenceDelta) + " points"
             : null,
+          Number(delta.candidateCountDelta) !== 0
+            ? "candidate count changed by " + String(delta.candidateCountDelta)
+            : null,
         ].filter(Boolean);
 
         const fallbackAdvice = authoritativeDecision === "TRADE" && !staleGuard
@@ -2910,7 +2919,9 @@ async function handle(req) {
           : "TradeMind Engine confidence er " + engineConfidence + "%.";
         const changeText = changeParts.length
           ? "Endring siden forrige snapshot: " + changeParts.join("; ") + "."
-          : "Ingen tidligere snapshot er tilgjengelig for en endringsanalyse.";
+          : snapshotDelta
+            ? "Ingen målbar endring i beslutning, regime eller sammenlignbare signaler siden forrige snapshot."
+            : "Ingen tidligere snapshot er tilgjengelig for en endringsanalyse.";
         const fallbackAnswer = [
           "AI-provideren er midlertidig utilgjengelig.",
           "Context Engine har derfor brukt siste tilgjengelige TradeMind-telemetry.",
