@@ -21,6 +21,20 @@ function response(body, status = 200) {
   });
 }
 
+function timestampMs(...values) {
+  for (const value of values) {
+    if (!value) continue;
+    const ms = new Date(value).getTime();
+    if (Number.isFinite(ms)) return ms;
+  }
+  return null;
+}
+
+function ageSecondsFrom(...values) {
+  const ms = timestampMs(...values);
+  return ms == null ? null : Math.max(0, Math.round((Date.now() - ms) / 1000));
+}
+
 function secretKey() {
   try {
     const keys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
@@ -524,6 +538,8 @@ async function runLiveAiAnalysis({
 
       const payload = {
         ...result,
+        createdAt: new Date(createdAt).toISOString(),
+        updatedAt: new Date(createdAt).toISOString(),
         engineTop5: strategyCandidates,
         candidates: strategyCandidates,
         aiDecision,
@@ -2478,7 +2494,16 @@ async function handle(req) {
           decision: snapshot?.ai_decision || null,
           provider: snapshot?.provider || null,
         },
-        recommended: compactCandidate(snapshotPayload.recommended),
+        recommended: compactCandidate(
+          snapshotPayload.recommended ||
+          (Array.isArray(snapshotPayload.candidates)
+            ? snapshotPayload.candidates.find(
+                (candidate) =>
+                  String(candidate?.symbol || "").toUpperCase() ===
+                  String(snapshotPayload.aiDecision?.symbol || "").toUpperCase()
+              ) || snapshotPayload.candidates[0]
+            : null)
+        ),
         topCandidates: Array.isArray(snapshotPayload.candidates)
           ? snapshotPayload.candidates.slice(0, 5).map(compactCandidate).filter(Boolean)
           : [],
@@ -2693,9 +2718,12 @@ async function handle(req) {
         }
       }
 
-      const snapshotAgeSeconds = snapshot?.created_at
-        ? Math.max(0, Math.round((Date.now() - new Date(snapshot.created_at).getTime()) / 1000))
-        : null;
+      const snapshotAgeSeconds = ageSecondsFrom(
+        snapshot?.created_at,
+        snapshot?.createdAt,
+        snapshotPayload?.createdAt,
+        snapshotPayload?.updatedAt
+      );
       const candidateCount = Number(compactSnapshot?.topCandidates?.length || 0);
       const dataQuality = snapshotAgeSeconds == null
         ? { level:"UNKNOWN", label:"DATA AGE UNKNOWN", stale:false, reason:"No snapshot timestamp was supplied." }
@@ -2715,6 +2743,18 @@ async function handle(req) {
       const authoritativeDecision = String(
         snapshotPayload?.finalDecision || snapshot?.final_decision || "NO_TRADE"
       ).toUpperCase();
+      const aiDecisionUnavailable =
+        snapshotPayload?.aiDecision?.success === false ||
+        (
+          snapshotPayload?.aiDecision &&
+          snapshotPayload.aiDecision.decision === "NO_TRADE" &&
+          String(snapshotPayload.aiDecision.reason || "").toLowerCase().includes("provider")
+        );
+      const decisionState = authoritativeDecision === "TRADE"
+        ? "CONFIRMED_TRADE"
+        : aiDecisionUnavailable
+          ? "AI_DECISION_UNAVAILABLE"
+          : "NO_TRADE";
       const engineConfidenceValue = Number(
         compactSnapshot?.recommended?.confidence ??
         snapshotPayload?.recommended?.confidence ??
@@ -2737,6 +2777,8 @@ async function handle(req) {
         dataQuality,
         confidenceCeiling,
         candidateCount,
+        decisionState,
+        aiDecisionUnavailable,
         openPositions: livePositions.map(compactPosition).filter(Boolean),
         positionFeedError,
         scheduler: compactScheduler,
@@ -2754,7 +2796,7 @@ async function handle(req) {
         "Your job is to turn supplied live TradeMindMZ telemetry into clear, conservative, actionable advice.",
         "Use ONLY supplied TradeMindMZ data plus clearly identified web facts when web search is available. Never invent prices, scores, PNL, trades, diagnostics, timestamps, providers, indicators, positions, or historical results.",
         "The Pionex position feed is authoritative for current open-position facts. Never replace reported unrealized PNL with an estimate when Pionex supplies it.",
-        "FINAL DECISION is authoritative for the configured TradeMindMZ signal: only describe a qualified trade when finalDecision is exactly TRADE. If it is NO_TRADE, say there is no confirmed TradeMindMZ trade.",
+        "FINAL DECISION is authoritative for the configured TradeMindMZ signal. If finalDecision is TRADE, describe it as a confirmed TradeMindMZ decision. If decisionState is AI_DECISION_UNAVAILABLE, clearly distinguish that from a normal NO_TRADE: the AI Decision Layer did not complete, so the safe state is NO_TRADE until a fresh AI decision is available.",
         "AI confidence is model confidence, not a probability and not trade approval.",
         "Treat dataQuality as a hard freshness guard. If dataQuality.level is STALE or UNKNOWN, prefer WAIT/NO_ACTION and explicitly state that the snapshot is too old or missing a timestamp.",
         "Do not present a high confidence number when confidenceCeiling is lower than the model output. The API will cap the returned confidence to the supplied safety ceiling.",
@@ -2918,15 +2960,17 @@ async function handle(req) {
             : null,
         ].filter(Boolean);
 
-        const fallbackAdvice = authoritativeDecision === "TRADE" && !staleGuard
+        const fallbackAdvice = decisionState === "CONFIRMED_TRADE" && !staleGuard
           ? "CONSIDER_TRADE"
           : "WAIT";
-        const decisionText = authoritativeDecision === "TRADE"
-          ? "TradeMind Engine har registrert TRADE som autoritativ beslutning."
-          : "TradeMind Engine har ikke registrert en bekreftet TRADE-beslutning akkurat nå.";
+        const decisionText = decisionState === "CONFIRMED_TRADE"
+          ? "TradeMind Engine har registrert en bekreftet TRADE-beslutning."
+          : decisionState === "AI_DECISION_UNAVAILABLE"
+            ? "AI Decision Layer fullførte ikke vurderingen. Systemet holder derfor sikkerhetsstatus NO_TRADE inntil en ny AI-vurdering er tilgjengelig."
+            : "TradeMind Engine har ikke registrert en bekreftet TRADE-beslutning akkurat nå.";
         const engineConfidenceText = engineConfidence == null
           ? "Engine confidence er ikke tilgjengelig i siste snapshot."
-          : "TradeMind Engine confidence er " + engineConfidence + "%.";
+          : "TradeMind Engine kandidat-confidence er " + engineConfidence + "%.";
         const changeText = changeParts.length
           ? "Endring siden forrige snapshot: " + changeParts.join("; ") + "."
           : snapshotDelta
@@ -2946,7 +2990,9 @@ async function handle(req) {
           engineConfidenceText,
           staleGuard
             ? "Dataene er ikke ferske nok til å støtte en mer offensiv Copilot-anbefaling."
-            : "Fallback-svaret er begrenset til dokumenterte TradeMind-telemetry-data."
+            : decisionState === "AI_DECISION_UNAVAILABLE"
+              ? "Ingen ordre er sendt, og Copilot skal ikke tolke kandidat-confidence som en bekreftet AI-beslutning."
+              : "Fallback-svaret er begrenset til dokumenterte TradeMind-telemetry-data."
         ].join(" ");
 
         return response({
@@ -2977,6 +3023,8 @@ async function handle(req) {
             enforced:staleGuard,
           },
           confidenceCeiling,
+          decisionState,
+          aiDecisionUnavailable,
           keyFactors:[
             current?.symbol ? "Current: " + String(current.symbol) : null,
             snapshotPayload?.finalDecision ? "Decision: " + String(snapshotPayload.finalDecision) : null,
@@ -2987,9 +3035,12 @@ async function handle(req) {
             "AI provider quota/availability is currently limiting full Copilot reasoning.",
             "Context Engine fallback does not replace full AI reasoning.",
           ],
-          dataAgeSeconds:snapshot?.created_at
-            ? Math.max(0,Math.round((Date.now()-new Date(snapshot.created_at).getTime())/1000))
-            : null,
+          dataAgeSeconds:ageSecondsFrom(
+            snapshot?.created_at,
+            snapshot?.createdAt,
+            snapshotPayload?.createdAt,
+            snapshotPayload?.updatedAt
+          ),
           previousSnapshotAgeSeconds:previousSnapshotRecord?.created_at
             ? Math.max(0,Math.round((Date.now()-new Date(previousSnapshotRecord.created_at).getTime())/1000))
             : null,
@@ -3074,15 +3125,20 @@ async function handle(req) {
         confidenceCeiling,
         keyFactors:Array.isArray(raw?.keyFactors) ? raw.keyFactors.slice(0,4).map(String) : [],
         risks:Array.isArray(raw?.risks) ? raw.risks.slice(0,4).map(String) : [],
-        dataAgeSeconds:snapshot?.created_at
-          ? Math.max(0,Math.round((Date.now()-new Date(snapshot.created_at).getTime())/1000))
-          : null,
+        dataAgeSeconds:ageSecondsFrom(
+          snapshot?.created_at,
+          snapshot?.createdAt,
+          snapshotPayload?.createdAt,
+          snapshotPayload?.updatedAt
+        ),
         previousSnapshotAgeSeconds:previousSnapshotRecord?.created_at
           ? Math.max(0,Math.round((Date.now()-new Date(previousSnapshotRecord.created_at).getTime())/1000))
           : null,
         snapshotDelta,
         conversationTurnsUsed:conversationHistory.length,
         finalDecision:snapshotPayload?.finalDecision || snapshot?.final_decision || null,
+        decisionState,
+        aiDecisionUnavailable,
         openPositionCount:livePositions.length,
         readOnly:true,
         automaticTrading:false,
