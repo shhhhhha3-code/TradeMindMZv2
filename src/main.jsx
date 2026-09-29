@@ -147,7 +147,7 @@ function TradeMindAiCopilot({fullPage=false}){
               <div>
                 <span>TRADEMIND AI</span>
                 <strong>REAL-TIME COPILOT</strong>
-                <small><i/> MARKET INTELLIGENCE ONLINE</small>
+                <small><i/> {answer?.providerStatus === "CONTEXT ENGINE" ? "SAFE FALLBACK ACTIVE" : "MARKET INTELLIGENCE ONLINE"}</small>
               </div>
             </div>
             {!fullPage && <button type="button" className="tmz-copilot-close" onClick={()=>setOpen(false)}><X/></button>}
