@@ -3,6 +3,8 @@ const DEFAULT_AI_SETTINGS = {
   openai: true,
   groq: true,
   learning: true,
+  automaticParameterOptimization: false,
+  aiLearningLifecycle: false,
 };
 
 const STORAGE_KEY = "trademindmz-ai-settings";
@@ -32,6 +34,23 @@ export function isGroqEnabled() {
 
 export function isHistoricalLearningEnabled() {
   return getAISettings().learning === true;
+}
+
+export function isAutomaticParameterOptimizationEnabled() {
+  const settings = getAISettings();
+  return settings.ai === true && settings.automaticParameterOptimization === true;
+}
+
+export function isAiLearningLifecycleEnabled() {
+  const settings = getAISettings();
+  return settings.ai === true && settings.learning === true && settings.aiLearningLifecycle === true;
+}
+
+export function getAiControlMode() {
+  const settings = getAISettings();
+  return isAutomaticParameterOptimizationEnabled() && isAiLearningLifecycleEnabled()
+    ? "FULL_AI_CONTROL"
+    : "GUIDED_AI_CONTROL";
 }
 
 export function getEnabledProviders() {
