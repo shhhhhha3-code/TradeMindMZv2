@@ -258,7 +258,7 @@ function App(){
     initTradePushNotifications().catch((error) => console.warn("TradeMindMZ push init failed:", error));
   }, []);
 
-const[tab,setTab]=useState('dashboard'),[bought,setBought]=useState(false),[manualPurchaseOpen,setManualPurchaseOpen]=useState(false),[trackedPositions,setTrackedPositions]=useState(()=>loadTrackedPositions()),[open,setOpen]=useState(false),[purchaseDefaults,setPurchaseDefaults]=useState({symbol:"BTCUSDT",side:"LONG",entryPrice:0,quantity:0,stopLoss:0,takeProfit:0,holdTimeMinMinutes:0,holdTimeMaxMinutes:0,holdTimeReason:"",suggestedNotionalUsdt:0,maxLossUsdt:0,allocationPercent:100,riskPercent:3,leverage:3,takeProfitPercent:3,stopLossPercent:3}),[aiSettings,setAiSettings]=useState(()=>{const defaults={ai:true,openai:true,groq:true,learning:true,pushNotifications:true,theme:"lime"};try{return {...defaults,...(JSON.parse(localStorage.getItem('trademindmz-ai-settings'))||{})}}catch{return defaults}});const handleManualPurchase=(purchase)=>{
+const[tab,setTab]=useState('dashboard'),[bought,setBought]=useState(false),[manualPurchaseOpen,setManualPurchaseOpen]=useState(false),[trackedPositions,setTrackedPositions]=useState(()=>loadTrackedPositions()),[open,setOpen]=useState(false),[purchaseDefaults,setPurchaseDefaults]=useState({symbol:"BTCUSDT",side:"LONG",entryPrice:0,quantity:0,stopLoss:0,takeProfit:0,holdTimeMinMinutes:0,holdTimeMaxMinutes:0,holdTimeReason:"",suggestedNotionalUsdt:0,maxLossUsdt:0,allocationPercent:100,riskPercent:3,leverage:3,takeProfitPercent:3,stopLossPercent:3}),[aiSettings,setAiSettings]=useState(()=>{const defaults={ai:true,openai:true,groq:true,learning:true,pushNotifications:true,automaticParameterOptimization:false,aiLearningLifecycle:false,theme:"lime"};try{return {...defaults,...(JSON.parse(localStorage.getItem('trademindmz-ai-settings'))||{})}}catch{return defaults}});const handleManualPurchase=(purchase)=>{
   const result=registerManualPurchase(purchase);
 
   if(!result?.success){
@@ -5071,6 +5071,35 @@ function SettingsPage({settings,updateSetting}){
       <Row id="learning" title="Historical Learning" desc="Continue evaluating historical market outcomes." />
     </div>
 
+    <div className="panel settingspanel tmz-ai-control-panel">
+      <div className="settinghead">
+        <div>
+          <h2>AI AUTONOMOUS WORKFLOWS</h2>
+          <p>Give TradeMindMZ permission to run the learning and parameter-improvement loop without changing the trading execution boundary.</p>
+        </div>
+        <span className={settings.automaticParameterOptimization && settings.aiLearningLifecycle ? "status on":"status"}>
+          <i/>{settings.automaticParameterOptimization && settings.aiLearningLifecycle ? "FULL AI CONTROL":"CONTROLLED"}
+        </span>
+      </div>
+      <Row
+        id="automaticParameterOptimization"
+        title="Automatic Parameter Optimization"
+        desc="Allow AI to propose, validate and activate bounded parameter improvements when the validation gates pass."
+      />
+      <Row
+        id="aiLearningLifecycle"
+        title="AI Learning Lifecycle"
+        desc="Allow the AI learning loop to use closed outcomes, feedback and validated parameter results as its continuous learning cycle."
+      />
+      <div className="tmz-ai-control-info">
+        <ShieldCheck/>
+        <div>
+          <b>What ON means</b>
+          <p>When enabled, AI may control these two workflows within their safety and validation limits. This does <strong>not</strong> enable automatic Pionex orders.</p>
+        </div>
+      </div>
+    </div>
+
     <div className="panel settingspanel">
       <div className="settinghead">
         <div><h2>NOTIFICATIONS</h2><p>Control qualified-trade alerts on this device.</p></div>
@@ -5087,6 +5116,8 @@ function SettingsPage({settings,updateSetting}){
         <span><b>{settings.openai&&settings.ai?"ACTIVE":"OFF"}</b><small>OpenAI</small></span>
         <span><b>{settings.groq&&settings.ai?"ACTIVE":"OFF"}</b><small>Groq</small></span>
         <span><b>{settings.learning?"ACTIVE":"OFF"}</b><small>Learning</small></span>
+        <span><b>{settings.automaticParameterOptimization?"ACTIVE":"OFF"}</b><small>Auto Parameters</small></span>
+        <span><b>{settings.aiLearningLifecycle?"ACTIVE":"OFF"}</b><small>AI Lifecycle</small></span>
       </div>
     </div>
 
@@ -5094,7 +5125,7 @@ function SettingsPage({settings,updateSetting}){
     <DiagnosticsPanel />
 
     <div className="panel settingsnote">
-      <ShieldCheck/><div><b>Safety rule</b><p>TradeMindMZ V2 will never place a Pionex order automatically. The user manually confirms purchases in Pionex.</p></div>
+      <ShieldCheck/><div><b>Safety rule</b><p>TradeMindMZ V2 will never place a Pionex order automatically. The user manually confirms purchases in Pionex. The two AI workflow controls above do not change this rule.</p></div>
     </div>
   </div>;
 }
