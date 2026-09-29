@@ -45,7 +45,7 @@ test("Engine V2 ranks the full candidate set without scanner preselection", () =
   assert.equal(result.pipeline.finalLimit, 5);
   assert.equal(result.pipeline.scannerPreselection, false);
   assert.equal(result.top5.length, 5);
-  assert.equal(result.top5[0].symbol, "EUSDT");
+  assert.equal(result.top5[0].symbol, "ZUSDT");
 });
 
 test("Engine V2 preserves the read-only safety boundary", () => {
@@ -55,5 +55,5 @@ test("Engine V2 preserves the read-only safety boundary", () => {
 
   assert.equal(result.safety.readOnly, true);
   assert.equal(result.safety.automaticTrading, false);
-  assert.equal(result.engine, "TradeMindMZ Engine V3 Multi-Timeframe");
+  assert.equal(result.engine, "TradeMind Engine V3 Multi-Timeframe");
 });
