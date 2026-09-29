@@ -237,7 +237,9 @@ function TradeMindAiCopilot({fullPage=false}){
                 )}
                 <div className="tmz-copilot-advice-row">
                   <b className={"tmz-copilot-advice "+String(answer.advice||"NO_ACTION").toLowerCase()}>{answer.advice || "NO ACTION"}</b>
-                  {answer.confidence != null && <span className="tmz-copilot-confidence">AI CONFIDENCE {answer.confidence}%</span>}
+                  {answer.engineConfidence != null && <span className="tmz-copilot-engine-confidence">ENGINE CONFIDENCE {answer.engineConfidence}%</span>}
+                  {answer.confidence != null && answer.provider !== "context-engine" && <span className="tmz-copilot-confidence">COPILOT CONFIDENCE {answer.confidence}%</span>}
+                  {answer.provider === "context-engine" && <span className="tmz-copilot-confidence tmz-copilot-confidence-muted">COPILOT CONFIDENCE —</span>}
                   {answer.openPositionCount != null && <span>{answer.openPositionCount} OPEN POSITION{answer.openPositionCount === 1 ? "" : "S"}</span>}
                 </div>
                 {(Array.isArray(answer.keyFactors) && answer.keyFactors.length > 0) && (
@@ -249,7 +251,7 @@ function TradeMindAiCopilot({fullPage=false}){
                 <div className="tmz-copilot-telemetry">
                   <span><i/> LIVE ANALYSIS</span>
                   <span>{answer.marketType === "SPOT" ? "SPOT" : "M-USDT"}</span>
-                  <span>{answer.provider ? String(answer.provider).toUpperCase() : "AI CORE"}</span>
+                  <span>{answer.providerStatus || (answer.provider ? String(answer.provider).toUpperCase() : "AI CORE")}</span>
                   {answer.dataAgeSeconds != null && <span>{answer.dataAgeSeconds < 60 ? "FRESH DATA" : "DATA AGE "+answer.dataAgeSeconds+"s"}</span>}
                   {answer.conversationTurnsUsed > 0 && <span>CONTEXT {answer.conversationTurnsUsed} TURNS</span>}
                   {answer.snapshotDelta?.decisionChanged && <span>DECISION CHANGED</span>}
@@ -270,7 +272,7 @@ function TradeMindAiCopilot({fullPage=false}){
             {answer?.confidenceGuardApplied && <span className="tmz-copilot-guard-note">CONFIDENCE CAPPED FOR DATA FRESHNESS</span>}
             <span><i/> READ ONLY</span><span>NO AUTOMATIC TRADING</span>
             <span className="tmz-copilot-provider">
-              {answer?.webSearch ? "OPENAI WEB" : answer?.provider ? String(answer.provider).toUpperCase() : "OPENAI WEB"}
+              {answer?.providerStatus || (answer?.webSearch ? "OPENAI WEB" : answer?.provider ? String(answer.provider).toUpperCase() : "OPENAI WEB")}
             </span>
           </div>
         </div>
