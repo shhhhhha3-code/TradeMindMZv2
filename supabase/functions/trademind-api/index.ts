@@ -3297,12 +3297,16 @@ async function handle(req) {
       activeSchedulerAgeMs <= 12 * 60 * 1000
     );
 
+    const schedulerHealthy =
+      schedulerFresh ||
+      schedulerActive;
+
     const diagnosticsOk =
       supabaseOk &&
       pionexConfigured &&
       groqOk &&
       snapshotFresh &&
-      schedulerFresh;
+      schedulerHealthy;
 
     return response({
       success: diagnosticsOk,
