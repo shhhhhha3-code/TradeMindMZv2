@@ -168,7 +168,7 @@ jobs:
           cat /tmp/trademind-edge-logs.json
       - name: Verify SPOT, risk sizing, learning and monitoring APIs
         run: |
-          set -e
+          set -euo pipefail
           # SPOT live-scan can legitimately return HTTP 429 when the upstream market-data provider is rate-limited.
           # Retry that verification call instead of failing the whole deploy immediately.
           echo "Running SPOT live-scan verification with bounded retry/backoff..."
@@ -212,6 +212,9 @@ jobs:
           if not performance.get('success') or not performance.get('windows'): raise SystemExit('Performance summary verification failed: '+str(performance))
           if not criteria.get('success') or not criteria.get('criteria'): raise SystemExit('Trade criteria verification failed: '+str(criteria))
           if not risk.get('success') or risk.get('readOnly') is not True or risk.get('automaticTrading') is not False: raise SystemExit('Risk sizing verification failed: '+str(risk))
+          position_size = risk.get('positionSizeUsdt')
+          if not isinstance(position_size, (int, float)) or position_size < 0 or position_size > 250:
+              raise SystemExit('Risk sizing returned an invalid positionSizeUsdt: '+str(risk))
           print('SPOT live AI OK:', len(spot['candidates']), 'TOP 5 candidates')
           print('SPOT monitoring OK:', len(monitor.get('holdings') or []), 'holdings')
           print('Learning stats OK:', learning.get('totalAnalyses'))
