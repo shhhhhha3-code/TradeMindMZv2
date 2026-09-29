@@ -252,6 +252,8 @@ jobs:
               raise SystemExit("Invalid risk input changed safety flags: " + str(data))
           print("Invalid risk sizing correctly rejected with read-only safety preserved.")
 
+          PY
+
           echo "Checking unsupported Copilot action is rejected safely..."
           copilot_status=$(curl -sS -o /tmp/trademind-copilot-invalid.json -w "%{http_code}"             -X POST             -H "Content-Type: application/json"             -d '{"action":"EXECUTE_TRADE","marketType":"PERP","message":"test"}'             "$BASE/api/ai/copilot")
           cat /tmp/trademind-copilot-invalid.json
