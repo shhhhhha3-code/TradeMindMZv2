@@ -408,14 +408,32 @@ jobs:
               raise SystemExit("Engine confidence outside 0-100: " + str(data))
           answer=str(data.get("answer") or "")
           explanation=str(data.get("explanation") or "")
-          if re.search(r"\bnull\b", answer, re.I) or re.search(r"\bnull\b", explanation, re.I):
+          visible_text=json.dumps({
+              "answer": answer,
+              "explanation": explanation,
+              "decisionBasis": data.get("decisionBasis"),
+              "keyFactors": data.get("keyFactors"),
+              "risks": data.get("risks"),
+          }, ensure_ascii=False)
+          if re.search(r"\bnull\b", visible_text, re.I):
               raise SystemExit("Copilot exposed null telemetry to the user: " + str(data))
           if provider_status == "CONTEXT ENGINE" and "deterministic context engine summary" in explanation.lower():
               raise SystemExit("Fallback explanation is still exposing internal technical wording: " + str(data))
+          quality=str((data.get("dataQuality") or {}).get("level") or "")
+          age=data.get("dataAgeSeconds")
+          if quality in {"FRESH","AGING","STALE"} and not isinstance(age,(int,float)):
+              raise SystemExit("Copilot data quality has no numeric data age: " + str(data))
+          if isinstance(age,(int,float)) and age < 0:
+              raise SystemExit("Copilot data age cannot be negative: " + str(data))
+          state=str(data.get("decisionState") or "")
+          if state not in {"CONFIRMED_TRADE","NO_TRADE","AI_DECISION_UNAVAILABLE"}:
+              raise SystemExit("Copilot decision state is missing/invalid: " + str(data))
+          if state == "AI_DECISION_UNAVAILABLE" and str(data.get("advice") or "").upper() != "WAIT":
+              raise SystemExit("Copilot must WAIT when the AI Decision Layer is unavailable: " + str(data))
           if data.get("readOnly") is not True or data.get("automaticTrading") is not False or data.get("noOrderPlacement") is not True:
               raise SystemExit("Copilot read-only safety contract failed: " + str(data))
           print("Copilot response quality: PASS")
-          print("Provider:", provider_status, "Engine confidence:", engine_conf, "Copilot confidence:", data.get("confidence"))
+          print("Provider:", provider_status, "Engine confidence:", engine_conf, "Copilot confidence:", data.get("confidence"), "Data age:", age, "Decision state:", state)
           PY
 
       - name: Verify Copilot decision integrity guard
