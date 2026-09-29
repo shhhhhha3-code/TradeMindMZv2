@@ -961,3 +961,8 @@ button.refresh svg {
 
 
 .short{display:flex;align-items:center;gap:5px;color:#ff6b7a;background:#2a1017;border:1px solid #63232f;border-radius:6px;padding:6px 9px;font-size:9px;font-weight:800}.short svg{width:14px}
+
+/* Build 5.24 — AI workflow settings */
+.tmz-ai-control-panel{border-color:rgba(97,231,255,.13);background:linear-gradient(145deg,#0e151e,#090f16)}
+.tmz-ai-control-info{display:flex;align-items:flex-start;gap:9px;margin-top:11px;padding:11px 12px;border:1px solid rgba(0,220,255,.08);border-radius:10px;background:rgba(0,220,255,.025);color:#718095;font-size:8px;line-height:1.5}.tmz-ai-control-info svg{width:15px;height:15px;flex:0 0 15px;color:#00f5a0}.tmz-ai-control-info b{display:block;color:#b8c5d3;font-size:9px}.tmz-ai-control-info p{margin:3px 0 0}.tmz-ai-control-info strong{color:#e5edf5}
+@media(max-width:600px){.tmz-ai-control-info{font-size:8px}.tmz-ai-control-info b{font-size:8px}}
