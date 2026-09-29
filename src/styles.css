@@ -1023,3 +1023,29 @@ button.refresh svg {
     grid-template-columns:62px 1fr;
   }
 }
+
+/* Build 5.28 — Copilot freshness guard + adaptive follow-up */
+.tmz-copilot-data-guard{display:flex;align-items:center;gap:7px;justify-content:flex-end}
+.tmz-copilot-data-guard small{font-size:8px;letter-spacing:.08em;opacity:.55}
+.tmz-copilot-data-guard small.fresh{color:#8fffc0;opacity:.9}
+.tmz-copilot-data-guard small.aging{color:#ffd27a;opacity:.9}
+.tmz-copilot-data-guard small.stale{color:#ff8795;opacity:.95}
+.tmz-copilot-smart-followup{
+  width:100%;display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:8px;
+  margin:12px 0 0;padding:10px 12px;border:1px solid rgba(160,255,120,.16);border-radius:10px;
+  background:rgba(160,255,120,.025);color:inherit;text-align:left;cursor:pointer;
+}
+.tmz-copilot-smart-followup svg{width:14px;height:14px;opacity:.8}
+.tmz-copilot-smart-followup span{font-size:8px;letter-spacing:.12em;opacity:.55;font-weight:800}
+.tmz-copilot-smart-followup b{font-size:10px;letter-spacing:.04em}
+.tmz-copilot-smart-followup:hover{border-color:rgba(160,255,120,.3);background:rgba(160,255,120,.05)}
+.tmz-copilot-smart-followup:disabled{opacity:.45;cursor:not-allowed}
+.tmz-copilot-guard-note{font-size:8px!important;letter-spacing:.08em;color:#ffd27a!important}
+@media(max-width:640px){
+  .tmz-copilot-data-guard{gap:4px}
+  .tmz-copilot-data-guard small{font-size:7px}
+  .tmz-copilot-smart-followup{grid-template-columns:auto 1fr auto}
+  .tmz-copilot-smart-followup span{grid-column:2}
+  .tmz-copilot-smart-followup b{grid-column:2;grid-row:2}
+  .tmz-copilot-smart-followup svg:last-child{grid-column:3;grid-row:1 / span 2}
+}
