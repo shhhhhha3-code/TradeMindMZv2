@@ -2373,6 +2373,9 @@ async function handle(req) {
 
       let snapshot = null;
       let previousSnapshotRecord = null;
+      let freshScanAttempted = false;
+      let freshScanSucceeded = false;
+      let freshScanUnavailable = false;
       const { data: recentSnapshotRows } = await admin
         .from("market_ai_snapshots")
         .select("market_type,interval,leverage,scanned,candidates,ai_decision,final_decision,provider,next_analysis_at,payload,created_at")
@@ -2383,17 +2386,28 @@ async function handle(req) {
         .limit(3);
 
       if (needsFreshScan) {
+        freshScanAttempted = true;
         previousSnapshotRecord = recentSnapshotRows?.[0] || null;
-        snapshot = await runLiveAiAnalysis({
-          interval:"15M",
-          candleLimit:100,
-          maxMarkets:25,
-          marketType,
-          leverage,
-          provider:"groq",
-          force:true,
-          persist:true,
-        });
+        try {
+          snapshot = await runLiveAiAnalysis({
+            interval:"15M",
+            candleLimit:100,
+            maxMarkets:25,
+            marketType,
+            leverage,
+            provider:"groq",
+            force:true,
+            persist:true,
+          });
+          freshScanSucceeded = Boolean(snapshot);
+        } catch (freshScanError) {
+          freshScanUnavailable = true;
+          console.warn(
+            "Copilot fresh scan unavailable; using latest persisted snapshot:",
+            freshScanError?.message || freshScanError
+          );
+          snapshot = recentSnapshotRows?.[0] || null;
+        }
       } else {
         snapshot = recentSnapshotRows?.[0] || null;
         previousSnapshotRecord = recentSnapshotRows?.[1] || null;
@@ -2788,6 +2802,9 @@ async function handle(req) {
         candidateCount,
         decisionState,
         aiDecisionUnavailable,
+        freshScanAttempted,
+        freshScanSucceeded,
+        freshScanUnavailable,
         openPositions: livePositions.map(compactPosition).filter(Boolean),
         positionFeedError,
         scheduler: compactScheduler,
@@ -3034,6 +3051,9 @@ async function handle(req) {
           confidenceCeiling,
           decisionState,
           aiDecisionUnavailable,
+          freshScanAttempted,
+          freshScanSucceeded,
+          freshScanUnavailable,
           keyFactors:[
             current?.symbol ? "Current: " + String(current.symbol) : null,
             snapshotPayload?.finalDecision ? "Decision: " + String(snapshotPayload.finalDecision) : null,
@@ -3148,6 +3168,9 @@ async function handle(req) {
         finalDecision:snapshotPayload?.finalDecision || snapshot?.final_decision || null,
         decisionState,
         aiDecisionUnavailable,
+        freshScanAttempted,
+        freshScanSucceeded,
+        freshScanUnavailable,
         openPositionCount:livePositions.length,
         readOnly:true,
         automaticTrading:false,
