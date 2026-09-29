@@ -2706,6 +2706,19 @@ async function handle(req) {
             ? 100
             : 50;
 
+      const authoritativeDecision = String(
+        snapshotPayload?.finalDecision || snapshot?.final_decision || "NO_TRADE"
+      ).toUpperCase();
+      const engineConfidenceValue = Number(
+        snapshotPayload?.aiDecision?.confidence ??
+        compactSnapshot?.recommended?.confidence ??
+        snapshotPayload?.recommended?.confidence
+      );
+      const engineConfidence = Number.isFinite(engineConfidenceValue)
+        ? Math.max(0, Math.min(100, Math.round(engineConfidenceValue)))
+        : null;
+      const staleGuard = dataQuality.level === "STALE" || dataQuality.level === "UNKNOWN";
+
       const context = {
         action,
         marketType,
@@ -2886,19 +2899,34 @@ async function handle(req) {
             : null,
         ].filter(Boolean);
 
-        const fallbackAnswer = changeParts.length
-          ? "AI provideren er midlertidig utilgjengelige, men Context Engine kan fortsatt lese TradeMind-statusen. CHANGED: " + changeParts.join("; ") + "."
-          : current?.symbol
-            ? "AI provideren er midlertidig utilgjengelige. CURRENT: " +
-              String(current.symbol) +
-              " " +
-              String(current.direction || "") +
-              ", score " +
-              String(current.score ?? "N/A") +
-              ", confidence " +
-              String(current.confidence ?? "N/A") +
-              "%. Ingen ordre er sendt."
-            : "AI provideren er midlertidig utilgjengelige. Context Engine har fortsatt lest siste TradeMind-telemetry, men mangler nok data til en full Copilot-analyse.";
+        const fallbackAdvice = authoritativeDecision === "TRADE" && !staleGuard
+          ? "CONSIDER_TRADE"
+          : "WAIT";
+        const decisionText = authoritativeDecision === "TRADE"
+          ? "TradeMind Engine har registrert TRADE som autoritativ beslutning."
+          : "TradeMind Engine har ikke registrert en bekreftet TRADE-beslutning akkurat nå.";
+        const engineConfidenceText = engineConfidence == null
+          ? "Engine confidence er ikke tilgjengelig i siste snapshot."
+          : "TradeMind Engine confidence er " + engineConfidence + "%.";
+        const changeText = changeParts.length
+          ? "Endring siden forrige snapshot: " + changeParts.join("; ") + "."
+          : "Ingen tidligere snapshot er tilgjengelig for en endringsanalyse.";
+        const fallbackAnswer = [
+          "AI-provideren er midlertidig utilgjengelig.",
+          "Context Engine har derfor brukt siste tilgjengelige TradeMind-telemetry.",
+          decisionText,
+          engineConfidenceText,
+          changeText,
+          "Ingen ordre er sendt."
+        ].join(" ");
+
+        const fallbackExplanation = [
+          decisionText,
+          engineConfidenceText,
+          staleGuard
+            ? "Dataene er ikke ferske nok til å støtte en mer offensiv Copilot-anbefaling."
+            : "Fallback-svaret er begrenset til dokumenterte TradeMind-telemetry-data."
+        ].join(" ");
 
         return response({
           success:true,
@@ -2909,21 +2937,22 @@ async function handle(req) {
           marketType,
           headline:"CONTEXT ENGINE",
           answer:fallbackAnswer,
-          explanation:"Deterministic Context Engine summary based on supplied telemetry only.",
+          explanation:fallbackExplanation,
           decisionBasis,
           severity:"WARNING",
           suggestedAction:action,
-          advice:snapshotPayload?.finalDecision === "TRADE" ? "CONSIDER_TRADE" : "WAIT",
+          advice:fallbackAdvice,
           confidence:0,
           modelConfidence:0,
+          engineConfidence,
           confidenceGuardApplied:false,
           dataQuality,
           decisionIntegrity:{
-            authoritativeDecision:String(snapshotPayload?.finalDecision || snapshot?.final_decision || "NO_TRADE").toUpperCase(),
+            authoritativeDecision,
             modelAdvice:"WAIT",
             aligned:true,
-            freshnessGuard:dataQuality.level === "STALE" || dataQuality.level === "UNKNOWN",
-            enforced:false,
+            freshnessGuard:staleGuard,
+            enforced:staleGuard,
           },
           confidenceCeiling,
           keyFactors:[
@@ -2971,11 +3000,7 @@ async function handle(req) {
         "DIAGNOSTICS",
       ]);
 
-      const authoritativeDecision = String(
-        snapshotPayload?.finalDecision || snapshot?.final_decision || "NO_TRADE"
-      ).toUpperCase();
       const rawAdvice = String(raw?.advice || "").toUpperCase();
-      const staleGuard = dataQuality.level === "STALE" || dataQuality.level === "UNKNOWN";
       const decisionIntegrity = {
         authoritativeDecision,
         modelAdvice: rawAdvice || "NO_ACTION",
@@ -3020,7 +3045,9 @@ async function handle(req) {
         decisionIntegrity,
         confidence,
         modelConfidence,
+        engineConfidence,
         confidenceGuardApplied,
+        providerStatus: providerUsed === "openai" ? "FULL AI" : providerUsed === "groq" ? "AI FALLBACK" : "CONTEXT ENGINE",
         dataQuality,
         confidenceCeiling,
         keyFactors:Array.isArray(raw?.keyFactors) ? raw.keyFactors.slice(0,4).map(String) : [],
