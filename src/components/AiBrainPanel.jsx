@@ -274,7 +274,7 @@ export default function AiBrainPanel() {
             <small>{controlSettings.aiLearningLifecycle ? "Feedback loop is enabled for learning workflows." : "Learning remains controlled/observational."}</small>
           </div>
           <div className="locked">
-            <div><i/><span>AUTONOMOUS AI TRADING</span><b>OFF</b></div>
+            <div><i/><span>AUTOMATIC TRADING</span><b>OFF</b></div>
             <small>Locked to the existing read-only boundary.</small>
           </div>
         </div>
