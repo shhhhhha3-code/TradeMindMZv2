@@ -3199,11 +3199,27 @@ async function handle(req) {
           admin.from("trademind_scheduler_runs").select(schedulerFields).in("status",["QUEUED","RUNNING"]).order("created_at",{ascending:false}).limit(1).maybeSingle(),
         ]);
 
-        // Prefer a currently running scheduler as the authoritative heartbeat.
-        // Otherwise use the latest completed SUCCESS run. This prevents the UI
-        // from showing an old completed heartbeat while a fresh run is active.
-        schedulerHeartbeat = latestActive || latestSuccess || latestRun || null;
-        if (latestActive) {
+        // Prefer a genuinely fresh active scheduler as the authoritative heartbeat.
+        // A queued/running row can remain stuck after an interrupted invocation; such
+        // a stale row must not mask a newer successful scheduler run.
+        const activeHeartbeatAt =
+          latestActive?.heartbeat_at ||
+          latestActive?.started_at ||
+          latestActive?.created_at ||
+          null;
+        const activeAgeMs = activeHeartbeatAt
+          ? Math.max(0, Date.now() - new Date(activeHeartbeatAt).getTime())
+          : null;
+        const activeIsFresh =
+          latestActive &&
+          Number.isFinite(activeAgeMs) &&
+          activeAgeMs <= 12 * 60 * 1000;
+
+        schedulerHeartbeat = activeIsFresh
+          ? latestActive
+          : latestSuccess || latestRun || null;
+
+        if (activeIsFresh) {
           schedulerHeartbeat = {
             ...(schedulerHeartbeat || {}),
             activeRun: latestActive,
