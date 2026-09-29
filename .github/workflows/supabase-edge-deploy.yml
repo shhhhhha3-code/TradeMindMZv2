@@ -260,6 +260,30 @@ jobs:
           print("Persisted snapshot OK:", snapshot.get("persistedAt"))
           PY
 
+      - name: Verify scheduler heartbeat and diagnostics
+        run: |
+          set -euo pipefail
+          curl --fail-with-body -sS             "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/diagnostics"             -o /tmp/trademind-diagnostics.json
+          python - <<'PY'
+          import json
+          with open("/tmp/trademind-diagnostics.json", "r", encoding="utf-8") as f:
+              data = json.load(f)
+          if not data.get("success"):
+              raise SystemExit("Diagnostics verification failed: " + str(data))
+          scheduler = data.get("scheduler") or {}
+          if scheduler.get("status") != "SUCCESS":
+              raise SystemExit("Scheduler heartbeat is not SUCCESS: " + str(scheduler))
+          scheduler_check = next((c for c in data.get("checks", []) if c.get("name") == "Scheduler"), None)
+          if not scheduler_check or scheduler_check.get("status") not in ("OK", "SLOW"):
+              raise SystemExit("Scheduler diagnostics check failed: " + str(scheduler_check))
+          heartbeat = scheduler_check.get("details", {}).get("heartbeatAt")
+          if not heartbeat:
+              raise SystemExit("Scheduler heartbeat timestamp is missing: " + str(scheduler_check))
+          print("Scheduler heartbeat OK:", heartbeat)
+          print("Scheduler stage:", scheduler_check.get("details", {}).get("currentStage"))
+          print("Scheduler cadence:", scheduler_check.get("details", {}).get("cadenceMinutes"), "minutes")
+          PY
+
       - name: Verify server position monitoring and trade journal API
         run: |
           curl --fail-with-body -sS \
