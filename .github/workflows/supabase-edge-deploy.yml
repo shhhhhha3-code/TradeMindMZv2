@@ -117,11 +117,12 @@ jobs:
         run: |
           set -euo pipefail
           URL="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/diagnostics"
+          heartbeat_ok=false
           for attempt in $(seq 1 18); do
             echo "Scheduler heartbeat verification attempt $attempt/18"
             curl --fail-with-body -sS "$URL" -o /tmp/trademind-scheduler-diagnostics.json
-            python - <<'PY'
-          import json, sys
+            if python - <<'PY'
+          import json
           with open("/tmp/trademind-scheduler-diagnostics.json", encoding="utf-8") as f:
               data=json.load(f)
           scheduler=next((x for x in data.get("checks",[]) if x.get("name")=="Scheduler"),{})
@@ -129,14 +130,20 @@ jobs:
           status=scheduler.get("status")
           age=details.get("ageSeconds")
           print("Scheduler:", status, "heartbeat:", details.get("heartbeatAt"), "age:", age)
-          if status in ("OK","SLOW") and isinstance(age,(int,float)) and age <= 900:
-              raise SystemExit(0)
-          raise SystemExit(1)
+          raise SystemExit(0 if status in ("OK","SLOW") and isinstance(age,(int,float)) and age <= 900 else 1)
           PY
-            echo "Fresh scheduler heartbeat confirmed."
-            break
+            then
+              echo "Fresh scheduler heartbeat confirmed."
+              heartbeat_ok=true
+              break
+            fi
+            sleep 10
           done
-          test -f /tmp/trademind-scheduler-diagnostics.json
+          if [ "$heartbeat_ok" != "true" ]; then
+            echo "::error::Scheduler did not produce a fresh heartbeat after the deployment trigger."
+            cat /tmp/trademind-scheduler-diagnostics.json
+            exit 1
+          fi
           python - <<'PY'
           import json
           with open("/tmp/trademind-scheduler-diagnostics.json", encoding="utf-8") as f:
