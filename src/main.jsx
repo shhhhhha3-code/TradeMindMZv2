@@ -191,6 +191,24 @@ function TradeMindAiCopilot({fullPage=false}){
                   {answer.dataAgeSeconds != null && <small>{answer.dataAgeSeconds}s DATA AGE</small>}
                 </div>
                 <p>{answer.answer}</p>
+                {answer.explanation && (
+                  <div className="tmz-copilot-explanation">
+                    <strong>WHY THIS DECISION</strong>
+                    <p>{answer.explanation}</p>
+                  </div>
+                )}
+                {Array.isArray(answer.decisionBasis) && answer.decisionBasis.length > 0 && (
+                  <div className="tmz-copilot-decision-basis">
+                    <div className="tmz-copilot-section-label">DECISION BASIS</div>
+                    {answer.decisionBasis.slice(0,6).map((item,index)=>(
+                      <div className="tmz-copilot-basis-item" key={index}>
+                        <b>{item.category || "SIGNAL"}</b>
+                        <span>{item.finding}</span>
+                        <small>{item.evidence}</small>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="tmz-copilot-advice-row">
                   <b className={"tmz-copilot-advice "+String(answer.advice||"NO_ACTION").toLowerCase()}>{answer.advice || "NO ACTION"}</b>
                   {answer.confidence != null && <span className="tmz-copilot-confidence">AI CONFIDENCE {answer.confidence}%</span>}
