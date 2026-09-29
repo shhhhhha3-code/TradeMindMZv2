@@ -171,8 +171,10 @@ jobs:
           set -e
           # SPOT live-scan can legitimately return HTTP 429 when the upstream market-data provider is rate-limited.\
           # Retry that verification call instead of failing the whole deploy immediately.\
+          echo "Running SPOT live-scan verification with bounded retry/backoff..." \
           curl --fail-with-body -sS \
-            --retry 5 --retry-delay 10 --retry-max-time 90 \
+            --connect-timeout 10 --max-time 120 \
+            --retry 5 --retry-delay 10 --retry-max-time 90 --retry-connrefused \
             "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/ai/live-scan?force=1&interval=15M&marketType=SPOT&maxMarkets=25" \
             -o /tmp/trademind-spot-live.json
           curl --fail-with-body -sS \
