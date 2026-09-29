@@ -67,6 +67,16 @@ function TradeMindAiCopilot({fullPage=false}){
   const [activityStage,setActivityStage]=useState("READY");
   const activityTimers=React.useRef([]);
 
+  const smartFollowUpLabels={
+    LIVE_SIGNAL:"RUN FRESH SIGNAL",
+    BEST_SETUP:"CHECK BEST SETUP",
+    WHAT_NOW:"WHAT SHOULD I DO?",
+    POSITION_CHECK:"CHECK MY POSITION",
+    DEEP_ANALYSIS:"DEEP ANALYSIS",
+    STATUS:"CHECK SYSTEM STATUS",
+    DIAGNOSTICS:"RUN DIAGNOSTICS",
+    ASK:"ASK FOLLOW-UP",
+  };
   const ask=async(action="ASK",preset="")=>{
     if(loading) return;
     const text=String(preset || message || "").trim();
@@ -188,7 +198,10 @@ function TradeMindAiCopilot({fullPage=false}){
               <>
                 <div className="tmz-copilot-response-head">
                   <span><Bot/> {answer.headline || "TRADEMIND AI"}</span>
-                  {answer.dataAgeSeconds != null && <small>{answer.dataAgeSeconds}s DATA AGE</small>}
+                  <div className="tmz-copilot-data-guard">
+                    {answer.dataQuality?.label && <small className={String(answer.dataQuality.level || "").toLowerCase()}>{answer.dataQuality.label}</small>}
+                    {answer.dataAgeSeconds != null && <small>{answer.dataAgeSeconds}s DATA AGE</small>}
+                  </div>
                 </div>
                 <p>{answer.answer}</p>
                 {answer.explanation && (
@@ -208,6 +221,19 @@ function TradeMindAiCopilot({fullPage=false}){
                       </div>
                     ))}
                   </div>
+                )}
+                {answer.suggestedAction && answer.suggestedAction !== "NONE" && answer.suggestedAction !== "ASK" && (
+                  <button
+                    type="button"
+                    className="tmz-copilot-smart-followup"
+                    onClick={()=>ask(String(answer.suggestedAction), smartFollowUpLabels[String(answer.suggestedAction)] || "")}
+                    disabled={loading}
+                  >
+                    <Sparkles/>
+                    <span>NEXT SMART CHECK</span>
+                    <b>{smartFollowUpLabels[String(answer.suggestedAction)] || String(answer.suggestedAction)}</b>
+                    <ChevronRight/>
+                  </button>
                 )}
                 <div className="tmz-copilot-advice-row">
                   <b className={"tmz-copilot-advice "+String(answer.advice||"NO_ACTION").toLowerCase()}>{answer.advice || "NO ACTION"}</b>
@@ -240,6 +266,7 @@ function TradeMindAiCopilot({fullPage=false}){
             <button type="button" onClick={()=>ask("ASK")} disabled={loading || !message.trim()} aria-label="Send"><Send/></button>
           </div>
           <div className="tmz-copilot-footer">
+            {answer?.confidenceGuardApplied && <span className="tmz-copilot-guard-note">CONFIDENCE CAPPED FOR DATA FRESHNESS</span>}
             <span><i/> READ ONLY</span><span>NO AUTOMATIC TRADING</span>
             <span className="tmz-copilot-provider">
               {answer?.webSearch ? "OPENAI WEB" : answer?.provider ? String(answer.provider).toUpperCase() : "OPENAI WEB"}
