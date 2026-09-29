@@ -295,14 +295,19 @@ jobs:
           set -euo pipefail
           BASE="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api"
 
-          curl --fail-with-body -sS             -X POST             -H "Content-Type: application/json"             -d '{"action":"ASK","marketType":"PERP","message":"What changed since the previous market analysis?","history":[{"role":"user","content":"What was the previous market state?"},{"role":"assistant","content":"Use the previous supplied TradeMind context and compare it with the current state."}]}'             "$BASE/api/ai/copilot"             -o /tmp/trademind-copilot-context.json
+          copilot_status=$(curl -sS -o /tmp/trademind-copilot-context.json -w "%{http_code}"             -X POST             -H "Content-Type: application/json"             -d '{"action":"ASK","marketType":"PERP","message":"What changed since the previous market analysis?","history":[{"role":"user","content":"What was the previous market state?"},{"role":"assistant","content":"Use the previous supplied TradeMind context and compare it with the current state."}]}'             "$BASE/api/ai/copilot")
 
+          echo "Copilot HTTP status: $copilot_status"
           cat /tmp/trademind-copilot-context.json
           echo
           python - <<'PY'
-          import json
+          import json, os
           with open("/tmp/trademind-copilot-context.json", encoding="utf-8") as f:
               data = json.load(f)
+          status = os.environ.get("COPILOT_STATUS", "0")
+          if status != "200":
+              raise SystemExit("Copilot context HTTP failure: " + status + " " + str(data))
+
           if data.get("success") is not True:
               raise SystemExit("Copilot context smoke test failed: " + str(data))
           if data.get("conversationTurnsUsed") != 2:
