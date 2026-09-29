@@ -2525,7 +2525,16 @@ async function handle(req) {
             createdAt: previousSnapshotRecord.created_at || null,
             finalDecision: previousSnapshotRecord.final_decision || previousSnapshotRecord.payload?.finalDecision || null,
             marketRegime: previousSnapshotRecord.payload?.marketRegime?.regime || null,
-            recommended: compactCandidate(previousSnapshotRecord.payload?.recommended),
+            recommended: compactCandidate(
+              previousSnapshotRecord.payload?.recommended ||
+              (Array.isArray(previousSnapshotRecord.payload?.candidates)
+                ? previousSnapshotRecord.payload.candidates.find(
+                    (candidate) =>
+                      String(candidate?.symbol || "").toUpperCase() ===
+                      String(previousSnapshotRecord.payload?.aiDecision?.symbol || "").toUpperCase()
+                  ) || previousSnapshotRecord.payload.candidates[0]
+                : null)
+            ),
             topCandidates: Array.isArray(previousSnapshotRecord.payload?.candidates)
               ? previousSnapshotRecord.payload.candidates.slice(0, 5).map(compactCandidate).filter(Boolean)
               : [],
