@@ -1049,3 +1049,16 @@ button.refresh svg {
   .tmz-copilot-smart-followup b{grid-column:2;grid-row:2}
   .tmz-copilot-smart-followup svg:last-child{grid-column:3;grid-row:1 / span 2}
 }
+
+
+/* Build 5.30 — Copilot response clarity */
+.tmz-copilot-engine-confidence{
+  color:#8fffc0;
+  font-weight:800;
+}
+.tmz-copilot-confidence-muted{
+  opacity:.5;
+}
+.tmz-copilot-provider{
+  letter-spacing:.08em;
+}
