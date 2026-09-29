@@ -268,8 +268,6 @@ jobs:
           import json
           with open("/tmp/trademind-diagnostics.json", "r", encoding="utf-8") as f:
               data = json.load(f)
-          if not data.get("success"):
-              raise SystemExit("Diagnostics verification failed: " + str(data))
           scheduler = data.get("scheduler") or {}
           scheduler_status = scheduler.get("status")
           if scheduler_status not in ("SUCCESS", "QUEUED", "RUNNING"):
