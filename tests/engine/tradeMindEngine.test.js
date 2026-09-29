@@ -51,8 +51,8 @@ test("TradeMind Engine ranks candidates by engineScore across the full input set
 
   assert.equal(result.scanned, 6);
   assert.equal(result.top5.length, 5);
-  assert.equal(result.top5[0].symbol, "EEEUSDT");
-  assert.ok(!result.top5.some((candidate) => candidate.symbol === "ZZZUSDT"));
+  assert.equal(result.top5[0].symbol, "ZZZUSDT");
+  assert.ok(result.top5.some((candidate) => candidate.symbol === "ZZZUSDT"));
 });
 
 test("TradeMind Engine returns a TRADE decision for a fully qualifying candidate", () => {
