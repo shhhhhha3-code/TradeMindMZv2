@@ -2918,6 +2918,13 @@ async function handle(req) {
           modelConfidence:0,
           confidenceGuardApplied:false,
           dataQuality,
+          decisionIntegrity:{
+            authoritativeDecision:String(snapshotPayload?.finalDecision || snapshot?.final_decision || "NO_TRADE").toUpperCase(),
+            modelAdvice:"WAIT",
+            aligned:true,
+            freshnessGuard:dataQuality.level === "STALE" || dataQuality.level === "UNKNOWN",
+            enforced:false,
+          },
           confidenceCeiling,
           keyFactors:[
             current?.symbol ? "Current: " + String(current.symbol) : null,
