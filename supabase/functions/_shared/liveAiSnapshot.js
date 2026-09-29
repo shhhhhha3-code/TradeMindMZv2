@@ -15,17 +15,15 @@ export async function saveLiveAiSnapshot(supabase, payload, metadata = {}) {
     error: null,
   };
 
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("market_ai_snapshots")
-    .insert(row)
-    .select("id, created_at")
-    .single();
+    .insert(row);
 
   if (error) {
     throw new Error(`Live AI snapshot save failed: ${error.message}`);
   }
 
-  return data;
+  return { saved: true };
 }
 
 export async function getLatestLiveAiSnapshot(supabase, options = {}) {
