@@ -1051,6 +1051,37 @@ button.refresh svg {
 }
 
 
+/* Build 5.31 — Copilot decision-state clarity */
+.tmz-copilot-decision-state{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  margin:10px 0 0;
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid rgba(255,210,122,.18);
+  background:rgba(255,210,122,.035);
+}
+.tmz-copilot-decision-state strong{
+  font-size:9px;
+  letter-spacing:.12em;
+}
+.tmz-copilot-decision-state span{
+  font-size:11px;
+  line-height:1.45;
+  opacity:.65;
+}
+.tmz-copilot-decision-state.success{
+  border-color:rgba(143,255,192,.18);
+  background:rgba(143,255,192,.035);
+}
+.tmz-copilot-decision-state.success strong{
+  color:#8fffc0;
+}
+.tmz-copilot-decision-state.warning strong{
+  color:#ffd27a;
+}
+
 /* Build 5.30 — Copilot response clarity */
 .tmz-copilot-engine-confidence{
   color:#8fffc0;
