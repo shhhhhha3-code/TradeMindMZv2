@@ -2694,9 +2694,11 @@ async function handle(req) {
             openAiError?.code === "credit_balance_exhausted" ||
             /no credits remaining|insufficient.*quota/i.test(String(openAiError?.message || text))
           );
-          if (!quotaExhausted) {
-            throw new Error("OpenAI request failed: "+res.status+" "+text.slice(0,360));
-          }
+          console.warn(
+            "OpenAI Copilot request failed; using Groq fallback:",
+            res.status,
+            text.slice(0, 360)
+          );
         }
       }
 
