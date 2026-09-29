@@ -1093,3 +1093,24 @@ button.refresh svg {
 .tmz-copilot-provider{
   letter-spacing:.08em;
 }
+
+/* Build 5.32 — explicit Copilot state panel */
+.tmz-copilot-state-panel{
+  margin:10px 0;
+  padding:12px;
+  border:1px solid rgba(116,225,255,.16);
+  border-radius:12px;
+  background:rgba(8,18,24,.72);
+}
+.tmz-copilot-state-main{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.tmz-copilot-state-main strong{font-size:11px;letter-spacing:.11em}
+.tmz-copilot-state-main span{font-size:10px;letter-spacing:.08em;opacity:.75}
+.tmz-copilot-state-metrics{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.tmz-copilot-state-metrics span{font-size:9px;letter-spacing:.07em;opacity:.6}
+.tmz-copilot-state-panel.unavailable{border-color:rgba(255,210,122,.22)}
+.tmz-copilot-state-panel.confirmed{border-color:rgba(143,255,192,.22)}
+.tmz-copilot-state-panel.safe{border-color:rgba(116,225,255,.16)}
+@media (max-width:640px){
+ .tmz-copilot-state-main{align-items:flex-start;flex-direction:column;gap:5px}
+ .tmz-copilot-state-metrics{gap:6px 10px}
+}
