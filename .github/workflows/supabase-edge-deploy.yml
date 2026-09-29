@@ -113,6 +113,32 @@ jobs:
             --data-binary @/tmp/trademind-scheduler-trigger.json
           echo
 
+      - name: Inspect latest scheduler run after trigger
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          query = """
+          select id,status,created_at,started_at,heartbeat_at,finished_at,
+                 current_stage,error,duration_ms,perp_duration_ms,
+                 spot_duration_ms,monitoring_duration_ms
+          from public.trademind_scheduler_runs
+          order by created_at desc
+          limit 5;
+          """
+          with open("/tmp/trademind-scheduler-inspect.json", "w", encoding="utf-8") as f:
+              json.dump({"query": query}, f)
+          PY
+          curl --fail-with-body -sS \
+            -X POST "https://api.supabase.com/v1/projects/$SUPABASE_PROJECT_ID/database/query" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data-binary @/tmp/trademind-scheduler-inspect.json
+          echo
+
       - name: Wait for fresh scheduler heartbeat
         run: |
           set -euo pipefail
