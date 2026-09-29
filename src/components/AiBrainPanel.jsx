@@ -153,11 +153,12 @@ export default function AiBrainPanel() {
         fetchJson("/api/ai/position-monitoring"),
         fetchJson("/api/ai/signal-history?limit=20"),
         fetchJson("/api/ai/trade-criteria"),
+        fetchJson("/api/ai/copilot/parameters"),
       ]);
-      const [diagnostics, performance, learning, positionMonitoring, signalHistory, tradeCriteria] = results.map((r) =>
+      const [diagnostics, performance, learning, positionMonitoring, signalHistory, tradeCriteria, parameterOptimizer] = results.map((r) =>
         r.status === "fulfilled" ? r.value : { success: false, error: r.reason?.message || "Unavailable" }
       );
-      setData({ diagnostics, performance, learning, positionMonitoring, signalHistory, tradeCriteria, fetchedAt: new Date().toISOString() });
+      setData({ diagnostics, performance, learning, positionMonitoring, signalHistory, tradeCriteria, parameterOptimizer, fetchedAt: new Date().toISOString() });
       const failed = results.filter((r) => r.status === "rejected").length;
       if (failed === results.length) throw new Error("AI HJERNE data sources are unavailable.");
     } catch (err) {
@@ -194,8 +195,12 @@ export default function AiBrainPanel() {
   const marketAiStatus = checkMap["Market AI"]?.status || "UNKNOWN";
   const groqStatus = checkMap["Groq AI"]?.status || "UNKNOWN";
   const activeCriteria = data?.tradeCriteria?.criteria || {};
-  const proposal = null;
-  const validation = {};
+  const parameterOptimizer = data?.parameterOptimizer || {};
+  const proposal = parameterOptimizer?.proposal || null;
+  const validation = proposal?.validation || {};
+  const optimizerState = String(parameterOptimizer?.state || "NONE").toUpperCase();
+  const proposalStatus = String(proposal?.status || optimizerState).toUpperCase();
+  const validationStatus = String(validation?.status || "NOT_RUN").toUpperCase();
   const learningSamples = performance?.learning?.samples ?? data?.learning?.totalAnalyses ?? 0;
   const positionJournal = data?.positionMonitoring?.journalStats || {};
 
@@ -351,11 +356,24 @@ export default function AiBrainPanel() {
           {!Object.keys(activeCriteria || {}).length ? <div className="tmz-brain-empty">Active parameter criteria unavailable.</div> : null}
         </div>
         <div className="tmz-brain-validation">
-          <div><span>MODE</span><b>SHADOW / GOVERNED</b></div>
-          <div><span>VALIDATION</span><b>{validation?.status || "READ ONLY"}</b></div>
-          <div><span>PROPOSAL</span><b>{proposal ? "AVAILABLE" : "NOT EXPOSED"}</b></div>
-          <div><span>AUTO PROMOTION</span><b>OFF</b></div>
+          <div><span>LEARN</span><b>{learningSamples > 0 ? "ACTIVE" : "WAITING"}</b></div>
+          <div><span>PROPOSE</span><b>{proposal ? proposalStatus : "WAITING"}</b></div>
+          <div><span>VALIDATE</span><b>{proposal ? validationStatus : "NOT RUN"}</b></div>
+          <div><span>ACTIVATE</span><b>{proposalStatus === "PROMOTED" ? "PROMOTED" : "MANUAL ONLY"}</b></div>
         </div>
+        {proposal ? (
+          <div className="tmz-brain-safety">
+            <ShieldCheck />
+            <span>
+              Latest proposal <strong>{proposal.id}</strong> · {proposal.provider || "AI"} · created {proposal.createdAt ? new Date(proposal.createdAt).toLocaleString("nb-NO") : "—"}.
+              {proposal.expectedImpact ? ` Expected impact: ${proposal.expectedImpact}` : ""}
+            </span>
+          </div>
+        ) : (
+          <div className="tmz-brain-safety">
+            <ShieldCheck /> No parameter proposal is currently exposed. Learning remains observe-only and live criteria are unchanged.
+          </div>
+        )}
         <div className="tmz-brain-safety"><ShieldCheck /> Parameter learning can propose and validate changes, but live criteria are not silently modified.</div>
       </Section>
 
