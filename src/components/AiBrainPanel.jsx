@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { apiUrl } from "../services/apiBase.js";
 import "../ui/trademind-ai-brain.css";
+import { getAISettings, getAiControlMode } from "../ai/aiSettings.js";
 
 const WINDOWS = [
   ["24h", "24H"],
@@ -141,6 +142,7 @@ export default function AiBrainPanel() {
   const [refreshing, setRefreshing] = useState(false);
   const [windowKey, setWindowKey] = useState("24h");
   const [error, setError] = useState("");
+  const [controlSettings, setControlSettings] = useState(() => getAISettings());
 
   const load = async (silent = false) => {
     if (silent) setRefreshing(true);
@@ -171,7 +173,11 @@ export default function AiBrainPanel() {
   useEffect(() => {
     load();
     const timer = window.setInterval(() => load(true), 60000);
-    return () => window.clearInterval(timer);
+    const settingsTimer = window.setInterval(() => setControlSettings(getAISettings()), 5000);
+    return () => {
+      window.clearInterval(timer);
+      window.clearInterval(settingsTimer);
+    };
   }, []);
 
   const diagnostics = data?.diagnostics || {};
@@ -247,6 +253,33 @@ export default function AiBrainPanel() {
 
       {error ? <div className="tmz-brain-error"><CircleAlert /><span>{error}</span></div> : null}
 
+      <div className="tmz-brain-control-strip">
+        <div className="tmz-brain-control-head">
+          <div>
+            <span>AI CONTROL LAYER</span>
+            <strong>{getAiControlMode() === "FULL_AI_CONTROL" ? "FULL AI CONTROL" : "GUIDED AI CONTROL"}</strong>
+          </div>
+          <StatusPill
+            status={getAiControlMode() === "FULL_AI_CONTROL" ? "ACTIVE" : "OBSERVE_ONLY"}
+            label={getAiControlMode() === "FULL_AI_CONTROL" ? "WORKFLOWS ENABLED" : "WORKFLOWS CONTROLLED"}
+          />
+        </div>
+        <div className="tmz-brain-control-grid">
+          <div className={controlSettings.automaticParameterOptimization ? "active" : ""}>
+            <div><i/><span>AUTOMATIC PARAMETERS</span><b>{controlSettings.automaticParameterOptimization ? "ON" : "OFF"}</b></div>
+            <small>{controlSettings.automaticParameterOptimization ? "AI may manage validated parameter improvements." : "AI proposes/observes only until enabled."}</small>
+          </div>
+          <div className={controlSettings.aiLearningLifecycle ? "active" : ""}>
+            <div><i/><span>AI LEARNING LIFECYCLE</span><b>{controlSettings.aiLearningLifecycle ? "ON" : "OFF"}</b></div>
+            <small>{controlSettings.aiLearningLifecycle ? "Feedback loop is enabled for learning workflows." : "Learning remains controlled/observational."}</small>
+          </div>
+          <div className="locked">
+            <div><i/><span>AUTONOMOUS AI TRADING</span><b>OFF</b></div>
+            <small>Locked to the existing read-only boundary.</small>
+          </div>
+        </div>
+      </div>
+
       <div className="tmz-brain-system-grid">
         <Metric label="ENGINE" value={engineStatus?.status || "ONLINE"} detail="Deterministic decision layer" icon={Cpu} />
         <Metric label="COPILOT / AI" value={groqStatus || "ONLINE"} detail="Analysis only · no execution" icon={Sparkles} />
@@ -292,7 +325,9 @@ export default function AiBrainPanel() {
             <strong>{(tradeWindows?.[windowKey]?.closed ?? tradeWindows?.[windowKey]?.trades ?? 0) > 0 ? "NEW LEARNING AVAILABLE" : "WAITING FOR CLOSED TRADE OUTCOMES"}</strong>
             <p>
               {tradeWindows?.[windowKey]?.closed ?? tradeWindows?.[windowKey]?.trades ?? 0} closed trades in the selected window · {positionJournal?.open ?? 0} open journal positions.
-              Learning is observational and does not modify live signals automatically.
+              {controlSettings.aiLearningLifecycle
+                ? "The AI learning lifecycle can use closed-trade outcomes and validated feedback to improve the system within its configured controls."
+                : "Learning is observational and does not modify live signals automatically."}
             </p>
           </div>
           <div className="tmz-brain-learning-big">{tradeWindows?.[windowKey]?.closed ?? tradeWindows?.[windowKey]?.trades ?? 0}</div>
@@ -359,7 +394,7 @@ export default function AiBrainPanel() {
           <div><span>LEARN</span><b>{learningSamples > 0 ? "ACTIVE" : "WAITING"}</b></div>
           <div><span>PROPOSE</span><b>{proposal ? proposalStatus : "WAITING"}</b></div>
           <div><span>VALIDATE</span><b>{proposal ? validationStatus : "NOT RUN"}</b></div>
-          <div><span>ACTIVATE</span><b>{proposalStatus === "PROMOTED" ? "PROMOTED" : "MANUAL ONLY"}</b></div>
+          <div><span>ACTIVATE</span><b>{controlSettings.automaticParameterOptimization ? (proposalStatus === "PROMOTED" ? "AUTO ACTIVE" : "AUTO ARMED") : (proposalStatus === "PROMOTED" ? "PROMOTED" : "MANUAL ONLY")}</b></div>
         </div>
         {proposal ? (
           <div className="tmz-brain-safety">
@@ -374,7 +409,7 @@ export default function AiBrainPanel() {
             <ShieldCheck /> No parameter proposal is currently exposed. Learning remains observe-only and live criteria are unchanged.
           </div>
         )}
-        <div className="tmz-brain-safety"><ShieldCheck /> Parameter learning can propose and validate changes, but live criteria are not silently modified.</div>
+        <div className="tmz-brain-safety"><ShieldCheck /> {controlSettings.automaticParameterOptimization ? "Automatic parameter mode is enabled, but changes remain bounded and validation-gated." : "Parameter learning can propose and validate changes, but live criteria are not silently modified."}</div>
       </Section>
 
       <Section eyebrow="LEARNING TIMELINE" title="Latest intelligence events" icon={Clock3}>
