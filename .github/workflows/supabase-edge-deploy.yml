@@ -354,6 +354,38 @@ jobs:
           print("Decision basis items:", len(data.get("decisionBasis", [])))
           PY
 
+      - name: Verify Copilot freshness guard and smart follow-up
+        run: |
+          set -euo pipefail
+          BASE="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api"
+          copilot_status=$(curl -sS -o /tmp/trademind-copilot-guard.json -w "%{http_code}"             -X POST             -H "Content-Type: application/json"             -d '{"action":"ASK","marketType":"PERP","message":"What is the current state?","history":[]}'             "$BASE/api/ai/copilot")
+          export COPILOT_STATUS="$copilot_status"
+          python - <<'PY'
+          import json, os
+          with open("/tmp/trademind-copilot-guard.json", encoding="utf-8") as f:
+              data=json.load(f)
+          if os.environ.get("COPILOT_STATUS") != "200":
+              raise SystemExit("Copilot freshness guard HTTP failure: " + str(data))
+          quality=data.get("dataQuality") or {}
+          if quality.get("level") not in {"FRESH","AGING","STALE","UNKNOWN"}:
+              raise SystemExit("Copilot returned invalid dataQuality: " + str(data))
+          ceiling=data.get("confidenceCeiling")
+          confidence=data.get("confidence")
+          if not isinstance(ceiling,(int,float)) or not isinstance(confidence,(int,float)):
+              raise SystemExit("Copilot confidence guard fields are missing: " + str(data))
+          if confidence > ceiling:
+              raise SystemExit("Copilot confidence exceeded safety ceiling: " + str(data))
+          action=data.get("suggestedAction")
+          allowed={"NONE","LIVE_SIGNAL","BEST_SETUP","WHAT_NOW","POSITION_CHECK","DEEP_ANALYSIS","STATUS","DIAGNOSTICS","ASK"}
+          if action not in allowed:
+              raise SystemExit("Copilot smart follow-up returned invalid action: " + str(data))
+          if data.get("readOnly") is not True or data.get("automaticTrading") is not False or data.get("noOrderPlacement") is not True:
+              raise SystemExit("Copilot safety contract changed: " + str(data))
+          print("Copilot freshness guard: PASS")
+          print("Data quality:", quality.get("level"), "ceiling:", ceiling, "confidence:", confidence)
+          print("Smart follow-up:", action)
+          PY
+
       - name: Dump Supabase Edge runtime logs on failure
         if: always()
         continue-on-error: true
