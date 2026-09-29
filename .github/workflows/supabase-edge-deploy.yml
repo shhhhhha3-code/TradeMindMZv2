@@ -283,6 +283,35 @@ jobs:
           print("Scheduler cadence:", scheduler_check.get("details", {}).get("cadenceMinutes"), "minutes")
           PY
 
+      - name: Verify production diagnostics safety semantics
+        run: |
+          set -euo pipefail
+          curl --fail-with-body -sS             "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api/api/diagnostics"             -o /tmp/trademind-diagnostics-safety.json
+          python - <<'PY'
+          import json
+          with open("/tmp/trademind-diagnostics-safety.json", "r", encoding="utf-8") as f:
+              data = json.load(f)
+          checks = {item.get("name"): item for item in data.get("checks", [])}
+          scheduler = checks.get("Scheduler") or {}
+          pionex = checks.get("Pionex") or {}
+          market_ai = checks.get("Market AI") or {}
+          groq = checks.get("Groq AI") or {}
+          if scheduler.get("status") not in ("OK", "SLOW"):
+              raise SystemExit("Production safety gate: scheduler is not healthy: " + str(scheduler))
+          if groq.get("status") not in ("CONFIGURED", "OK"):
+              raise SystemExit("Production safety gate: Groq provider is not configured: " + str(groq))
+          if pionex.get("details", {}).get("readOnly") is not True:
+              raise SystemExit("Production safety gate: Pionex is not explicitly read-only: " + str(pionex))
+          warning_states = {"STALE", "ERROR"}
+          if (pionex.get("status") in warning_states or market_ai.get("status") in warning_states) and data.get("success") is True:
+              raise SystemExit("Diagnostics incorrectly reports success while a critical market-data/AI check is stale or errored: " + str(data))
+          print("Production diagnostics safety semantics OK")
+          print("Scheduler:", scheduler.get("status"))
+          print("Pionex:", pionex.get("status"), "readOnly=", pionex.get("details", {}).get("readOnly"))
+          print("Market AI:", market_ai.get("status"))
+          print("Overall diagnostics:", data.get("status"))
+          PY
+
       - name: Verify server position monitoring and trade journal API
         run: |
           curl --fail-with-body -sS \
