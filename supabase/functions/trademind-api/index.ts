@@ -3063,7 +3063,14 @@ async function handle(req) {
           perp_candidates:Array.isArray(payload?.candidates) ? payload.candidates.length : 0,
           perp_provider:payload?.aiDecision?.provider || "groq",
           perp_decision:payload?.finalDecision || "NO_TRADE",
-          perp_push_status:perpPushStatus,
+          perp_push_status:
+            pushNotification?.sent
+              ? "SENT"
+              : pushNotification?.skipped
+                ? String(pushNotification.reason || "SKIPPED")
+                : pushNotification?.error
+                  ? "ERROR"
+                  : "NOT_TRIGGERED",
           spot_scanned:Number(spotSnapshot?.scanned || 0),
           spot_candidates:Array.isArray(spotSnapshot?.candidates) ? spotSnapshot.candidates.length : 0,
           spot_provider:spotSnapshot?.aiDecision?.provider || "groq",
