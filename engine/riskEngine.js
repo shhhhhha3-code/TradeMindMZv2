@@ -1,8 +1,8 @@
 function finite(value) {
+  if (value === null || value === undefined || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
 }
-
 export function evaluateRisk(market) {
   const rsi = finite(market?.rsi);
   const rr = finite(market?.riskReward);
