@@ -290,6 +290,34 @@ jobs:
 
           echo "API edge-case safety verification: PASS"
 
+      - name: Verify Copilot context engine and read-only contract
+        run: |
+          set -euo pipefail
+          BASE="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api"
+
+          curl --fail-with-body -sS             -X POST             -H "Content-Type: application/json"             -d '{"action":"ASK","marketType":"PERP","message":"What changed since the previous market analysis?","history":[{"role":"user","content":"What was the previous market state?"},{"role":"assistant","content":"Use the previous supplied TradeMind context and compare it with the current state."}]}'             "$BASE/api/ai/copilot"             -o /tmp/trademind-copilot-context.json
+
+          cat /tmp/trademind-copilot-context.json
+          echo
+          python - <<'PY'
+          import json
+          with open("/tmp/trademind-copilot-context.json", encoding="utf-8") as f:
+              data = json.load(f)
+          if data.get("success") is not True:
+              raise SystemExit("Copilot context smoke test failed: " + str(data))
+          if data.get("conversationTurnsUsed") != 2:
+              raise SystemExit("Copilot did not consume the expected conversation context: " + str(data))
+          if data.get("readOnly") is not True:
+              raise SystemExit("Copilot readOnly contract is incorrect: " + str(data))
+          if data.get("automaticTrading") is not False or data.get("noOrderPlacement") is not True:
+              raise SystemExit("Copilot trading safety contract is incorrect: " + str(data))
+          if data.get("suggestedAction") not in {"NONE","LIVE_SIGNAL","BEST_SETUP","WHAT_NOW","POSITION_CHECK","DEEP_ANALYSIS","STATUS","DIAGNOSTICS","ASK"}:
+              raise SystemExit("Copilot returned an invalid suggestedAction: " + str(data))
+          print("Copilot context engine + read-only contract: PASS")
+          print("Context turns used:", data.get("conversationTurnsUsed"))
+          print("Decision delta:", data.get("snapshotDelta"))
+          PY
+
       - name: Dump Supabase Edge runtime logs on failure
         if: always()
         continue-on-error: true
