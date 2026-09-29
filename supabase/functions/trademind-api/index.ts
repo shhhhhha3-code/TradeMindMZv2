@@ -2885,6 +2885,8 @@ async function handle(req) {
           marketType,
           headline:"CONTEXT ENGINE",
           answer:fallbackAnswer,
+          explanation:"Deterministic Context Engine summary based on supplied telemetry only.",
+          decisionBasis,
           severity:"WARNING",
           suggestedAction:action,
           advice:snapshotPayload?.finalDecision === "TRADE" ? "CONSIDER_TRADE" : "WAIT",
