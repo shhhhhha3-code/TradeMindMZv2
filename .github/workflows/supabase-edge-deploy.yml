@@ -386,6 +386,38 @@ jobs:
           print("Smart follow-up:", action)
           PY
 
+      - name: Verify Copilot response clarity and confidence separation
+        run: |
+          set -euo pipefail
+          BASE="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api"
+          status=$(curl -sS -o /tmp/trademind-copilot-quality.json -w "%{http_code}"             -X POST -H "Content-Type: application/json"             -d '{"action":"ASK","marketType":"PERP","message":"Explain the current decision and what changed."}'             "$BASE/api/ai/copilot")
+          export COPILOT_STATUS="$status"
+          python - <<'PY'
+          import json, os, re
+          with open("/tmp/trademind-copilot-quality.json", encoding="utf-8") as f:
+              data=json.load(f)
+          if os.environ.get("COPILOT_STATUS") != "200":
+              raise SystemExit("Copilot response quality HTTP failure: " + str(data))
+          if data.get("success") is not True:
+              raise SystemExit("Copilot response quality failed: " + str(data))
+          provider_status=str(data.get("providerStatus") or "")
+          if provider_status not in {"FULL AI","AI FALLBACK","CONTEXT ENGINE"}:
+              raise SystemExit("Missing/invalid provider status: " + str(data))
+          engine_conf=data.get("engineConfidence")
+          if engine_conf is not None and not (0 <= float(engine_conf) <= 100):
+              raise SystemExit("Engine confidence outside 0-100: " + str(data))
+          answer=str(data.get("answer") or "")
+          explanation=str(data.get("explanation") or "")
+          if re.search(r"\bnull\b", answer, re.I) or re.search(r"\bnull\b", explanation, re.I):
+              raise SystemExit("Copilot exposed null telemetry to the user: " + str(data))
+          if provider_status == "CONTEXT ENGINE" and "deterministic context engine summary" in explanation.lower():
+              raise SystemExit("Fallback explanation is still exposing internal technical wording: " + str(data))
+          if data.get("readOnly") is not True or data.get("automaticTrading") is not False or data.get("noOrderPlacement") is not True:
+              raise SystemExit("Copilot read-only safety contract failed: " + str(data))
+          print("Copilot response quality: PASS")
+          print("Provider:", provider_status, "Engine confidence:", engine_conf, "Copilot confidence:", data.get("confidence"))
+          PY
+
       - name: Verify Copilot decision integrity guard
         run: |
           set -euo pipefail
