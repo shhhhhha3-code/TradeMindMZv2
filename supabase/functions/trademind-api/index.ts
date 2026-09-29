@@ -2778,6 +2778,11 @@ async function handle(req) {
         : aiDecisionUnavailable
           ? "AI_DECISION_UNAVAILABLE"
           : "NO_TRADE";
+      const copilotUiState = aiDecisionUnavailable
+        ? { label:"AI ANALYSIS UNAVAILABLE", safeAction:"WAIT", engineDecision:authoritativeDecision, aiDecision:"UNAVAILABLE", aiConfidence:null }
+        : authoritativeDecision === "TRADE"
+          ? { label:"CONFIRMED TRADE", safeAction:"REVIEW MANUALLY", engineDecision:authoritativeDecision, aiDecision:"CONFIRMED", aiConfidence:null }
+          : { label:"NO CONFIRMED TRADE", safeAction:"WAIT", engineDecision:authoritativeDecision, aiDecision:"NO_TRADE", aiConfidence:null };
       const engineConfidenceValue = Number(
         compactSnapshot?.recommended?.confidence ??
         snapshotPayload?.recommended?.confidence ??
@@ -2802,6 +2807,7 @@ async function handle(req) {
         candidateCount,
         decisionState,
         aiDecisionUnavailable,
+        copilotUiState,
         freshScanAttempted,
         freshScanSucceeded,
         freshScanUnavailable,
@@ -3053,6 +3059,7 @@ async function handle(req) {
           confidenceCeiling,
           decisionState,
           aiDecisionUnavailable,
+          copilotUiState,
           freshScanAttempted,
           freshScanSucceeded,
           freshScanUnavailable,
