@@ -8,10 +8,10 @@ export const ENGINE_DECISIONS = {
 };
 
 function finite(value) {
+  if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
-
 export function evaluateCandidate(candidate) {
   if (!candidate) {
     return {
