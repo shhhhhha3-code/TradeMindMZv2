@@ -2931,6 +2931,7 @@ async function handle(req) {
         return response({
           success:true,
           provider:"context-engine",
+          providerStatus:"CONTEXT ENGINE",
           model:"deterministic-context-fallback",
           webSearch:false,
           action,
