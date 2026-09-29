@@ -203,6 +203,18 @@ function TradeMindAiCopilot({fullPage=false}){
                     {answer.dataAgeSeconds != null && <small>{answer.dataAgeSeconds}s DATA AGE</small>}
                   </div>
                 </div>
+                {answer.decisionState === "AI_DECISION_UNAVAILABLE" && (
+                  <div className="tmz-copilot-decision-state warning">
+                    <strong>AI DECISION LAYER UNAVAILABLE</strong>
+                    <span>Safe state: WAIT. Engine candidate data is shown separately and is not treated as a confirmed AI decision.</span>
+                  </div>
+                )}
+                {answer.decisionState === "CONFIRMED_TRADE" && (
+                  <div className="tmz-copilot-decision-state success">
+                    <strong>CONFIRMED TRADE DECISION</strong>
+                    <span>TradeMind Engine and its configured decision filters have produced TRADE.</span>
+                  </div>
+                )}
                 <p>{answer.answer}</p>
                 {answer.explanation && (
                   <div className="tmz-copilot-explanation">
@@ -237,7 +249,7 @@ function TradeMindAiCopilot({fullPage=false}){
                 )}
                 <div className="tmz-copilot-advice-row">
                   <b className={"tmz-copilot-advice "+String(answer.advice||"NO_ACTION").toLowerCase()}>{answer.advice || "NO ACTION"}</b>
-                  {answer.engineConfidence != null && <span className="tmz-copilot-engine-confidence">ENGINE CONFIDENCE {answer.engineConfidence}%</span>}
+                  {answer.engineConfidence != null && <span className="tmz-copilot-engine-confidence">ENGINE CANDIDATE CONFIDENCE {answer.engineConfidence}%</span>}
                   {answer.confidence != null && answer.provider !== "context-engine" && <span className="tmz-copilot-confidence">COPILOT CONFIDENCE {answer.confidence}%</span>}
                   {answer.provider === "context-engine" && <span className="tmz-copilot-confidence tmz-copilot-confidence-muted">COPILOT CONFIDENCE —</span>}
                   {answer.openPositionCount != null && <span>{answer.openPositionCount} OPEN POSITION{answer.openPositionCount === 1 ? "" : "S"}</span>}
