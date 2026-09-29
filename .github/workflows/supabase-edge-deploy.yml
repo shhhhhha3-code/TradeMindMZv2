@@ -436,6 +436,34 @@ jobs:
           print("Provider:", provider_status, "Engine confidence:", engine_conf, "Copilot confidence:", data.get("confidence"), "Data age:", age, "Decision state:", state)
           PY
 
+      - name: Verify Copilot explicit decision state
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          response="$(curl -sS -w '\\n%{http_code}' "$SUPABASE_URL/functions/v1/trademind-api/api/ai/copilot" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            -H "Content-Type: application/json" \
+            --data '{"action":"ASK","marketType":"PERP","message":"Copilot state regression test"}')"
+          http_code="$(printf '%s\\n' "$response" | tail -n1)"
+          body="$(printf '%s\\n' "$response" | sed '$d')"
+          [ "$http_code" = "200" ] || { echo "Copilot state gate HTTP $http_code"; echo "$body"; exit 1; }
+          BODY="$body" python - <<'PY'
+          import json, os
+          data=json.loads(os.environ["BODY"])
+          state=data.get("copilotUiState") or {}
+          if state.get("safeAction") not in {"WAIT","REVIEW MANUALLY"}:
+              raise SystemExit(f"Invalid safe action: {state}")
+          if state.get("aiConfidence") is not None:
+              raise SystemExit(f"AI confidence must be null unless an explicit AI confidence exists: {state}")
+          if data.get("decisionState") == "AI_DECISION_UNAVAILABLE" and state.get("aiDecision") != "UNAVAILABLE":
+              raise SystemExit(f"Unavailable decision state mismatch: {state}")
+          if data.get("readOnly") is not True or data.get("automaticTrading") is not False or data.get("noOrderPlacement") is not True:
+              raise SystemExit("Copilot read-only contract violated")
+          print("Copilot explicit decision state: PASS")
+          PY
+
       - name: Verify Copilot decision integrity guard
         run: |
           set -euo pipefail
