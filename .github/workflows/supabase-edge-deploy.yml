@@ -274,6 +274,15 @@ jobs:
           if data.get("readOnly") is not True or data.get("serverSide") is not True:
               raise SystemExit("Position monitoring safety flags are incorrect: " + str(data))
           stats = data.get("journalStats") or {}
+          required_stats = ("total", "open", "closed", "closedPnl", "closedCountWithPnl")
+          if any(key not in stats for key in required_stats):
+              raise SystemExit("Trade journal stats are incomplete: " + str(data))
+          if any(not isinstance(stats[key], (int, float)) for key in required_stats):
+              raise SystemExit("Trade journal stats contain invalid values: " + str(data))
+          if stats["total"] < 0 or stats["open"] < 0 or stats["closed"] < 0 or stats["closedCountWithPnl"] < 0:
+              raise SystemExit("Trade journal stats contain negative counts: " + str(data))
+          if stats["open"] + stats["closed"] > stats["total"]:
+              raise SystemExit("Trade journal counts exceed total: " + str(data))
           print("Position monitoring API OK:", len(data.get("positions") or []), "open positions")
           print("Trade journal:", stats.get("total"), "rows")
           PY
