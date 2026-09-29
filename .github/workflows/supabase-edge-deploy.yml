@@ -339,11 +339,19 @@ jobs:
               raise SystemExit("Copilot readOnly contract is incorrect: " + str(data))
           if data.get("automaticTrading") is not False or data.get("noOrderPlacement") is not True:
               raise SystemExit("Copilot trading safety contract is incorrect: " + str(data))
+          if not isinstance(data.get("decisionBasis"), list) or len(data.get("decisionBasis", [])) == 0:
+              raise SystemExit("Explainable AI decision basis is missing: " + str(data))
+          for item in data.get("decisionBasis", [])[:6]:
+              if not all(item.get(key) for key in ("category","finding","evidence")):
+                  raise SystemExit("Explainable AI decision basis item is incomplete: " + str(item))
+          if not isinstance(data.get("explanation"), str):
+              raise SystemExit("Explainable AI summary is missing: " + str(data))
           if data.get("suggestedAction") not in {"NONE","LIVE_SIGNAL","BEST_SETUP","WHAT_NOW","POSITION_CHECK","DEEP_ANALYSIS","STATUS","DIAGNOSTICS","ASK"}:
               raise SystemExit("Copilot returned an invalid suggestedAction: " + str(data))
           print("Copilot context engine + read-only contract: PASS")
           print("Context turns used:", data.get("conversationTurnsUsed"))
           print("Decision delta:", data.get("snapshotDelta"))
+          print("Decision basis items:", len(data.get("decisionBasis", [])))
           PY
 
       - name: Dump Supabase Edge runtime logs on failure
