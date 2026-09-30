@@ -1,0 +1,26 @@
+name: Football AI Autonomous Engine
+
+on:
+  schedule:
+    - cron: "17 */2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Football AI pipeline
+        run: |
+          response="$(curl --fail-with-body -sS "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai?action=pipeline")"
+          echo "$response"
+          python - <<'PY' "$response"
+          import json, sys
+          data=json.loads(sys.argv[1])
+          assert data.get("ok") is True, data
+          print("Evaluated:", data.get("evaluated"))
+          print("Predictions:", data.get("sync",{}).get("predictionsCreated"))
+          print("Training samples:", data.get("model",{}).get("training_samples"))
+          PY
