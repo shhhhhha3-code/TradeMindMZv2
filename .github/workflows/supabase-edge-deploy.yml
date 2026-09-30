@@ -496,6 +496,44 @@ jobs:
           print("Copilot safe mode and candidate separation: PASS")
           PY
 
+      - name: Verify Copilot action separation
+        run: |
+          set -euo pipefail
+          BASE="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api"
+          ACTIONS='ASK WHY WHAT_CHANGED LIVE_SIGNAL BEST_SETUP WHAT_NOW POSITION_CHECK DEEP_ANALYSIS STATUS DIAGNOSTICS'
+          BASE="$BASE" ACTIONS="$ACTIONS" python - <<'PY'
+          import json, os, subprocess
+          base=os.environ["BASE"]
+          expected={
+            "ASK":"TRADEMIND AI",
+            "WHY":"WHY THIS DECISION",
+            "WHAT_CHANGED":"WHAT CHANGED",
+            "LIVE_SIGNAL":"LIVE SIGNAL",
+            "BEST_SETUP":"BEST SETUP",
+            "WHAT_NOW":"WHAT NOW",
+            "POSITION_CHECK":"MY POSITION",
+            "DEEP_ANALYSIS":"DEEP ANALYSIS",
+            "STATUS":"SYSTEM STATUS",
+            "DIAGNOSTICS":"SYSTEM DIAGNOSTICS",
+          }
+          for action in os.environ["ACTIONS"].split():
+              payload=json.dumps({"action":action,"marketType":"PERP","message":"Regression test for "+action})
+              raw=subprocess.check_output([
+                "curl","-sS","-X","POST","-H","Content-Type: application/json",
+                "-d",payload,base+"/api/ai/copilot"
+              ],text=True)
+              data=json.loads(raw)
+              if data.get("success") is not True:
+                  raise SystemExit(f"{action}: request failed: {data}")
+              if data.get("action") != action:
+                  raise SystemExit(f"{action}: API action mismatch: {data.get('action')}")
+              if data.get("headline") != expected[action]:
+                  raise SystemExit(f"{action}: wrong response mode/headline: {data.get('headline')}")
+              if data.get("readOnly") is not True or data.get("automaticTrading") is not False or data.get("noOrderPlacement") is not True:
+                  raise SystemExit(f"{action}: read-only contract failed")
+          print("Copilot action separation: PASS")
+          PY
+
       - name: Verify Copilot decision integrity guard
         run: |
           set -euo pipefail
