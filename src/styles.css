@@ -1205,50 +1205,50 @@ button.refresh svg {
 
 
 /* Build 5.37 — Copilot live position readability */
-.tmz-copilot-compact-details:has(.tmz-copilot-candidate-compact) {
+.tmz-copilot-position-details {
   border-color: rgba(116,225,255,.18);
   background: rgba(116,225,255,.025);
 }
 
-.tmz-copilot-compact-details:has(.tmz-copilot-candidate-compact) summary {
+.tmz-copilot-position-details summary {
   min-height: 42px;
   padding: 0 12px;
   font-size: 11px;
   letter-spacing: .08em;
 }
 
-.tmz-copilot-compact-details:has(.tmz-copilot-candidate-compact) summary svg {
+.tmz-copilot-position-details summary svg {
   width: 16px;
   height: 16px;
 }
 
-.tmz-copilot-compact-details:has(.tmz-copilot-candidate-compact) .tmz-copilot-candidate-compact {
+.tmz-copilot-position-details .tmz-copilot-candidate-compact {
   padding: 12px;
 }
 
-.tmz-copilot-compact-details:has(.tmz-copilot-candidate-compact) .tmz-copilot-candidate-compact > div:first-child {
+.tmz-copilot-position-details .tmz-copilot-candidate-compact > div:first-child {
   padding-bottom: 10px;
   border-bottom: 1px solid rgba(255,255,255,.07);
 }
 
-.tmz-copilot-compact-details:has(.tmz-copilot-candidate-compact) .tmz-copilot-candidate-compact > div:first-child strong {
+.tmz-copilot-position-details .tmz-copilot-candidate-compact > div:first-child strong {
   font-size: 16px;
   letter-spacing: .04em;
 }
 
-.tmz-copilot-compact-details:has(.tmz-copilot-candidate-compact) .tmz-copilot-candidate-compact > div:first-child b {
+.tmz-copilot-position-details .tmz-copilot-candidate-compact > div:first-child b {
   padding: 5px 9px;
   font-size: 11px;
   letter-spacing: .06em;
 }
 
-.tmz-copilot-compact-details:has(.tmz-copilot-candidate-compact) .tmz-copilot-candidate-compact > div:last-child {
+.tmz-copilot-position-details .tmz-copilot-candidate-compact > div:last-child {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
   margin-top: 10px;
 }
 
-.tmz-copilot-compact-details:has(.tmz-copilot-candidate-compact) .tmz-copilot-candidate-compact > div:last-child span {
+.tmz-copilot-position-details .tmz-copilot-candidate-compact > div:last-child span {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1263,26 +1263,26 @@ button.refresh svg {
   opacity: .7;
 }
 
-.tmz-copilot-compact-details:has(.tmz-copilot-candidate-compact) .tmz-copilot-candidate-compact > div:last-child strong {
+.tmz-copilot-position-details .tmz-copilot-candidate-compact > div:last-child strong {
   font-size: 13px;
   color: #e8f3fb;
   opacity: 1;
 }
 
 @media(max-width:640px){
-  .tmz-copilot-compact-details:has(.tmz-copilot-candidate-compact) summary {
+  .tmz-copilot-position-details summary {
     font-size: 10px;
   }
 
-  .tmz-copilot-compact-details:has(.tmz-copilot-candidate-compact) .tmz-copilot-candidate-compact > div:first-child strong {
+  .tmz-copilot-position-details .tmz-copilot-candidate-compact > div:first-child strong {
     font-size: 15px;
   }
 
-  .tmz-copilot-compact-details:has(.tmz-copilot-candidate-compact) .tmz-copilot-candidate-compact > div:last-child span {
+  .tmz-copilot-position-details .tmz-copilot-candidate-compact > div:last-child span {
     font-size: 9px;
   }
 
-  .tmz-copilot-compact-details:has(.tmz-copilot-candidate-compact) .tmz-copilot-candidate-compact > div:last-child strong {
+  .tmz-copilot-position-details .tmz-copilot-candidate-compact > div:last-child strong {
     font-size: 12px;
   }
 }
