@@ -1,17 +1,22 @@
-# TradeMindMZ UI v2
+# Football AI Dashboard
 
-UI-only starter for the new TradeMindMZ direction.
+A polished React/Vite UI prototype for a football prediction platform inspired by the approved dashboard concept.
 
-- Dark premium AI trading interface
-- Best Recommended Signal
-- AI confidence + historical learning
-- Manual “I BOUGHT THIS IN PIONEX” confirmation
-- Live Positions with AI HOLD / CAUTION concept
+## Included
+- Dark cinematic responsive dashboard
+- Today's 2 Picks
+- AI confidence and odds cards
+- Groq + OpenAI engine panel
+- Model Lab and performance metrics
+- Expert analysis section
+- AI scoring breakdown
+- Match table and league filters
 - Responsive mobile navigation
-- TradeMindMZ logo
 
-No Pionex orders, AI execution, demo trading, or real trading is implemented here.
+This version is UI/demo data only. API, database, prediction engine, web research and learning loop can be connected next.
 
-Run: npm install && npm run dev
-
-Next: integrate this visual layer into the existing TradeMindMZ GitHub project without changing the established design language.
+## Run
+```bash
+npm install
+npm run dev
+```
