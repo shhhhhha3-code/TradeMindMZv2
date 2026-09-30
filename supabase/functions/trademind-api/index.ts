@@ -2341,6 +2341,18 @@ async function handle(req) {
       const marketType = String(body?.marketType || "PERP").toUpperCase() === "SPOT" ? "SPOT" : "PERP";
       const action = String(body?.action || "ASK").toUpperCase();
       const userMessage = String(body?.message || "").trim().slice(0, 700);
+      const actionContract = {
+        ASK: "Answer the user's specific question using the latest telemetry. Do not default to BEST_SETUP unless the question explicitly asks for a setup.",
+        WHY: "Explain WHY the current authoritative decision exists. Focus on decision reasons, failed/passed criteria, regime, score, confidence, risk/reward and changes. Do not turn this into a setup search.",
+        WHAT_CHANGED: "Compare the latest snapshot with the previous snapshot. Focus on decision, regime, symbol, score, confidence, candidate count and signal changes. If nothing changed, say exactly that. Do not make a new setup recommendation unless explicitly asked.",
+        LIVE_SIGNAL: "Run/report a fresh live signal. Clearly separate engine candidate, AI decision, confidence and safe action.",
+        BEST_SETUP: "Find and compare the strongest current candidates. Explain why the selected candidate qualifies and show relevant score, direction, RSI, volume and risk/reward. This is the only quick action primarily about selecting a setup.",
+        WHAT_NOW: "Answer what the user should do right now. Check existing positions FIRST, then current engine decision/setup, then risk. Do not simply repeat BEST_SETUP.",
+        POSITION_CHECK: "Focus ONLY on the user's current open Pionex positions: symbol, side, entry/current price, PNL, PNL%, leverage/risk if supplied, and what the current signal means for that position. If there is no position, say there is no open position and then briefly state what that means. Do not turn this into BEST_SETUP.",
+        DEEP_ANALYSIS: "Synthesize market regime, current signal, open positions, risk, recent performance and changes. Provide a structured overall analysis, not just the top setup.",
+        STATUS: "Report system health only: scheduler, Pionex feed, AI provider, data freshness, persistence and read-only safety. Do not recommend a trade or setup.",
+        DIAGNOSTICS: "Report technical diagnostics only: scheduler status/heartbeat, provider availability, snapshot freshness, persistence and safety contract. Do not recommend a trade or setup.",
+      }[action] || "Answer the user's specific question from supplied telemetry.";
       const conversationHistory = Array.isArray(body?.history)
         ? body.history
             .slice(-6)
@@ -2352,6 +2364,8 @@ async function handle(req) {
         : [];
       const allowedActions = new Set([
         "ASK",
+        "WHY",
+        "WHAT_CHANGED",
         "LIVE_SIGNAL",
         "BEST_SETUP",
         "WHAT_NOW",
@@ -2814,6 +2828,7 @@ async function handle(req) {
 
       const context = {
         action,
+        actionContract,
         marketType,
         userMessage,
         snapshot: compactSnapshot,
@@ -2857,6 +2872,10 @@ async function handle(req) {
         "If a position is profitable but confirmation is weakening, distinguish HOLD from taking action and explain the evidence.",
         "WAIT is a valid and often preferable recommendation when evidence conflicts, data is stale, or risk/reward is inadequate.",
         "For 'what should I do now' questions, prioritize the user's current open positions first, then the strongest current setup, then explain if no action is warranted.",
+        "The requested action has a strict purpose. Follow context.actionContract exactly. Never answer one Copilot button as though it were another button.",
+        "POSITION_CHECK is a position review, not a setup finder. BEST_SETUP is a setup comparison, not a position review. WHAT_NOW is an action assessment, not simply BEST_SETUP. STATUS/DIAGNOSTICS are system checks, not market recommendations.",
+        "WHY and WHAT_CHANGED are separate modes: WHY explains causes/evidence for the current decision; WHAT_CHANGED compares current versus previous telemetry.",
+
         "For BEST_SETUP, compare the supplied TOP candidates using score, confidence, direction, RSI, volume, risk/reward, market regime, and criteria. Do not choose a winner if the data is insufficient; say so.",
         "For DEEP_ANALYSIS, synthesize market regime, current signal, open positions, risk, recent performance, and historical confidence calibration. Be explicit about conflicts and uncertainty.",
         "Use conversationHistory to resolve follow-up questions such as 'why?', 'what changed?', 'what about ETH?', or 'compare them' without inventing missing context. The latest supplied telemetry remains authoritative over older conversation text.",
@@ -3130,6 +3149,8 @@ async function handle(req) {
         "DEEP_ANALYSIS",
         "STATUS",
         "DIAGNOSTICS",
+        "WHY",
+        "WHAT_CHANGED",
       ]);
 
       const rawAdvice = String(raw?.advice || "").toUpperCase();
