@@ -7,3 +7,58 @@
 .syncBtn{background:#111923;border:1px solid #2b3b4d;color:#dce8f4;border-radius:8px;padding:8px 12px;font-size:11px;font-weight:800;cursor:pointer;letter-spacing:.3px}.syncBtn:hover{border-color:#5f7d9c}.syncBtn:disabled{opacity:.6;cursor:wait}.liveNotice{margin:10px 0;padding:10px 14px;border:1px solid #4b3c21;background:#17130c;color:#d8b56a;border-radius:8px;font-size:12px}
 
 .engineMetrics{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0}.engineMetrics>div{background:#0c1219;border:1px solid #1c2a38;border-radius:7px;padding:9px}.engineMetrics small{display:block;color:#718396;font-size:9px;letter-spacing:.5px;margin-bottom:4px}.engineMetrics b{display:block;color:#dce8f4;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.pipelineMini{display:flex;flex-wrap:wrap;gap:5px;margin-top:10px}.pipelineMini span{font-size:8px;letter-spacing:.4px;color:#617181;border:1px solid #1c2733;border-radius:999px;padding:4px 6px}.pipelineMini span.done{color:#9fc3df;border-color:#2c465d;background:#101b26}
+
+/* Mobile app layout cleanup */
+html,body,#root{width:100%;min-height:100%;overflow-x:hidden}
+.center{min-width:0;width:100%}
+@media(max-width:560px){
+  body{min-width:0;overflow-x:hidden}
+  .app{width:100%;min-width:0;overflow-x:hidden}
+  main{width:100%;min-width:0;overflow-x:hidden}
+  header{height:64px;padding:0 9px;gap:7px;position:sticky;top:0;z-index:15}
+  .hamb{width:32px;height:32px;padding:4px;display:grid;place-items:center;flex:0 0 32px}
+  .hamb svg{width:20px;height:20px}
+  .heroBrand{gap:6px;min-width:0;flex:1;overflow:hidden}
+  .heroBrand .ball{font-size:23px;flex:0 0 auto}
+  .heroBrand h1{font-size:14px;letter-spacing:.5px;white-space:nowrap}
+  .headRight{gap:5px;flex:0 0 auto}
+  .syncBtn{font-size:0;padding:8px;width:35px;height:35px;display:grid;place-items:center}
+  .syncBtn:before{content:'↻';font-size:17px}
+  .headRight .dbStatus,.headRight .date,.headRight .bell,.user{display:none}
+  .statbar{grid-template-columns:1fr 1fr;gap:6px;padding:8px 9px}
+  .stat{height:50px;padding:6px 8px;gap:7px;min-width:0}
+  .stat i{font-size:17px}
+  .stat small{font-size:6.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .stat strong{font-size:13px}
+  .stat:last-child{grid-column:1/3}
+  .sectionTitle{font-size:15px;padding:5px 9px 8px}
+  .sectionTitle span{width:24px;height:2px}
+  .grid{display:flex;flex-direction:column;gap:8px;padding:0 9px}
+  .picks{display:flex;flex-direction:column;gap:8px;width:100%}
+  .pick{width:100%;padding:9px;border-radius:9px}
+  .pickHead{font-size:10px;margin-bottom:6px}
+  .pickHead span{font-size:7px;padding:4px 6px}
+  .match{min-height:92px;grid-template-columns:1fr 58px 1fr}
+  .crest{width:40px;height:40px}
+  .match strong{font-size:10px}
+  .vs{font-size:14px}
+  .vs small{font-size:7px;margin-bottom:6px}
+  .tipRow{grid-template-columns:minmax(0,1fr) 68px 58px;gap:5px}
+  .tipBox,.odds{padding:7px}
+  .tipBox strong{font-size:11px}
+  .odds strong{font-size:14px}
+  .ring{width:45px;height:45px;font-size:10px}
+  .pick li{font-size:8px;line-height:1.25}
+  .analyse{font-size:8px;padding:6px 8px}
+  .filters{width:100%;overflow-x:auto;padding-bottom:2px;margin:7px 0;scrollbar-width:none}
+  .filters::-webkit-scrollbar{display:none}
+  .filters button{flex:0 0 auto;font-size:8px;padding:6px 9px}
+  .table.panel{width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
+  .table .tr{min-width:650px}
+  .rightcol{display:flex;flex-direction:column;width:100%;gap:8px}
+  .panel{padding:9px}
+  .panelTitle{font-size:10px}
+  .bottom{display:flex;flex-direction:column;gap:8px;padding:8px 9px 16px}
+  .score{grid-column:auto}
+  .liveNotice{margin:7px 9px;font-size:10px}
+}
