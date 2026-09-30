@@ -188,20 +188,29 @@ function teamStatsFromRows(rows:any[]) {
   };
 }
 
-async function loadTeamHistory(supabase:any,team:string,cache:Map<string,any>) {
-  if (cache.has(team)) return cache.get(team);
-  const [home,away] = await Promise.all([
-    supabase.from("football_matches").select("kickoff_at,home_team,away_team,home_score,away_score,status")
-      .eq("home_team",team).lt("kickoff_at",nowIso()).order("kickoff_at",{ascending:false}).limit(20),
-    supabase.from("football_matches").select("kickoff_at,home_team,away_team,home_score,away_score,status")
-      .eq("away_team",team).lt("kickoff_at",nowIso()).order("kickoff_at",{ascending:false}).limit(20)
-  ]);
-  const rows=[...(home.data||[]),...(away.data||[])]
-    .map((r)=>({...r,_team:team}))
-    .sort((a,b)=>new Date(b.kickoff_at).getTime()-new Date(a.kickoff_at).getTime()).slice(0,10);
-  const stats=teamStatsFromRows(rows);
-  cache.set(team,stats);
-  return stats;
+async function loadAllTeamHistory(supabase:any) {
+  const cache=new Map<string,any>();
+  const {data,error}=await supabase.from("football_matches")
+    .select("kickoff_at,home_team,away_team,home_score,away_score,status")
+    .eq("status","finished")
+    .order("kickoff_at",{ascending:false})
+    .limit(2000);
+  if (error) throw error;
+  const grouped=new Map<string,any[]>();
+  for (const row of data||[]) {
+    if (row.home_team) {
+      const list=grouped.get(row.home_team)||[];
+      list.push({...row,_team:row.home_team});
+      grouped.set(row.home_team,list);
+    }
+    if (row.away_team) {
+      const list=grouped.get(row.away_team)||[];
+      list.push({...row,_team:row.away_team});
+      grouped.set(row.away_team,list);
+    }
+  }
+  for (const [team,rows] of grouped) cache.set(team,teamStatsFromRows(rows));
+  return cache;
 }
 
 function buildFeatures(match:any,homeStats:any,awayStats:any) {
@@ -405,7 +414,7 @@ async function retrainModel(supabase:any) {
 }
 
 async function syncRows(supabase:any,rows:any[],runType:string) {
-  const filtered=rows.filter(isEuropeanMatch),teamCache=new Map<string,any>(),model=await getModel(supabase);
+  const filtered=rows.filter(isEuropeanMatch),teamCache=await loadAllTeamHistory(supabase),model=await getModel(supabase);
   let matchesScanned=0,predictionsCreated=0,oddsStored=0;
   for (const m of filtered) {
     const saved=await upsertMatch(supabase,m);
@@ -422,8 +431,8 @@ async function syncRows(supabase:any,rows:any[],runType:string) {
     }
     if (new Date(saved.kickoff_at).getTime()<=Date.now()) continue;
     const [homeStats,awayStats]=await Promise.all([
-      loadTeamHistory(supabase,saved.home_team,teamCache),
-      loadTeamHistory(supabase,saved.away_team,teamCache)
+      Promise.resolve(teamCache.get(saved.home_team)||teamStatsFromRows([])),
+      Promise.resolve(teamCache.get(saved.away_team)||teamStatsFromRows([]))
     ]);
     const built=buildFeatures(m,homeStats,awayStats);
     const prediction=predictWithWeights(built.features,model);
