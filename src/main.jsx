@@ -58,7 +58,7 @@ function Main(){
       'Value: '+(x.prediction.value_percent!=null?Number(x.prediction.value_percent).toFixed(1)+'%':'ikke tilgjengelig'),
       x.prediction.reasoning?.llm?.summary||('Datakilde: '+(x.prediction.provider||'live'))
     ]
-  });
+  }));
   const displayGames=liveMatches.slice(0,20).map(m=>{
     const p=predictionByMatch.get(m.id);
     return [
