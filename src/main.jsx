@@ -3,7 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {Home,Trophy,Globe2,LineChart,Newspaper,BarChart3,FlaskConical,Clock3,Target,Settings,ChevronRight,CheckCircle2,Brain,Database,Activity,ShieldAlert,Search,CalendarDays,Bell,Menu,X,TrendingUp,Zap} from 'lucide-react';
 import './styles.css';
 import {checkSupabaseConnection} from './lib/supabase.js';
-import {getFootballDashboard,syncFootballData} from './lib/footballApi.js';
+import {getFootballDashboard,syncFootballData,getFootballHistory} from './lib/footballApi.js';
 
 const picks=[
  {league:'Premier League',time:'16:00',home:'Liverpool',away:'Everton',homeShort:'LIV',awayShort:'EVE',tip:'Liverpool vinner',confidence:78,odds:'1.62',signal:'STARKT SIGNAL',value:'++',reasons:['Sterk hjemmeform (8-1-1)','Høyere xG (2.08 vs 1.11)','Everton flere skadefravær','Ekspert 7/10 mot Liverpool','Historisk sterk hjemmebane']},
@@ -17,69 +17,50 @@ function StatBar({matches,predictions,engine}){const evaluation=engine?.evaluati
 function PickCard({p,index}){return <div className={'pick '+(index===0?'green':'gold')}><div className="pickHead"><b>🏆 PICK #{index+1}</b><span>{p.signal}</span></div><div className="match"><div><div className="crest">{p.homeShort}</div><strong>{p.home}</strong></div><div className="vs"><small>{p.league} · I dag · {p.time}</small>VS</div><div><div className="crest away">{p.awayShort}</div><strong>{p.away}</strong></div></div><div className="tipRow"><div className="tipBox"><small>TIPS</small><strong>{p.tip}</strong></div><div className="confidence"><small>AI CONFIDENCE</small><div className="ring" style={{'--v':p.confidence+'%'}}>{p.confidence}%</div></div><div className="odds"><small>ODDS</small><strong>{p.odds}</strong></div></div><ul>{p.reasons.map(r=><li key={r}><CheckCircle2 size={16}/>{r}</li>)}</ul><button className="analyse">SE FULL ANALYSE <ChevronRight size={16}/></button></div>}
 function Engine({engine}){const model=engine?.model||{};return <aside className="rightcol"><section className="panel"><div className="panelTitle"><Brain/>FOOTBALL AI ENGINE <ChevronRight/></div><div className="aiPair"><div><b>◈</b><span>GROQ<small>REASONING</small></span></div><strong>+</strong><div><b className="openai">◉</b><span>OpenAI<small>DYP ANALYSE</small></span></div></div><div className="engineMetrics"><div><small>MODELL</small><b>{model.model_version||'football-multinomial-v1'}</b></div><div><small>LÆRINGSDATA</small><b>{model.training_samples??0}</b></div><div><small>TREFFSIKKERHET</small><b>{model.accuracy!=null?(model.accuracy*100).toFixed(1)+'%':'–'}</b></div><div><small>ROI / ENHET</small><b>{model.roi!=null?(model.roi*100).toFixed(2)+'%':'–'}</b></div></div><div className="pipelineMini">{['FORM','xG/PROXY','RESULTATER','ODDS','PROBABILITY','VALUE','EVALUERING','LÆRING'].map((x,i)=><span key={x} className={i<7?'done':''}>{x}</span>)}</div></section><section className="panel"><div className="panelTitle"><FlaskConical/>MODEL LAB <small>(LIVE)</small><ChevronRight/></div><div className="lab"><span>Treningsdata <b>{model.training_samples??0}</b></span><span>Treffsikkerhet <b className="greenTxt">{model.accuracy!=null?(model.accuracy*100).toFixed(1)+'%':'–'}</b></span><span>ROI <b className="greenTxt">{model.roi!=null?(model.roi*100).toFixed(2)+'%':'–'}</b></span><span>Brier <b>{model.brier_score!=null?Number(model.brier_score).toFixed(3):'–'}</b></span></div></section><section className="panel week"><div className="panelTitle"><Database/>DATAKVALITET</div><div className="dataStatusRow"><span>Evalueringer</span><b>{engine?.evaluation?.samples??0}</b></div><div className="dataStatusRow"><span>Treffsikkerhet</span><b>{engine?.evaluation?.accuracy!=null?Number(engine.evaluation.accuracy).toFixed(1)+'%':'–'}</b></div><div className="dataStatusRow"><span>ROI / enhet</span><b>{engine?.evaluation?.roi_percent_per_unit!=null?Number(engine.evaluation.roi_percent_per_unit).toFixed(2)+'%':'–'}</b></div></section></aside>}
 function Bottom({predictions,engine}){const value=(predictions||[]).filter(p=>p.value_percent!=null&&Number(p.value_percent)>0).sort((a,b)=>Number(b.value_percent)-Number(a.value_percent)).slice(0,6);const model=engine?.model||{};return <div className="bottom"><section className="panel news"><div className="panelTitle"><Target/> VALUE FINDER <small>(LIVE)</small></div>{value.length?value.map(p=><div className="newsrow" key={p.id}><div className="newsLogo">+</div><div><b>{p.prediction}</b><p>AI {Number(p.confidence).toFixed(1)}% · Odds {p.odds?Number(p.odds).toFixed(2):'–'}</p></div><strong className="greenTxt">+{Number(p.value_percent).toFixed(1)}%</strong></div>):<div className="emptyState">Ingen positiv value registrert akkurat nå.</div>}</section><section className="panel experts"><div className="panelTitle"><Database/> DATASTATUS</div><div className="dataStatusRow"><span>Kamper i dag</span><b>{predictions?.length||0}</b></div><div className="dataStatusRow"><span>Tips med odds</span><b>{(predictions||[]).filter(p=>p.odds&&Number(p.odds)>1).length}</b></div><div className="dataStatusRow"><span>Positive value</span><b className="greenTxt">{value.length}</b></div><div className="dataStatusRow"><span>Modell</span><b>{model.model_version||'–'}</b></div><div className="dataStatusRow"><span>Treningsdata</span><b>{model.training_samples??0}</b></div></section><section className="panel score"><div className="panelTitle"><Zap/> AI-MÅLINGER <small>(LIVE)</small></div><div className="scoreline"><span>Treffsikkerhet</span><i><em style={{width:(model.accuracy!=null?model.accuracy*100:0)+'%'}}/></i><b>{model.accuracy!=null?(model.accuracy*100).toFixed(1)+'%':'–'}</b></div><div className="scoreline"><span>ROI</span><i><em style={{width:Math.max(0,Math.min(100,(model.roi||0)*100))+'%'}}/></i><b>{model.roi!=null?(model.roi*100).toFixed(2)+'%':'–'}</b></div><div className="scoreline"><span>Brier</span><i><em style={{width:model.brier_score!=null?Math.max(0,Math.min(100,(1-model.brier_score)*100)):0+'%'}}/></i><b>{model.brier_score!=null?Number(model.brier_score).toFixed(3):'–'}</b></div><div className="total">DATA + MODEL + RESULTAT <b>LIVE</b></div></section></div>}
+function PageTitle({title,sub}){return <div className="sectionTitle"><span/>{title}<small>{sub||''}</small></div>}
+
+function MatchesTable({matches,predictions}){const by=new Map((predictions||[]).map(p=>[p.match_id,p]));return <div className="table panel"><div className="tr th"><span>TID</span><span>LIGA</span><span>KAMP</span><span>TIPS</span><span>AI %</span><span>ODDS</span><span>VERDI</span><span>STATUS</span></div>{(matches||[]).map(m=>{const p=by.get(m.id);const kickoff=new Date(m.kickoff_at);const status=String(m.status||'').toLowerCase();const finished=status.includes('finish')||m.home_score!=null;const live=!finished&&kickoff.getTime()<=Date.now();return <div className="tr" key={m.id}><span>{kickoff.toLocaleTimeString('nb-NO',{hour:'2-digit',minute:'2-digit'})}</span><span>{m.league||'–'}</span><span>{m.home_team} – {m.away_team}</span><span>{p?.prediction||'–'}</span><span className="greenTxt">{p?Math.round(Number(p.confidence||0))+'%':'–'}</span><span>{p?.odds?Number(p.odds).toFixed(2):'–'}</span><span className={p&&Number(p.value_percent)>0?'greenTxt':''}>{p?.value_percent!=null?Number(p.value_percent).toFixed(1)+'%':'–'}</span><span className="status">{finished?'● '+(m.home_score??0)+'–'+(m.away_score??0):live?'● LIVE':'● Ikke startet'}</span></div>})}</div>}
+
+function ValuePage({predictions}){const values=(predictions||[]).filter(p=>p.value_percent!=null&&Number(p.value_percent)>0&&Number(p.odds)>1).sort((a,b)=>Number(b.value_percent)-Number(a.value_percent));return <><PageTitle title="VALUE FINDER" sub="LIVE · POSITIVE VALUE"/><div className="pageGrid"><section className="panel"><div className="panelTitle"><Target/> POSITIVE VALUE <small>{values.length} FUNNET</small></div>{values.length?values.map(p=><div className="valueCard" key={p.id}><div><b>{p.prediction}</b><small>AI {Number(p.confidence).toFixed(1)}% · Implied {p.implied_probability?Number(p.implied_probability).toFixed(1)+'%':'–'} · Odds {Number(p.odds).toFixed(2)}</small></div><strong className="greenTxt">+{Number(p.value_percent).toFixed(1)}%</strong></div>):<div className="emptyState">Ingen positiv value registrert akkurat nå.</div>}</section><section className="panel"><div className="panelTitle"><Brain/> HVORDAN VALUE BEREGNES</div><p className="pageText">Value viser modellens forventede avkastning mot tilgjengelig odds. Ingen odds betyr ingen Value Finder-score.</p><div className="formula">Value % = (modell-sannsynlighet × odds − 1) × 100</div></section></div></>}
+
+function HistoryPage({history,onReload}){const s=history?.summary||{};return <><PageTitle title="HISTORIKK" sub="SISTE 30 DAGER"/><div className="metricGrid">{[['TIPS',s.total??0],['AVGJORTE',s.settled??0],['TREFFSIKKERHET',s.hit_rate!=null?Number(s.hit_rate).toFixed(1)+'%':'–'],['P&L',s.pnl!=null?Number(s.pnl).toFixed(2):'–']].map(([a,b])=><div className="metricCard" key={a}><small>{a}</small><strong>{b}</strong></div>)}</div><section className="panel"><div className="panelTitle"><Clock3/> RESULTATHISTORIKK <button className="miniBtn" onClick={onReload}>↻ OPPDATER</button></div><div className="historyList">{(history?.predictions||[]).slice(0,100).map(p=><div className="historyRow" key={p.id}><div><b>{p.match?.home_team||'–'} – {p.match?.away_team||'–'}</b><small>{p.match?.league||'–'} · {p.prediction} · Odds {p.odds?Number(p.odds).toFixed(2):'–'}</small></div><span className={'badge '+String(p.status||'OPEN').toLowerCase()}>{p.status||'OPEN'}</span><strong className={Number(p.pnl)>0?'greenTxt':''}>{p.pnl!=null?Number(p.pnl).toFixed(2):'–'}</strong></div>)}</div></section></>}
+
+function StatsPage({history,engine}){const s=history?.summary||{},m=history?.model||engine?.model||{};return <><PageTitle title="STATISTIKK" sub="DATA + RESULTATER"/><div className="metricGrid">{[['TREFFSIKKERHET',s.hit_rate!=null?Number(s.hit_rate).toFixed(1)+'%':'–'],['ROI',m.roi!=null?(Number(m.roi)*100).toFixed(2)+'%':'–'],['BRIER',m.brier_score!=null?Number(m.brier_score).toFixed(3):'–'],['LOG LOSS',m.log_loss!=null?Number(m.log_loss).toFixed(3):'–']].map(([a,b])=><div className="metricCard" key={a}><small>{a}</small><strong>{b}</strong></div>)}</div><div className="pageGrid"><section className="panel"><div className="panelTitle"><BarChart3/> LIGAOVERSIKT</div>{(history?.leagues||[]).map(l=><div className="dataStatusRow" key={l.league}><span>{l.league}</span><b>{l.wins}W · {l.losses}L · {Number(l.pnl).toFixed(2)}</b></div>)}{!history?.leagues?.length&&<div className="emptyState">Ingen avgjorte tips i perioden.</div>}</section><section className="panel"><div className="panelTitle"><Activity/> MODELLMÅLINGER</div><div className="dataStatusRow"><span>Treningsdata</span><b>{m.training_samples??0}</b></div><div className="dataStatusRow"><span>Modellversjon</span><b>{m.model_version||'–'}</b></div><div className="dataStatusRow"><span>Oppdatert</span><b>{m.updated_at?new Date(m.updated_at).toLocaleString('nb-NO'):'–'}</b></div></section></div></>}
+
+function ModelPage({engine,history,onTrain}){const m=history?.model||engine?.model||{};return <><PageTitle title="MODEL LAB" sub="LIVE LÆRING"/><div className="metricGrid">{[['MODELL',m.model_version||'–'],['TRENINGSDATA',m.training_samples??0],['TREFFSIKKERHET',m.accuracy!=null?(Number(m.accuracy)*100).toFixed(1)+'%':'–'],['ROI',m.roi!=null?(Number(m.roi)*100).toFixed(2)+'%':'–']].map(([a,b])=><div className="metricCard" key={a}><small>{a}</small><strong>{b}</strong></div>)}</div><section className="panel"><div className="panelTitle"><FlaskConical/> LÆRINGSMODELL <button className="miniBtn" onClick={onTrain}>↻ TREN MODELL</button></div><p className="pageText">Modellen trener på evaluerte historiske prediksjoner. Nye resultater brukes først etter at kampene er avgjort.</p><div className="pipelineLarge">{['FORM','xG/PROXY','RESULTATER','ODDS','PROBABILITY','VALUE','EVALUERING','LÆRING','RETRAIN'].map((x,i)=><span key={x} className={i<8?'done':''}>{i+1}. {x}</span>)}</div></section></>}
+
+function AiAnalysisPage({predictions}){const rows=(predictions||[]).slice(0,20);return <><PageTitle title="AI ANALYSE" sub="MODELLENS AKTUELLE VURDERINGER"/><section className="panel"><div className="panelTitle"><Brain/> PREDIKSJONSANALYSE</div>{rows.length?rows.map(p=><div className="analysisRow" key={p.id}><div><b>{p.prediction}</b><small>Confidence {Number(p.confidence||0).toFixed(1)}% · Model {p.model_version||p.model||'–'}</small></div><span>Odds {p.odds?Number(p.odds).toFixed(2):'–'}</span><strong className={Number(p.value_percent)>0?'greenTxt':''}>{p.value_percent!=null?Number(p.value_percent).toFixed(1)+'% value':'–'}</strong></div>):<div className="emptyState">Ingen live-prediksjoner tilgjengelig.</div>}</section></>}
+
+function ExpertPage(){return <><PageTitle title="EKSPERTANALYSE" sub="EKSTERNE EKSPERTDATA"/><section className="panel"><div className="panelTitle"><Newspaper/> EKSPERTDATA</div><div className="emptyState">Ingen verifisert ekspertkilde er koblet til akkurat nå. Appen viser derfor ikke oppdiktede ekspertuttalelser eller nyheter.</div></section></>}
+
+function SettingsPage(){return <><PageTitle title="INNSTILLINGER" sub="FOOTBALL AI"/><div className="pageGrid"><section className="panel"><div className="panelTitle"><Settings/> SYSTEM</div><div className="dataStatusRow"><span>Datakilde</span><b>Football Soccer API</b></div><div className="dataStatusRow"><span>Backend</span><b>Supabase Edge Function</b></div><div className="dataStatusRow"><span>Modell</span><b>Multinomial AI</b></div><div className="dataStatusRow"><span>Persistens</span><b>Supabase</b></div></section><section className="panel"><div className="panelTitle"><ShieldAlert/> DATAPRINSIPPER</div><p className="pageText">Ingen demo-tips brukes når live-data mangler. Skade- og xG-data vises bare når leverandøren faktisk leverer dem.</p></section></div></>}
+
 function Main(){
-  const [active,setActive]=useState('Hjem');
-  const [mobile,setMobile]=useState(false);
-  const [liveMatches,setLiveMatches]=useState([]);
-  const [livePredictions,setLivePredictions]=useState([]);
-  const [engine,setEngine]=useState({});
-  const [syncing,setSyncing]=useState(false);
-  const [liveError,setLiveError]=useState('');
+  const [active,setActive]=useState('Hjem'),[mobile,setMobile]=useState(false),[liveMatches,setLiveMatches]=useState([]),[livePredictions,setLivePredictions]=useState([]),[engine,setEngine]=useState({}),[syncing,setSyncing]=useState(false),[liveError,setLiveError]=useState(''),[history,setHistory]=useState(null),[historyLoading,setHistoryLoading]=useState(false);
 
-  const loadLive=async()=>{
-    try{
-      const data=await getFootballDashboard();
-      if(data?.ok){setLiveMatches(data.matches||[]);setLivePredictions(data.predictions||[]);setEngine(data.engine||{});setLiveError('');}
-    }catch(error){setLiveError(error?.message||'Live-data ikke tilgjengelig');}
-  };
+  const loadLive=async()=>{try{const data=await getFootballDashboard();if(data?.ok){setLiveMatches(data.matches||[]);setLivePredictions(data.predictions||[]);setEngine(data.engine||{});setLiveError('')}}catch(e){setLiveError(e?.message||'Live-data ikke tilgjengelig')}};
+  const loadHistory=async()=>{setHistoryLoading(true);try{const d=await getFootballHistory();if(d?.ok)setHistory(d)}catch(e){setLiveError(e?.message||'Historikk ikke tilgjengelig')}finally{setHistoryLoading(false)}};
   useEffect(()=>{loadLive()},[]);
+  useEffect(()=>{if(['Historikk','Statistikk','Model Lab'].includes(active)&&!history&&!historyLoading)loadHistory()},[active]);
 
-  const handleSync=async()=>{
-    setSyncing(true);setLiveError('');
-    try{await syncFootballData();await loadLive();}
-    catch(error){setLiveError(error?.message||'Kunne ikke synkronisere live-data');}
-    finally{setSyncing(false);}
-  };
+  const handleSync=async()=>{setSyncing(true);setLiveError('');try{await syncFootballData();await loadLive();if(history)await loadHistory()}catch(e){setLiveError(e?.message||'Kunne ikke synkronisere live-data')}finally{setSyncing(false)}};
+  const handleTrain=async()=>{setHistoryLoading(true);try{const r=await fetch('https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai?action=train');if(!r.ok)throw new Error('Modelltrening feilet');await loadLive();await loadHistory()}catch(e){setLiveError(e?.message||'Modelltrening feilet')}finally{setHistoryLoading(false)}};
 
   const predictionByMatch=new Map(livePredictions.map(p=>[p.match_id,p]));
   const realPicks=liveMatches.map(m=>({match:m,prediction:predictionByMatch.get(m.id)})).filter(x=>x.prediction).slice(0,2);
-  const displayPicks=realPicks.map(x=>({
-    league:x.match.league,
-    time:new Date(x.match.kickoff_at).toLocaleTimeString('nb-NO',{hour:'2-digit',minute:'2-digit'}),
-    home:x.match.home_team,away:x.match.away_team,
-    homeShort:x.match.home_team.slice(0,3).toUpperCase(),awayShort:x.match.away_team.slice(0,3).toUpperCase(),
-    tip:x.prediction.prediction,confidence:Number(x.prediction.confidence||0),
-    odds:Number(x.prediction.odds||0).toFixed(2),
-    signal:Number(x.prediction.confidence||0)>=70?'STARKT SIGNAL':'MODERAT SIGNAL',
-    value:Number(x.prediction.value_percent||0)>=0?'++':'+',
-    reasons:[
-      'Modell: '+(x.prediction.model||'Football AI'),
-      'Sannsynlighet: '+Number(x.prediction.confidence||0).toFixed(1)+'%',
-      'Value: '+(x.prediction.value_percent!=null?Number(x.prediction.value_percent).toFixed(1)+'%':'ikke tilgjengelig'),
-      x.prediction.reasoning?.llm?.summary||('Datakilde: '+(x.prediction.provider||'live'))
-    ]
-  }));
-  const displayGames=liveMatches.slice(0,20).map(m=>{
-    const p=predictionByMatch.get(m.id);
-    return [
-      new Date(m.kickoff_at).toLocaleTimeString('nb-NO',{hour:'2-digit',minute:'2-digit'}),
-      m.league,
-      m.home_team+' – '+m.away_team,
-      p?.prediction||'Analyseres',
-      p?Math.round(Number(p.confidence))+'%':'–',
-      p?Number(p.odds).toFixed(2):'–',
-      p&&Number(p.value_percent)>=0?'++':'–'
-    ];
-  });
+  const displayPicks=realPicks.map(x=>({league:x.match.league,time:new Date(x.match.kickoff_at).toLocaleTimeString('nb-NO',{hour:'2-digit',minute:'2-digit'}),home:x.match.home_team,away:x.match.away_team,homeShort:x.match.home_team.slice(0,3).toUpperCase(),awayShort:x.match.away_team.slice(0,3).toUpperCase(),tip:x.prediction.prediction,confidence:Number(x.prediction.confidence||0),odds:Number(x.prediction.odds||0).toFixed(2),signal:Number(x.prediction.confidence||0)>=70?'STARKT SIGNAL':'MODERAT SIGNAL',value:Number(x.prediction.value_percent||0)>=0?'++':'+',reasons:['Modell: '+(x.prediction.model||'Football AI'),'Sannsynlighet: '+Number(x.prediction.confidence||0).toFixed(1)+'%', 'Value: '+(x.prediction.value_percent!=null?Number(x.prediction.value_percent).toFixed(1)+'%':'ikke tilgjengelig'),x.prediction.reasoning?.llm?.summary||('Datakilde: '+(x.prediction.provider||'live'))]}));
+  const page=active==='Hjem'?<><div className="sectionTitle"><span/>DAGENS {realPicks.length} TIPS</div><div className="grid"><div className="center"><div className="picks">{displayPicks.map((p,i)=><PickCard key={p.home+p.away} p={p} index={i}/>)}</div><div className="filters"><button className="selected">Dagens kamper (live)</button>{['Premier League','La Liga','Serie A','Bundesliga','Champions League'].map(x=><button key={x}>{x}</button>)}</div><MatchesTable matches={liveMatches.slice(0,20)} predictions={livePredictions}/></div><Engine engine={engine}/></div><Bottom predictions={livePredictions} engine={engine}/></>
+  :active==='Dagens tips'?<><PageTitle title="DAGENS TIPS" sub="LIVE"/><div className="picks pagePicks">{displayPicks.map((p,i)=><PickCard key={p.home+p.away} p={p} index={i}/>)}</div></>
+  :active==='Alle kamper'?<><PageTitle title="ALLE KAMPER" sub={liveMatches.length+' KAMPER'}/><MatchesTable matches={liveMatches} predictions={livePredictions}/></>
+  :active==='Value Finder'?<ValuePage predictions={livePredictions}/>
+  :active==='Historikk'?<HistoryPage history={history} onReload={loadHistory}/>
+  :active==='Statistikk'?<StatsPage history={history} engine={engine}/>
+  :active==='Model Lab'?<ModelPage history={history} engine={engine} onTrain={handleTrain}/>
+  :active==='AI analyse'?<AiAnalysisPage predictions={livePredictions}/>
+  :active==='Ekspertanalyse'?<ExpertPage/>
+  :<SettingsPage/>;
 
-  return <div className="app"><Sidebar active={active} setActive={setActive} mobile={mobile} setMobile={setMobile}/><main>
-    <Header setMobile={setMobile} onSync={handleSync} syncing={syncing}/>
-    <StatBar matches={liveMatches.length} predictions={livePredictions.length} engine={engine}/>
-    {liveError&&<div className="liveNotice">LIVE-DATA: {liveError}. Ingen demo-data vises før live-data er tilgjengelig.</div>}
-    <div className="sectionTitle"><span/>DAGENS {realPicks.length||2} TIPS</div>
-    <div className="grid"><div className="center"><div className="picks">{displayPicks.map((p,i)=><PickCard key={p.home+p.away} p={p} index={i}/>)}</div>
-    <div className="filters"><button className="selected">Dagens kamper (live)</button>{['Premier League','La Liga','Serie A','Bundesliga','Champions League'].map(x=><button key={x}>{x}</button>)}<button>Flere ligaer⌄</button></div>
-    <div className="table panel"><div className="tr th"><span>TID</span><span>LIGA</span><span>KAMP</span><span>TIPS</span><span>AI %</span><span>ODDS</span><span>VERDI</span><span>STATUS</span></div>{displayGames.map(g=><div className="tr" key={g[2]}>{g.map((v,i)=><span key={i} className={i===4?'greenTxt':''}>{v}</span>)}<span className="status">● Ikke startet</span></div>)}</div></div><Engine engine={engine}/></div><Bottom predictions={livePredictions} engine={engine}/></main></div>
+  return <div className="app"><Sidebar active={active} setActive={setActive} mobile={mobile} setMobile={setMobile}/><main><Header setMobile={setMobile} onSync={handleSync} syncing={syncing}/><StatBar matches={liveMatches.length} predictions={livePredictions.length} engine={engine}/>{liveError&&<div className="liveNotice">LIVE-DATA: {liveError}</div>}{page}</main></div>
 }
 
 
