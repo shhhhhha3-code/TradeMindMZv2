@@ -123,7 +123,10 @@ async function syncToday(supabase: any) {
     const externalId = String(m.match_id || m.id || "");
     if (!externalId) continue;
 
-    const kickoff = m.kickoff_utc || m.kickoff || m.kickoff_at;
+    const kickoffRaw = m.kickoff_utc ?? m.kickoff ?? m.kickoff_at;
+    const kickoff = typeof kickoffRaw === "number"
+      ? new Date(kickoffRaw * 1000).toISOString()
+      : String(kickoffRaw || "");
     if (!kickoff) continue;
 
     const { data: saved, error } = await supabase
@@ -131,11 +134,11 @@ async function syncToday(supabase: any) {
       .upsert({
         external_id: externalId,
         league: m.league_name || "Unknown",
-        season: m.season ? String(m.season) : null,
+        season: m.season_start_year ? String(m.season_start_year) : (m.season ? String(m.season) : null),
         kickoff_at: kickoff,
         home_team: m.home_team_name || m.home_team || "Unknown",
         away_team: m.away_team_name || m.away_team || "Unknown",
-        status: m.status || "scheduled",
+        status: m.match_status || m.status || "scheduled",
         home_score: m.home_goals ?? null,
         away_score: m.away_goals ?? null,
         venue: m.venue_name || null,
@@ -237,8 +240,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const secretKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || getSecretKey();
-    if (!secretKey) return json({ ok: false, error: "Supabase server key is not configured" }, 500);
+    const secretKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+    if (!secretKey) return json({ ok: false, error: "SUPABASE_SERVICE_ROLE_KEY is not configured in Supabase secrets" }, 500);
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, secretKey);
 
     if (action === "sync") {
