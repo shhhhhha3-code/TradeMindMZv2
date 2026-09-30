@@ -31,6 +31,17 @@ function getSecretKey() {
   return Deno.env.get("FOOTBALL_API_KEY") || "";
 }
 
+function getSupabaseSecretKey() {
+  const legacy = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  if (legacy) return legacy;
+  try {
+    const keys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
+    return keys?.default || "";
+  } catch {
+    return "";
+  }
+}
+
 async function footballApi(path: string, params: Record<string, string> = {}) {
   const key = getSecretKey();
   if (!key) throw new Error("FOOTBALL_API_KEY is not configured in Supabase secrets");
@@ -240,8 +251,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const secretKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-    if (!secretKey) return json({ ok: false, error: "SUPABASE_SERVICE_ROLE_KEY is not configured in Supabase secrets" }, 500);
+    const secretKey = getSupabaseSecretKey();
+    if (!secretKey) return json({ ok: false, error: "Supabase secret key is not available to the Edge Function" }, 500);
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, secretKey);
 
     if (action === "sync") {
