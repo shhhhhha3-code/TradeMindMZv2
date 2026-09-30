@@ -62,3 +62,31 @@ html,body,#root{width:100%;min-height:100%;overflow-x:hidden}
   .score{grid-column:auto}
   .liveNotice{margin:7px 9px;font-size:10px}
 }
+
+/* Real navigation pages */
+.sectionTitle small{font:500 9px Inter;color:#7894a3;margin-left:5px;letter-spacing:.6px}
+.pageGrid{display:grid;grid-template-columns:1.35fr 1fr;gap:10px;padding:0 14px 14px}
+.metricGrid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:0 14px 10px}
+.metricCard{background:linear-gradient(180deg,#082336,#061927);border:1px solid #10364c;border-radius:9px;padding:13px}
+.metricCard small{display:block;color:#7894a3;font-size:8px;letter-spacing:.7px;margin-bottom:6px}
+.metricCard strong{font-family:Orbitron;font-size:18px;word-break:break-word}
+.valueCard,.historyRow,.analysisRow{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;border-top:1px solid #0b2b3c;padding:10px 0}
+.valueCard small,.historyRow small,.analysisRow small{display:block;color:#809aa8;font-size:8px;margin-top:4px}
+.valueCard strong{font-family:Orbitron;font-size:15px}
+.formula{background:#06151f;border:1px solid #12364b;border-radius:7px;padding:12px;font-family:monospace;color:#9ee8cf;font-size:11px}
+.pageText{color:#9bb1bd;font-size:11px;line-height:1.6;margin:4px 0 12px}
+.emptyState{padding:18px 4px;color:#718997;font-size:10px;text-align:center}
+.dataStatusRow{display:flex;justify-content:space-between;gap:10px;border-top:1px solid #0b2b3c;padding:8px 0;font-size:9px;color:#8ea7b4}
+.dataStatusRow b{color:#e2edf2;text-align:right}
+.miniBtn{margin-left:auto;background:#082b3c;border:1px solid #1a617d;color:#aee5f6;border-radius:5px;padding:5px 8px;font-size:8px;cursor:pointer}
+.historyRow{grid-template-columns:1fr auto 55px}
+.historyRow .badge{font-size:7px;font-weight:800;padding:4px 6px;border-radius:999px;text-align:center}
+.badge.won{background:#063f2f;color:#75efc0}.badge.lost{background:#401d22;color:#ff9a9a}.badge.void{background:#34301a;color:#e5cf72}.badge.open{background:#153247;color:#9fc4d7}
+.historyRow>strong{font-family:Orbitron;font-size:10px;text-align:right}
+.analysisRow{grid-template-columns:1fr auto auto}
+.pipelineLarge{display:flex;flex-wrap:wrap;gap:7px}
+.pipelineLarge span{font-size:8px;padding:7px 9px;border-radius:7px;border:1px solid #1c2e3c;color:#637b8b}
+.pipelineLarge span.done{color:#9ce8ca;border-color:#17634e;background:#06261f}
+.pagePicks{padding:0 14px 14px;grid-template-columns:repeat(2,minmax(0,1fr))}
+@media(max-width:850px){.pageGrid{grid-template-columns:1fr;padding-left:9px;padding-right:9px}.metricGrid{grid-template-columns:1fr 1fr;padding-left:9px;padding-right:9px}.pagePicks{padding:0 9px 9px;grid-template-columns:1fr}}
+@media(max-width:560px){.metricCard{padding:10px}.metricCard strong{font-size:14px}.historyRow{grid-template-columns:1fr auto 45px}.analysisRow{grid-template-columns:1fr auto}.analysisRow>strong{grid-column:2}.pageText{font-size:10px}}
