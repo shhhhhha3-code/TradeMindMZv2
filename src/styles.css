@@ -1114,3 +1114,21 @@ button.refresh svg {
  .tmz-copilot-state-main{align-items:flex-start;flex-direction:column;gap:5px}
  .tmz-copilot-state-metrics{gap:6px 10px}
 }
+
+/* Build 5.33 — Copilot safe-state clarity */
+.tmz-copilot-status.safe-mode{border-color:rgba(255,210,122,.2)}
+.tmz-copilot-status.safe-mode .tmz-copilot-status-head b{color:#ffd27a}
+.tmz-copilot-pipeline .tmz-copilot-node.warning em{color:#ffd27a}
+.tmz-copilot-engine-candidate{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  margin-top:10px;
+  padding:9px 10px;
+  border-radius:9px;
+  border:1px solid rgba(116,225,255,.12);
+  background:rgba(116,225,255,.025);
+}
+.tmz-copilot-engine-candidate strong{font-size:9px;letter-spacing:.11em;color:#74e1ff}
+.tmz-copilot-engine-candidate span{font-size:12px;font-weight:600}
+.tmz-copilot-engine-candidate small{font-size:9px;letter-spacing:.06em;opacity:.6;line-height:1.5}
