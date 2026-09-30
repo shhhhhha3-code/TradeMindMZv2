@@ -323,7 +323,7 @@ function TradeMindAiCopilot({fullPage=false}){
                     [];
                   const positionFeedError = answer.positionFeedError;
                   return (
-                    <details className="tmz-copilot-compact-details" open>
+                    <details className="tmz-copilot-compact-details tmz-copilot-position-details" open>
                       <summary><span>MY LIVE POSITION</span><ChevronRight/></summary>
                       <div className="tmz-copilot-candidate-compact">
                         {livePositionList.length ? (
