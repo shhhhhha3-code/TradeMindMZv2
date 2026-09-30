@@ -3170,6 +3170,8 @@ async function handle(req) {
           finalDecision:snapshotPayload?.finalDecision || snapshot?.final_decision || null,
           openPositionCount:livePositions.length,
           openPositions:livePositions.map(compactPosition).filter(Boolean),
+          // Keep the legacy "positions" field for older Copilot clients/builds.
+          positions:livePositions.map(compactPosition).filter(Boolean),
           positionFeedError,
           readOnly:true,
           automaticTrading:false,
@@ -3281,6 +3283,8 @@ async function handle(req) {
         freshScanUnavailable,
         openPositionCount:livePositions.length,
         openPositions:livePositions.map(compactPosition).filter(Boolean),
+        // Keep the legacy "positions" field for older Copilot clients/builds.
+        positions:livePositions.map(compactPosition).filter(Boolean),
         positionFeedError,
         readOnly:true,
         automaticTrading:false,
