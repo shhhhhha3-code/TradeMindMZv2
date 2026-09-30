@@ -3253,6 +3253,7 @@ async function handle(req) {
         answer:String(raw?.answer || outputText || "I could not produce an answer from the available TradeMindMZ data."),
         explanation:String(raw?.explanation || "").slice(0, 900),
         decisionBasis,
+        copilotUiState,
         severity:["INFO","SUCCESS","WARNING","ERROR"].includes(raw?.severity) ? raw.severity : "INFO",
         suggestedAction:allowedSuggestedActions.has(String(raw?.action || "").toUpperCase()) ? String(raw.action).toUpperCase() : action,
         advice:safeAdvice,
