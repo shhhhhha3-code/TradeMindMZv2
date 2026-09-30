@@ -1189,3 +1189,16 @@ button.refresh svg {
   .tmz-copilot-mini-grid>div{padding:7px}
   .tmz-copilot-quick-compact{grid-template-columns:repeat(4,1fr)!important}
 }
+
+
+/* Build 5.35 — position action separation */
+.tmz-copilot-position-compact{padding:8px 10px 10px;border-top:1px solid rgba(255,255,255,.05)}
+.tmz-copilot-position-row{padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05)}
+.tmz-copilot-position-row:last-child{border-bottom:0}
+.tmz-copilot-position-row>div:first-child{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.tmz-copilot-position-row>div:first-child strong{font-size:11px}
+.tmz-copilot-position-row>div:first-child b{padding:3px 6px;border-radius:5px;background:rgba(116,225,255,.07);color:#9eeaff;font-size:8px}
+.tmz-copilot-position-row>div:last-child{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:7px}
+.tmz-copilot-position-row>div:last-child span{font-size:7px;letter-spacing:.05em;opacity:.5}
+.tmz-copilot-position-row>div:last-child strong{display:block;color:#dce7f2;font-size:9px;opacity:1}
+.tmz-copilot-no-position{font-size:10px;line-height:1.4;opacity:.6}
