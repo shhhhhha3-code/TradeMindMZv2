@@ -184,20 +184,23 @@ function TradeMindAiCopilot({fullPage=false}){
             {["PERP","SPOT"].map(mode=><button key={mode} className={marketType===mode?"active":""} onClick={()=>setMarketType(mode)}>{mode==="PERP"?"M-USDT":"SPOT"}</button>)}
           </div>
 
-          <div className="tmz-copilot-quick">
-            {quick.map(([label,action,preset])=>(
+          <div className="tmz-copilot-quick tmz-copilot-quick-compact">
+            {[
+              ...quick,
+              ["DIAGNOSTICS","DIAGNOSTICS","Run technical diagnostics"],
+            ].map(([label,action,preset])=>(
               <button key={action} type="button" onClick={()=>ask(action,preset)} disabled={loading}>
-                <Sparkles/><span>{label}</span><ChevronRight/>
+                <Sparkles/><span>{label}</span>
               </button>
             ))}
           </div>
 
-          <div className={"tmz-copilot-response "+(answer ? "has-answer" : "")+" "+String(answer?.severity||"").toLowerCase()}>
+          <div className={"tmz-copilot-response tmz-copilot-compact "+(answer ? "has-answer" : "")+" "+String(answer?.severity||"").toLowerCase()}>
             {!answer ? (
               <div className="tmz-copilot-welcome">
-                <img src="/assets/trademind-ai-avatar.svg" alt=""/>
-                <strong>Ask me anything.</strong>
-                <p>I can read live Pionex positions, PNL, TradeMind signals, market regime, performance and system telemetry — then turn it into a clear recommendation.</p>
+                <img src="/assets/trademind-ai-avatar.svg" alt="" />
+                <strong>Ask TradeMind AI</strong>
+                <p>Live market, positions and system intelligence in one place.</p>
               </div>
             ) : (
               <>
@@ -205,109 +208,92 @@ function TradeMindAiCopilot({fullPage=false}){
                   <span><Bot/> {answer.headline || "TRADEMIND AI"}</span>
                   <div className="tmz-copilot-data-guard">
                     {answer.dataQuality?.label && <small className={String(answer.dataQuality.level || "").toLowerCase()}>{answer.dataQuality.label}</small>}
-                    {answer.dataAgeSeconds != null && <small>{answer.dataAgeSeconds}s DATA AGE</small>}
+                    {answer.dataAgeSeconds != null && <small>{answer.dataAgeSeconds}s</small>}
                   </div>
                 </div>
-                {answer.copilotUiState && (
-                  <div className={`tmz-copilot-state-panel ${answer.decisionState === "AI_DECISION_UNAVAILABLE" ? "unavailable" : answer.decisionState === "CONFIRMED_TRADE" ? "confirmed" : "safe"}`}>
-                    <div className="tmz-copilot-state-main">
-                      <strong>{answer.copilotUiState.label}</strong>
-                      <span>SAFE ACTION: {answer.copilotUiState.safeAction}</span>
+
+                {answer.decisionState === "AI_DECISION_UNAVAILABLE" && (
+                  <div className="tmz-copilot-unavailable">
+                    <div className="tmz-copilot-unavailable-copy">
+                      <strong>AI ANALYSIS UNAVAILABLE</strong>
+                      <span>AI-providers are unavailable. TradeMind stays conservative.</span>
                     </div>
-                    <div className="tmz-copilot-state-metrics">
-                      <span>ENGINE: {answer.copilotUiState.engineDecision || "—"}</span>
-                      <span>AI DECISION: {answer.copilotUiState.aiDecision || "—"}</span>
-                      <span>AI CONFIDENCE: {answer.copilotUiState.aiConfidence == null ? "N/A" : `${answer.copilotUiState.aiConfidence}%`}</span>
-                    </div>
-                    {answer.decisionState === "AI_DECISION_UNAVAILABLE" && answer.copilotUiState.candidate && (
-                      <div className="tmz-copilot-engine-candidate">
-                        <strong>ENGINE CANDIDATE — NOT AI CONFIRMED</strong>
-                        <span>{answer.copilotUiState.candidate.symbol || "—"} · {answer.copilotUiState.candidate.direction || "—"}</span>
-                        <small>SCORE {answer.copilotUiState.candidate.score ?? "—"} · CANDIDATE CONFIDENCE {answer.copilotUiState.candidate.confidence ?? "—"}% · R/R {answer.copilotUiState.candidate.riskReward ?? "—"}</small>
+                    <button type="button" onClick={()=>ask("LIVE_SIGNAL","Retry AI decision with a fresh signal")} disabled={loading}>
+                      <RefreshCw/>
+                      RETRY AI
+                    </button>
+                  </div>
+                )}
+
+                <div className="tmz-copilot-summary-grid">
+                  <div className="tmz-copilot-summary-card recommendation">
+                    <span>ANBEFALING</span>
+                    <strong>{answer.copilotUiState?.safeAction || answer.advice || "WAIT"}</strong>
+                  </div>
+                  <div className="tmz-copilot-summary-card">
+                    <span>ENGINE STATUS</span>
+                    <strong>{answer.copilotUiState?.engineDecision || answer.finalDecision || "—"}</strong>
+                  </div>
+                </div>
+
+                <div className="tmz-copilot-mini-grid">
+                  <div><span>AI CONFIDENCE</span><strong>{answer.copilotUiState?.aiConfidence == null ? "N/A" : `${answer.copilotUiState.aiConfidence}%`}</strong></div>
+                  <div><span>DATA</span><strong>{answer.dataAgeSeconds == null ? "—" : `${answer.dataAgeSeconds}s`}</strong></div>
+                  <div><span>MARKET</span><strong>{answer.marketType === "SPOT" ? "SPOT" : "M-USDT"}</strong></div>
+                </div>
+
+                {answer.decisionState === "AI_DECISION_UNAVAILABLE" && answer.copilotUiState?.candidate && (
+                  <details className="tmz-copilot-compact-details" open>
+                    <summary><span>ENGINE CANDIDATE <em>(IKKE BEKREFTET)</em></span><ChevronRight/></summary>
+                    <div className="tmz-copilot-candidate-compact">
+                      <div>
+                        <strong>{answer.copilotUiState.candidate.symbol || "—"}</strong>
+                        <b>{answer.copilotUiState.candidate.direction || "—"}</b>
                       </div>
+                      <div>
+                        <span>SCORE <strong>{answer.copilotUiState.candidate.score ?? "—"}</strong></span>
+                        <span>CONFIDENCE <strong>{answer.copilotUiState.candidate.confidence ?? "—"}%</strong></span>
+                        <span>R/R <strong>{answer.copilotUiState.candidate.riskReward ?? "—"}</strong></span>
+                      </div>
+                    </div>
+                  </details>
+                )}
+
+                <details className="tmz-copilot-compact-details">
+                  <summary><span>KORT FORKLARING</span><ChevronRight/></summary>
+                  <div className="tmz-copilot-short-explanation">
+                    <p>{answer.explanation || answer.answer || "Ingen ekstra forklaring tilgjengelig."}</p>
+                    {answer.answer && answer.explanation && answer.answer !== answer.explanation && (
+                      <p className="secondary">{answer.answer}</p>
                     )}
                   </div>
-                )}
-                {answer.decisionState === "AI_DECISION_UNAVAILABLE" && (
-                  <div className="tmz-copilot-decision-state warning">
-                    <strong>AI DECISION LAYER UNAVAILABLE</strong>
-                    <span>Safe state: WAIT. Engine candidate data is shown separately and is not treated as a confirmed AI decision.</span>
-                  </div>
-                )}
-                {answer.decisionState === "CONFIRMED_TRADE" && (
-                  <div className="tmz-copilot-decision-state success">
-                    <strong>CONFIRMED TRADE DECISION</strong>
-                    <span>TradeMind Engine and its configured decision filters have produced TRADE.</span>
-                  </div>
-                )}
-                <p>{answer.answer}</p>
-                {answer.explanation && (
-                  <div className="tmz-copilot-explanation">
-                    <strong>WHY THIS DECISION</strong>
-                    <p>{answer.explanation}</p>
-                  </div>
-                )}
-                {Array.isArray(answer.decisionBasis) && answer.decisionBasis.length > 0 && (
-                  <div className="tmz-copilot-decision-basis">
-                    <div className="tmz-copilot-section-label">DECISION BASIS</div>
-                    {answer.decisionBasis.slice(0,6).map((item,index)=>(
-                      <div className="tmz-copilot-basis-item" key={index}>
-                        <b>{item.category || "SIGNAL"}</b>
-                        <span>{item.finding}</span>
-                        <small>{item.evidence}</small>
-                      </div>
+                </details>
+
+                <details className="tmz-copilot-compact-details">
+                  <summary><span>NØKKELDATA</span><ChevronRight/></summary>
+                  <div className="tmz-copilot-keydata">
+                    {Array.isArray(answer.decisionBasis) && answer.decisionBasis.slice(0,4).map((item,index)=>(
+                      <div key={index}><b>{item.category || "SIGNAL"}</b><span>{item.finding}</span></div>
                     ))}
+                    {answer.snapshotDelta?.decisionChanged && <div><b>CHANGE</b><span>Decision changed</span></div>}
+                    {answer.snapshotDelta?.regimeChanged && <div><b>REGIME</b><span>Market regime changed</span></div>}
+                    {answer.decisionIntegrity?.enforced && <div><b>GUARD</b><span>Safety guard applied</span></div>}
                   </div>
-                )}
-                {answer.decisionState === "AI_DECISION_UNAVAILABLE" ? (
-                  <button
-                    type="button"
-                    className="tmz-copilot-smart-followup"
-                    onClick={()=>ask("LIVE_SIGNAL","Retry AI decision with a fresh signal")}
-                    disabled={loading}
-                  >
+                </details>
+
+                {answer.suggestedAction && answer.suggestedAction !== "NONE" && answer.suggestedAction !== "ASK" && answer.decisionState !== "AI_DECISION_UNAVAILABLE" && (
+                  <button type="button" className="tmz-copilot-smart-followup compact" onClick={()=>ask(String(answer.suggestedAction), smartFollowUpLabels[String(answer.suggestedAction)] || "")} disabled={loading}>
                     <Sparkles/>
-                    <span>NEXT SAFE CHECK</span>
-                    <b>RETRY AI DECISION</b>
-                    <ChevronRight/>
-                  </button>
-                ) : answer.suggestedAction && answer.suggestedAction !== "NONE" && answer.suggestedAction !== "ASK" && (
-                  <button
-                    type="button"
-                    className="tmz-copilot-smart-followup"
-                    onClick={()=>ask(String(answer.suggestedAction), smartFollowUpLabels[String(answer.suggestedAction)] || "")}
-                    disabled={loading}
-                  >
-                    <Sparkles/>
-                    <span>NEXT SMART CHECK</span>
                     <b>{smartFollowUpLabels[String(answer.suggestedAction)] || String(answer.suggestedAction)}</b>
                     <ChevronRight/>
                   </button>
                 )}
-                <div className="tmz-copilot-advice-row">
-                  <b className={"tmz-copilot-advice "+String(answer.advice||"NO_ACTION").toLowerCase()}>{answer.advice || "NO ACTION"}</b>
-                  {answer.engineConfidence != null && <span className="tmz-copilot-engine-confidence">ENGINE CANDIDATE CONFIDENCE {answer.engineConfidence}%</span>}
-                  {answer.confidence != null && answer.provider !== "context-engine" && <span className="tmz-copilot-confidence">COPILOT CONFIDENCE {answer.confidence}%</span>}
-                  {answer.provider === "context-engine" && <span className="tmz-copilot-confidence tmz-copilot-confidence-muted">COPILOT CONFIDENCE —</span>}
-                  {answer.openPositionCount != null && <span>{answer.openPositionCount} OPEN POSITION{answer.openPositionCount === 1 ? "" : "S"}</span>}
+
+                <div className="tmz-copilot-compact-safety">
+                  <span><i/> READ ONLY</span>
+                  <span>NO AUTOMATIC TRADING</span>
+                  {answer.provider === "context-engine" && <span>SAFE FALLBACK</span>}
                 </div>
-                {(Array.isArray(answer.keyFactors) && answer.keyFactors.length > 0) && (
-                  <div className="tmz-copilot-insights">
-                    <div><strong>KEY FACTORS</strong>{answer.keyFactors.map((item,index)=><span key={index}>• {item}</span>)}</div>
-                    {Array.isArray(answer.risks) && answer.risks.length > 0 && <div><strong>RISKS</strong>{answer.risks.map((item,index)=><span key={index}>• {item}</span>)}</div>}
-                  </div>
-                )}
-                <div className="tmz-copilot-telemetry">
-                  <span><i/> LIVE ANALYSIS</span>
-                  <span>{answer.marketType === "SPOT" ? "SPOT" : "M-USDT"}</span>
-                  <span>{answer.providerStatus || (answer.provider ? String(answer.provider).toUpperCase() : "AI CORE")}</span>
-                  {answer.dataAgeSeconds != null && <span>{answer.dataAgeSeconds < 60 ? "FRESH DATA" : "DATA AGE "+answer.dataAgeSeconds+"s"}</span>}
-                  {answer.conversationTurnsUsed > 0 && <span>CONTEXT {answer.conversationTurnsUsed} TURNS</span>}
-                  {answer.snapshotDelta?.decisionChanged && <span>DECISION CHANGED</span>}
-                  {answer.snapshotDelta?.regimeChanged && <span>REGIME CHANGED</span>}
-                  {answer.decisionIntegrity?.enforced && <span>SAFETY GUARD APPLIED</span>}
-                </div>
-                {answer.finalDecision && <b className={"tmz-copilot-decision "+String(answer.finalDecision).toLowerCase()}>{answer.finalDecision}</b>}
               </>
             )}
           </div>
