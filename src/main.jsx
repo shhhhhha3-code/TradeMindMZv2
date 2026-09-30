@@ -67,6 +67,8 @@ function TradeMindAiCopilot({fullPage=false}){
   const [activityStage,setActivityStage]=useState("READY");
   const activityTimers=React.useRef([]);
 
+  const action = answer?.action || "ASK";
+
   const smartFollowUpLabels={
     LIVE_SIGNAL:"RUN FRESH SIGNAL",
     BEST_SETUP:"CHECK BEST SETUP",
