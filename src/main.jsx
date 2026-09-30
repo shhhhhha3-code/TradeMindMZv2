@@ -280,7 +280,7 @@ function TradeMindAiCopilot({fullPage=false}){
                       </div>
                     </div>
                   </details>
-                ) : null)
+                ) : null)}
 
                 <details className="tmz-copilot-compact-details">
                   <summary><span>KORT FORKLARING</span><ChevronRight/></summary>
