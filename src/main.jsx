@@ -242,6 +242,33 @@ function TradeMindAiCopilot({fullPage=false}){
                   <div><span>MARKET</span><strong>{answer.marketType === "SPOT" ? "SPOT" : "M-USDT"}</strong></div>
                 </div>
 
+                {answer.action === "POSITION_CHECK" && (
+                  <details className="tmz-copilot-compact-details" open>
+                    <summary><span>MY LIVE POSITION</span><ChevronRight/></summary>
+                    <div className="tmz-copilot-candidate-compact">
+                      {Array.isArray(answer.openPositions) && answer.openPositions.length ? (
+                        answer.openPositions.slice(0,3).map((position, index) => {
+                          const pnl = Number(position?.unrealizedPnl);
+                          const pnlPct = Number(position?.unrealizedPnlPercent);
+                          return (
+                            <div key={position?.id || position?.symbol || index} style={{width:"100%"}}>
+                              <div><strong>{position?.symbol || "—"}</strong><b>{String(position?.side || position?.direction || "—").toUpperCase()}</b></div>
+                              <div>
+                                <span>ENTRY <strong>{position?.entryPrice ?? "—"}</strong></span>
+                                <span>CURRENT <strong>{position?.currentPrice ?? "—"}</strong></span>
+                                <span>PNL <strong>{Number.isFinite(pnl) ? (pnl >= 0 ? "+" : "") + pnl : "—"}</strong></span>
+                                <span>PNL% <strong>{Number.isFinite(pnlPct) ? (pnlPct >= 0 ? "+" : "") + pnlPct.toFixed(2) + "%" : "—"}</strong></span>
+                                <span>LEV <strong>{position?.leverage ?? "—"}</strong></span>
+                              </div>
+                            </div>
+                          );
+                        })
+                      ) : (
+                        <div><strong>NO OPEN POSITION</strong><span>Pionex reports no currently open USDT-M position.</span></div>
+                      )}
+                    </div>
+                  </details>
+                )}
                 {answer.decisionState === "AI_DECISION_UNAVAILABLE" && answer.copilotUiState?.candidate && (
                   <details className="tmz-copilot-compact-details" open>
                     <summary><span>ENGINE CANDIDATE <em>(IKKE BEKREFTET)</em></span><ChevronRight/></summary>
