@@ -494,12 +494,19 @@ async function syncRows(supabase:any,rows:any[],runType:string) {
 
 async function runPipeline(supabase:any) {
   const started=Date.now();
-  const [fixturesBody,resultsBody]=await Promise.all([
+  const [fixturesBody,upcomingBody,resultsBody]=await Promise.all([
     footballApi("/fixtures/today",{limit:"1000"}),
+    footballApi("/fixtures/upcoming",{days:"2",limit:"1000"}),
     footballApi("/results/yesterday",{limit:"1000"})
   ]);
-  const fixtureRows=Array.isArray(fixturesBody?.data)?fixturesBody.data:[];
+  const todayRows=Array.isArray(fixturesBody?.data)?fixturesBody.data:[];
+  const upcomingRows=Array.isArray(upcomingBody?.data)?upcomingBody.data:[];
   const resultRows=Array.isArray(resultsBody?.data)?resultsBody.data:[];
+  const fixtureRows=Array.from(new Map(
+    [...todayRows,...upcomingRows]
+      .filter((row:any)=>row?.match_id||row?.id)
+      .map((row:any)=>[String(row.match_id||row.id),row])
+  ).values());
   for (const row of resultRows.filter(isEuropeanMatch)) await upsertMatch(supabase,row);
   const evaluatedBefore=await evaluatePredictions(supabase);
   const modelBefore=evaluatedBefore ? await retrainModel(supabase) : await getModel(supabase);
