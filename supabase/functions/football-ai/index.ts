@@ -550,6 +550,52 @@ Deno.serve(async (req)=>{
     }
     if (action==="train") return json({ok:true,model:await retrainModel(supabase)});
 
+    if (action==="history") {
+      const from=url.searchParams.get("from")||new Date(Date.now()-30*86400000).toISOString().slice(0,10);
+      const to=url.searchParams.get("to")||new Date().toISOString().slice(0,10);
+      const start=new Date(from+"T00:00:00.000Z"),end=new Date(to+"T23:59:59.999Z");
+      const {data:matches,error:matchError}=await supabase.from("football_matches")
+        .select("id,league,kickoff_at,home_team,away_team,status,home_score,away_score")
+        .gte("kickoff_at",start.toISOString()).lte("kickoff_at",end.toISOString())
+        .order("kickoff_at",{ascending:false}).limit(1000);
+      if(matchError) throw matchError;
+      const ids=(matches||[]).map((m:any)=>m.id);
+      let predictions:any[]=[];
+      if(ids.length){
+        const {data:rows,error}=await supabase.from("football_ai_predictions")
+          .select("id,match_id,prediction,selected_outcome,confidence,implied_probability,odds,value_percent,model_score,status,reasoning,model_version,provider,model,created_at,evaluated_at,pnl,settled_result")
+          .in("match_id",ids).order("created_at",{ascending:false}).limit(1000);
+        if(error) throw error;
+        predictions=rows||[];
+      }
+      const matchMap=new Map((matches||[]).map((m:any)=>[m.id,m]));
+      const rows=predictions.map((p:any)=>({...p,match:matchMap.get(p.match_id)||null}));
+      const settled=rows.filter((p:any)=>p.status==="WON"||p.status==="LOST"||p.status==="VOID");
+      const wins=settled.filter((p:any)=>p.status==="WON").length;
+      const losses=settled.filter((p:any)=>p.status==="LOST").length;
+      const voids=settled.filter((p:any)=>p.status==="VOID").length;
+      const pnl=settled.reduce((s:number,p:any)=>s+num(p.pnl),0);
+      const value=rows.filter((p:any)=>p.value_percent!=null&&num(p.value_percent)>0);
+      const leagues:any={};
+      for(const p of settled){
+        const league=p.match?.league||"Ukjent";
+        if(!leagues[league]) leagues[league]={league,wins:0,losses:0,voids:0,pnl:0};
+        leagues[league].wins+=p.status==="WON"?1:0;
+        leagues[league].losses+=p.status==="LOST"?1:0;
+        leagues[league].voids+=p.status==="VOID"?1:0;
+        leagues[league].pnl+=num(p.pnl);
+      }
+      const {data:model}=await supabase.from("football_ai_model_weights")
+        .select("model_name,model_version,training_samples,accuracy,roi,brier_score,log_loss,updated_at")
+        .eq("model_name",MODEL_NAME).maybeSingle();
+      return json({
+        ok:true,from,to,predictions:rows,
+        summary:{total:rows.length,settled:settled.length,wins,losses,voids,hit_rate:settled.length?wins/settled.length*100:null,pnl,roi_per_prediction:settled.length?pnl/settled.length*100:null,value_candidates:value.length},
+        leagues:Object.values(leagues).sort((a:any,b:any)=>b.pnl-a.pnl),
+        model:model||null
+      });
+    }
+
     if (action==="dashboard") {
       const date=url.searchParams.get("date")||new Date().toISOString().slice(0,10);
       const start=new Date(date+"T00:00:00.000Z"),end=new Date(date+"T23:59:59.999Z");
@@ -583,7 +629,7 @@ Deno.serve(async (req)=>{
         }
       });
     }
-    return json({ok:false,error:"Unknown action",supported:["health","pipeline","sync","dashboard","evaluate","train"]},400);
+    return json({ok:false,error:"Unknown action",supported:["health","pipeline","sync","dashboard","history","evaluate","train"]},400);
   } catch(error) {
     return json({ok:false,error:error instanceof Error?error.message:String(error)},500);
   }
