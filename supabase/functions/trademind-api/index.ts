@@ -3046,14 +3046,45 @@ async function handle(req) {
           : snapshotDelta
             ? "Ingen målbar endring i beslutning, regime eller sammenlignbare signaler siden forrige snapshot."
             : "Ingen tidligere snapshot er tilgjengelig for en endringsanalyse.";
+        const positionText = livePositions.length
+          ? livePositions.slice(0,3).map((position) => {
+              const symbol = position?.symbol || "Ukjent";
+              const side = position?.side || position?.direction || "—";
+              const pnl = position?.unrealizedPnl != null ? String(position.unrealizedPnl) : "—";
+              const pnlPct = position?.unrealizedPnlPercent != null ? String(position.unrealizedPnlPercent) + "%" : "—";
+              return symbol + " " + side + ", PNL " + pnl + ", PNL% " + pnlPct;
+            }).join(" | ")
+          : "Ingen åpne Pionex-posisjoner er registrert.";
+        const setupText = current?.symbol
+          ? "Engine candidate: " + String(current.symbol) + " " + String(current.direction || "—") +
+            ", score " + String(current.score ?? "—") +
+            ", candidate confidence " + String(current.confidence ?? "—") + "%" +
+            ", R:R " + String(current.riskReward ?? "—") + "."
+          : "Ingen aktuell engine-kandidat er tilgjengelig.";
+        const statusText = diagnostics
+          ? "Scheduler " + String(diagnostics.status || "UNKNOWN") +
+            ", stage " + String(diagnostics.current_stage || "—") +
+            ", PERP scanned " + String(diagnostics.perp_scanned ?? "—") +
+            ", SPOT scanned " + String(diagnostics.spot_scanned ?? "—") + "."
+          : "Scheduler-diagnostikk er ikke tilgjengelig i dette svaret.";
+        const fallbackByAction = {
+          POSITION_CHECK: "Posisjonssjekk: " + positionText + " " + decisionText,
+          BEST_SETUP: "Best setup: " + setupText + " Dette er engine-data, ikke en bekreftet AI-beslutning. " + decisionText,
+          WHAT_NOW: "Hva nå: " + (livePositions.length ? "Start med den eksisterende posisjonen: " + positionText : setupText) + " " + decisionText,
+          WHY: "Hvorfor: " + decisionText + " " + engineConfidenceText + " " + changeText,
+          WHAT_CHANGED: "Hva endret seg: " + changeText + " " + decisionText,
+          LIVE_SIGNAL: "Live signal: " + setupText + " " + decisionText,
+          DEEP_ANALYSIS: "Dyp analyse: " + decisionText + " " + positionText + " " + setupText + " " + changeText,
+          STATUS: "Systemstatus: " + statusText + " Data age: " + String(ageSecondsFrom(snapshot?.created_at, snapshot?.createdAt, snapshotPayload?.createdAt, snapshotPayload?.updatedAt) ?? "unknown") + "s.",
+          DIAGNOSTICS: "Diagnostikk: " + statusText + " Read-only sikkerhetskontrakt er aktiv.",
+          ASK: "Spørsmål: " + decisionText + " " + engineConfidenceText + " " + changeText,
+        };
         const fallbackAnswer = [
           "AI-provideren er midlertidig utilgjengelig.",
           freshScanUnavailable
             ? "En fersk AI-skanning kunne ikke fullføres, så Copilot bruker siste tilgjengelige snapshot."
             : "Context Engine har derfor brukt siste tilgjengelige TradeMind-telemetry.",
-          decisionText,
-          engineConfidenceText,
-          changeText,
+          fallbackByAction[action] || fallbackByAction.ASK,
           "Ingen ordre er sendt."
         ].join(" ");
 
