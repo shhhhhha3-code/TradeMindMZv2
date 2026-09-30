@@ -17,17 +17,24 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Download Football AI source ZIP
+        shell: bash
+        run: |
+          set -e
+          curl -fL --retry 3 -o /tmp/football-ai.zip "https://github.com/shhhhhha3-code/TradeMindMZ/raw/refs/heads/main/football-ai-app.zip"
+          unzip -t /tmp/football-ai.zip >/dev/null
+
       - name: Replace project with Football AI
         shell: bash
         run: |
           set -e
           rm -rf /tmp/football-ai
           mkdir -p /tmp/football-ai
-          unzip -q football-ai-app.zip -d /tmp/football-ai
+          unzip -q /tmp/football-ai.zip -d /tmp/football-ai
           find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
           cp -a /tmp/football-ai/football-ai-app/. .
           rm -f football-ai-app.zip
-          rm -rf /tmp/football-ai
+          rm -rf /tmp/football-ai /tmp/football-ai.zip
 
       - name: Commit imported project
         run: |
