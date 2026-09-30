@@ -242,7 +242,28 @@ function TradeMindAiCopilot({fullPage=false}){
                   <div><span>MARKET</span><strong>{answer.marketType === "SPOT" ? "SPOT" : "M-USDT"}</strong></div>
                 </div>
 
-                {answer.decisionState === "AI_DECISION_UNAVAILABLE" && answer.copilotUiState?.candidate && (
+                {action === "POSITION_CHECK" ? (
+                  <details className="tmz-copilot-compact-details" open>
+                    <summary><span>MY POSITION</span><ChevronRight/></summary>
+                    <div className="tmz-copilot-position-compact">
+                      {Array.isArray(answer.positions) && answer.positions.length ? answer.positions.map((position,index)=>(
+                        <div className="tmz-copilot-position-row" key={position.symbol || index}>
+                          <div>
+                            <strong>{position.symbol || "—"}</strong>
+                            <b>{position.side || "—"}</b>
+                          </div>
+                          <div>
+                            <span>PNL <strong>{position.unrealizedPnl ?? "—"}</strong></span>
+                            <span>PNL% <strong>{position.unrealizedPnlPercent == null ? "—" : position.unrealizedPnlPercent + "%"}</strong></span>
+                            <span>ENTRY <strong>{position.entryPrice ?? "—"}</strong></span>
+                          </div>
+                        </div>
+                      )) : (
+                        <div className="tmz-copilot-no-position">Ingen åpne Pionex-posisjoner registrert.</div>
+                      )}
+                    </div>
+                  </details>
+                ) : (["BEST_SETUP","LIVE_SIGNAL"].includes(action) || (action === "WHAT_NOW" && answer.copilotUiState?.candidate)) && answer.decisionState === "AI_DECISION_UNAVAILABLE" && answer.copilotUiState?.candidate ? (
                   <details className="tmz-copilot-compact-details" open>
                     <summary><span>ENGINE CANDIDATE <em>(IKKE BEKREFTET)</em></span><ChevronRight/></summary>
                     <div className="tmz-copilot-candidate-compact">
@@ -257,7 +278,7 @@ function TradeMindAiCopilot({fullPage=false}){
                       </div>
                     </div>
                   </details>
-                )}
+                ) : null)
 
                 <details className="tmz-copilot-compact-details">
                   <summary><span>KORT FORKLARING</span><ChevronRight/></summary>
