@@ -153,18 +153,21 @@ function TradeMindAiCopilot({fullPage=false}){
             {!fullPage && <button type="button" className="tmz-copilot-close" onClick={()=>setOpen(false)}><X/></button>}
           </div>
 
-          <div className={"tmz-copilot-status "+String(activityStage).toLowerCase()}>
+          <div className={"tmz-copilot-status "+String(activityStage).toLowerCase()+" "+(answer?.decisionState === "AI_DECISION_UNAVAILABLE" ? "safe-mode" : "")}>
             <div className="tmz-copilot-status-head">
-              <span><i className="tmz-copilot-status-dot"/> AI CORE {loading ? "PROCESSING" : "READY"}</span>
-              <b>{activityStage}</b>
+              <span><i className="tmz-copilot-status-dot"/> AI CORE {loading ? "PROCESSING" : answer?.decisionState === "AI_DECISION_UNAVAILABLE" ? "SAFE MODE" : "READY"}</span>
+              <b>{answer?.decisionState === "AI_DECISION_UNAVAILABLE" && !loading ? "SAFE" : activityStage}</b>
             </div>
             <div className="tmz-copilot-pipeline" aria-label="AI activity">
-              {["ANALYZING","SCANNING","DECISION","READY"].map((stage,index)=>{
-                const activeIndex=["ANALYZING","SCANNING","DECISION","READY"].indexOf(activityStage);
+              {(answer?.decisionState === "AI_DECISION_UNAVAILABLE" && !loading ? ["ANALYZING","SCANNING","UNAVAILABLE","SAFE"] : ["ANALYZING","SCANNING","DECISION","READY"]).map((stage,index)=>{
+                const pipelineStages = answer?.decisionState === "AI_DECISION_UNAVAILABLE" && !loading
+                  ? ["ANALYZING","SCANNING","UNAVAILABLE","SAFE"]
+                  : ["ANALYZING","SCANNING","DECISION","READY"];
+                const activeIndex=pipelineStages.indexOf(answer?.decisionState === "AI_DECISION_UNAVAILABLE" && !loading ? "SAFE" : activityStage);
                 const done=activityStage!=="ERROR" && index<activeIndex;
                 const current=activityStage===stage;
                 return <React.Fragment key={stage}>
-                  <span className={"tmz-copilot-node "+(done ? "done" : "")+(current ? " current" : "")}>
+                  <span className={"tmz-copilot-node "+(done ? "done" : "")+(current ? " current" : "")+(stage === "UNAVAILABLE" ? "warning" : "")}>
                     <i/>
                     <em>{stage}</em>
                   </span>
@@ -214,6 +217,13 @@ function TradeMindAiCopilot({fullPage=false}){
                       <span>AI DECISION: {answer.copilotUiState.aiDecision || "—"}</span>
                       <span>AI CONFIDENCE: {answer.copilotUiState.aiConfidence == null ? "N/A" : `${answer.copilotUiState.aiConfidence}%`}</span>
                     </div>
+                    {answer.decisionState === "AI_DECISION_UNAVAILABLE" && answer.copilotUiState.candidate && (
+                      <div className="tmz-copilot-engine-candidate">
+                        <strong>ENGINE CANDIDATE — NOT AI CONFIRMED</strong>
+                        <span>{answer.copilotUiState.candidate.symbol || "—"} · {answer.copilotUiState.candidate.direction || "—"}</span>
+                        <small>SCORE {answer.copilotUiState.candidate.score ?? "—"} · CANDIDATE CONFIDENCE {answer.copilotUiState.candidate.confidence ?? "—"}% · R/R {answer.copilotUiState.candidate.riskReward ?? "—"}</small>
+                      </div>
+                    )}
                   </div>
                 )}
                 {answer.decisionState === "AI_DECISION_UNAVAILABLE" && (
