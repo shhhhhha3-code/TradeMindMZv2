@@ -42,7 +42,7 @@ jobs:
       - name: Initialize Capacitor
         run: |
           if [ ! -f capacitor.config.json ] && [ ! -f capacitor.config.ts ]; then
-            npx cap init "Football AI" "com.footbalaI.app" --web-dir dist
+            npx cap init "Football AI" "com.footballai.app" --web-dir dist
           fi
           npx cap add android || true
           npx cap sync android
