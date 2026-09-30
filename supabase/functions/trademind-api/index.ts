@@ -3284,6 +3284,13 @@ async function handle(req) {
         freshScanSucceeded,
         freshScanUnavailable,
         openPositionCount:livePositions.length,
+        positions:livePositions.slice(0,3).map((position)=>({
+          symbol:position?.symbol || null,
+          side:position?.side || position?.direction || null,
+          entryPrice:position?.entryPrice ?? position?.entry_price ?? null,
+          unrealizedPnl:position?.unrealizedPnl ?? position?.unrealized_pnl ?? null,
+          unrealizedPnlPercent:position?.unrealizedPnlPercent ?? position?.unrealized_pnl_percent ?? null,
+        })),
         readOnly:true,
         automaticTrading:false,
         noOrderPlacement:true,
