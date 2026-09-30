@@ -3067,6 +3067,18 @@ async function handle(req) {
             ", PERP scanned " + String(diagnostics.perp_scanned ?? "—") +
             ", SPOT scanned " + String(diagnostics.spot_scanned ?? "—") + "."
           : "Scheduler-diagnostikk er ikke tilgjengelig i dette svaret.";
+        const fallbackHeadlineByAction = {
+          ASK:"CONTEXT ENGINE",
+          WHY:"WHY THIS DECISION",
+          WHAT_CHANGED:"WHAT CHANGED",
+          LIVE_SIGNAL:"LIVE SIGNAL",
+          BEST_SETUP:"BEST SETUP",
+          WHAT_NOW:"WHAT NOW",
+          POSITION_CHECK:"MY POSITION",
+          DEEP_ANALYSIS:"DEEP ANALYSIS",
+          STATUS:"SYSTEM STATUS",
+          DIAGNOSTICS:"SYSTEM DIAGNOSTICS",
+        };
         const fallbackByAction = {
           POSITION_CHECK: "Posisjonssjekk: " + positionText + " " + decisionText,
           BEST_SETUP: "Best setup: " + setupText + " Dette er engine-data, ikke en bekreftet AI-beslutning. " + decisionText,
@@ -3106,7 +3118,7 @@ async function handle(req) {
           webSearch:false,
           action,
           marketType,
-          headline:"CONTEXT ENGINE",
+          headline:fallbackHeadlineByAction[action] || "CONTEXT ENGINE",
           answer:fallbackAnswer,
           explanation:fallbackExplanation,
           decisionBasis,
