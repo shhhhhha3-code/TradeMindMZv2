@@ -3163,6 +3163,18 @@ async function handle(req) {
         });
       }
 
+      const actionHeadlines = {
+        ASK:"TRADEMIND AI",
+        WHY:"WHY THIS DECISION",
+        WHAT_CHANGED:"WHAT CHANGED",
+        LIVE_SIGNAL:"LIVE SIGNAL",
+        BEST_SETUP:"BEST SETUP",
+        WHAT_NOW:"WHAT NOW",
+        POSITION_CHECK:"MY POSITION",
+        DEEP_ANALYSIS:"DEEP ANALYSIS",
+        STATUS:"SYSTEM STATUS",
+        DIAGNOSTICS:"SYSTEM DIAGNOSTICS",
+      };
       const allowedAdvice = new Set([
         "WAIT",
         "HOLD",
@@ -3219,7 +3231,7 @@ async function handle(req) {
         webSearch:webSearchUsed,
         action,
         marketType,
-        headline:String(raw?.headline || "TRADEMIND AI"),
+        headline:actionHeadlines[action] || String(raw?.headline || "TRADEMIND AI"),
         answer:String(raw?.answer || outputText || "I could not produce an answer from the available TradeMindMZ data."),
         explanation:String(raw?.explanation || "").slice(0, 900),
         decisionBasis,
