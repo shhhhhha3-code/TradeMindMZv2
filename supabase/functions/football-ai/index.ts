@@ -298,6 +298,35 @@ Deno.serve(async (req) => {
       });
     }
 
+    if (action === "dashboard") {
+      const start = new Date(date + "T00:00:00Z").toISOString();
+      const end = new Date(date + "T23:59:59Z").toISOString();
+
+      const { data: matches, error: matchError } = await supabase
+        .from("football_matches")
+        .select("id,league,kickoff_at,home_team,away_team,status,home_score,away_score")
+        .gte("kickoff_at", start)
+        .lte("kickoff_at", end)
+        .order("kickoff_at", { ascending: true })
+        .limit(100);
+
+      if (matchError) throw matchError;
+
+      const matchIds = (matches || []).map((m: any) => m.id);
+      let predictions: any[] = [];
+      if (matchIds.length) {
+        const { data: predictionRows, error: predictionError } = await supabase
+          .from("football_ai_predictions")
+          .select("id,match_id,prediction,confidence,odds,value_percent,model_score,status,reasoning,provider,model,created_at")
+          .in("match_id", matchIds)
+          .order("created_at", { ascending: false });
+        if (predictionError) throw predictionError;
+        predictions = predictionRows || [];
+      }
+
+      return json({ ok: true, date, matches: matches || [], predictions });
+    }
+
     if (action === "health") {
       return json({
         ok: true,
