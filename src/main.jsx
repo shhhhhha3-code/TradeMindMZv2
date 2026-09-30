@@ -92,6 +92,22 @@ function TradeMindAiCopilot({fullPage=false}){
       setTimeout(()=>setActivityStage("DECISION"), 1450)
     );
     try{
+      // POSITION_CHECK has a direct read-only Pionex feed in addition to the
+      // Copilot API. This keeps the button functional even when an AI provider
+      // is unavailable and prevents Copilot reasoning from becoming the source
+      // of truth for live position facts.
+      const livePositionPromise = action==="POSITION_CHECK"
+        ? fetchLivePositions()
+            .then(result => ({
+              positions:Array.isArray(result?.positions) ? result.positions : [],
+              error:null,
+            }))
+            .catch(error => ({
+              positions:[],
+              error:error instanceof Error ? error.message : "Pionex live positions unavailable.",
+            }))
+        : Promise.resolve({positions:null,error:null});
+
       const res=await fetch(apiUrl("/api/ai/copilot"),{
         method:"POST",
         headers:{"Content-Type":"application/json",Accept:"application/json"},
@@ -103,8 +119,66 @@ function TradeMindAiCopilot({fullPage=false}){
         }),
       });
       const data=await res.json().catch(()=>({}));
-      if(!res.ok || !data?.success) throw new Error(data?.error || "TradeMind AI is unavailable.");
-      setAnswer(data);
+      const livePositionResult = await livePositionPromise;
+      const backendPositions =
+        Array.isArray(data?.openPositions) ? data.openPositions :
+        Array.isArray(data?.positions) ? data.positions :
+        [];
+      const resolvedPositions =
+        action==="POSITION_CHECK"
+          ? (livePositionResult.positions?.length ? livePositionResult.positions : backendPositions)
+          : backendPositions;
+      const mergedAnswer = action==="POSITION_CHECK"
+        ? {
+            ...data,
+            action:"POSITION_CHECK",
+            openPositions:resolvedPositions,
+            positions:resolvedPositions,
+            positionFeedError:
+              livePositionResult.error ||
+              data?.positionFeedError ||
+              null,
+          }
+        : data;
+
+      if(!res.ok || !data?.success){
+        if(action==="POSITION_CHECK" && resolvedPositions.length){
+          setAnswer({
+            success:true,
+            provider:"position-feed",
+            providerStatus:"POSITION FEED",
+            model:"pionex-live-position-feed",
+            webSearch:false,
+            action:"POSITION_CHECK",
+            marketType,
+            headline:"MY POSITION",
+            answer:"Live Pionex position loaded directly from the read-only position feed.",
+            explanation:"Copilot AI is unavailable, but the live position is read directly from Pionex and is not dependent on AI credentials.",
+            severity:"INFO",
+            advice:"WAIT",
+            confidence:0,
+            dataAgeSeconds:0,
+            openPositionCount:resolvedPositions.length,
+            openPositions:resolvedPositions,
+            positions:resolvedPositions,
+            positionFeedError:livePositionResult.error || null,
+            readOnly:true,
+            automaticTrading:false,
+            noOrderPlacement:true,
+          });
+          setActivityStage("READY");
+          setConversation((previous) => [
+            ...previous,
+            { role:"user", content:text },
+            { role:"assistant", content:"Live Pionex position loaded directly from the read-only position feed." },
+          ].slice(-8));
+          setMessage("");
+          return;
+        }
+        throw new Error(data?.error || "TradeMind AI is unavailable.");
+      }
+
+      setAnswer(mergedAnswer);
       setConversation((previous) => [
         ...previous,
         { role:"user", content:text },
@@ -242,33 +316,42 @@ function TradeMindAiCopilot({fullPage=false}){
                   <div><span>MARKET</span><strong>{answer.marketType === "SPOT" ? "SPOT" : "M-USDT"}</strong></div>
                 </div>
 
-                {answer.action === "POSITION_CHECK" && (
-                  <details className="tmz-copilot-compact-details" open>
-                    <summary><span>MY LIVE POSITION</span><ChevronRight/></summary>
-                    <div className="tmz-copilot-candidate-compact">
-                      {Array.isArray(answer.openPositions) && answer.openPositions.length ? (
-                        answer.openPositions.slice(0,3).map((position, index) => {
-                          const pnl = Number(position?.unrealizedPnl);
-                          const pnlPct = Number(position?.unrealizedPnlPercent);
-                          return (
-                            <div key={position?.id || position?.symbol || index} style={{width:"100%"}}>
-                              <div><strong>{position?.symbol || "—"}</strong><b>{String(position?.side || position?.direction || "—").toUpperCase()}</b></div>
-                              <div>
-                                <span>ENTRY <strong>{position?.entryPrice ?? "—"}</strong></span>
-                                <span>CURRENT <strong>{position?.currentPrice ?? "—"}</strong></span>
-                                <span>PNL <strong>{Number.isFinite(pnl) ? (pnl >= 0 ? "+" : "") + pnl : "—"}</strong></span>
-                                <span>PNL% <strong>{Number.isFinite(pnlPct) ? (pnlPct >= 0 ? "+" : "") + pnlPct.toFixed(2) + "%" : "—"}</strong></span>
-                                <span>LEV <strong>{position?.leverage ?? "—"}</strong></span>
+                {answer.action === "POSITION_CHECK" && (() => {
+                  const livePositionList =
+                    Array.isArray(answer.openPositions) ? answer.openPositions :
+                    Array.isArray(answer.positions) ? answer.positions :
+                    [];
+                  const positionFeedError = answer.positionFeedError;
+                  return (
+                    <details className="tmz-copilot-compact-details" open>
+                      <summary><span>MY LIVE POSITION</span><ChevronRight/></summary>
+                      <div className="tmz-copilot-candidate-compact">
+                        {livePositionList.length ? (
+                          livePositionList.slice(0,3).map((position, index) => {
+                            const pnl = Number(position?.unrealizedPnl);
+                            const pnlPct = Number(position?.unrealizedPnlPercent);
+                            return (
+                              <div key={position?.id || position?.symbol || index} style={{width:"100%"}}>
+                                <div><strong>{position?.symbol || "—"}</strong><b>{String(position?.side || position?.direction || "—").toUpperCase()}</b></div>
+                                <div>
+                                  <span>ENTRY <strong>{position?.entryPrice ?? "—"}</strong></span>
+                                  <span>CURRENT <strong>{position?.currentPrice ?? position?.markPrice ?? "—"}</strong></span>
+                                  <span>PNL <strong>{Number.isFinite(pnl) ? (pnl >= 0 ? "+" : "") + pnl : "—"}</strong></span>
+                                  <span>PNL% <strong>{Number.isFinite(pnlPct) ? (pnlPct >= 0 ? "+" : "") + pnlPct.toFixed(2) + "%" : "—"}</strong></span>
+                                  <span>LEV <strong>{position?.leverage ?? "—"}</strong></span>
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })
-                      ) : (
-                        <div><strong>NO OPEN POSITION</strong><span>Pionex reports no currently open USDT-M position.</span></div>
-                      )}
-                    </div>
-                  </details>
-                )}
+                            );
+                          })
+                        ) : positionFeedError ? (
+                          <div><strong>POSITION FEED UNAVAILABLE</strong><span>{String(positionFeedError)}</span></div>
+                        ) : (
+                          <div><strong>NO OPEN POSITION</strong><span>Pionex reports no currently open USDT-M position.</span></div>
+                        )}
+                      </div>
+                    </details>
+                  );
+                })()}
                 {answer.decisionState === "AI_DECISION_UNAVAILABLE" && answer.copilotUiState?.candidate && (
                   <details className="tmz-copilot-compact-details" open>
                     <summary><span>ENGINE CANDIDATE <em>(IKKE BEKREFTET)</em></span><ChevronRight/></summary>
