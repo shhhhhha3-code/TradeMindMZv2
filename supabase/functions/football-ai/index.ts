@@ -6,14 +6,18 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
 };
 
-const API_BASE = "https://v3.football.api-sports.io";
-const DEFAULT_LEAGUES = [
-  { id: 39, name: "Premier League" },
-  { id: 140, name: "La Liga" },
-  { id: 78, name: "Bundesliga" },
-  { id: 135, name: "Serie A" },
-  { id: 61, name: "Ligue 1" },
-  { id: 2, name: "Champions League" },
+const API_BASE = "https://api.footballsoccerapi.com/v1";
+
+const EUROPEAN_COUNTRIES = new Set([
+  "England","Spain","Italy","Germany","France","Netherlands","Portugal","Belgium",
+  "Turkey","Greece","Austria","Switzerland","Scotland","Denmark","Norway","Sweden",
+  "Finland","Poland","Czech Republic","Czechia","Croatia","Serbia","Ukraine",
+  "Romania","Hungary","Slovakia","Slovenia","Bulgaria","Cyprus","Israel",
+  "Republic of Ireland","Ireland","Iceland","Russia",
+]);
+
+const EUROPEAN_COMPETITIONS = [
+  "Champions League","Europa League","Conference League",
 ];
 
 function json(data: unknown, status = 200) {
@@ -24,103 +28,79 @@ function json(data: unknown, status = 200) {
 }
 
 function getSecretKey() {
-  const map = Deno.env.get("SUPABASE_SECRET_KEYS");
-  if (map) {
-    try {
-      const parsed = JSON.parse(map);
-      if (parsed.default) return parsed.default;
-    } catch (_) {}
-  }
-  return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  return Deno.env.get("FOOTBALL_API_KEY") || "";
 }
 
-function getDate(offset = 0) {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + offset);
-  return d.toISOString().slice(0, 10);
-}
-
-async function footballApi(path: string, params: Record<string, string>) {
-  const key = Deno.env.get("FOOTBALL_API_KEY");
+async function footballApi(path: string, params: Record<string, string> = {}) {
+  const key = getSecretKey();
   if (!key) throw new Error("FOOTBALL_API_KEY is not configured in Supabase secrets");
 
   const url = new URL(API_BASE + path);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
 
   const response = await fetch(url, {
-    headers: {
-      "x-apisports-key": key,
-      Accept: "application/json",
-    },
+    headers: { "X-API-Key": key, Accept: "application/json" },
   });
 
   const body = await response.json();
   if (!response.ok) {
-    throw new Error(`Football API HTTP ${response.status}: ${JSON.stringify(body).slice(0, 500)}`);
+    throw new Error(`Football Soccer API HTTP ${response.status}: ${JSON.stringify(body).slice(0, 500)}`);
   }
-  if (body?.errors && Object.keys(body.errors).length) {
-    throw new Error(`Football API error: ${JSON.stringify(body.errors)}`);
-  }
+  if (body?.error) throw new Error(String(body.error));
   return body;
 }
 
-function normalizeOdds(rows: any[]) {
-  const result: any[] = [];
-  for (const item of rows || []) {
-    const fixtureId = item?.fixture?.id;
-    const bookmakers = item?.bookmakers || [];
-    for (const bookmaker of bookmakers) {
-      for (const bet of bookmaker?.bets || []) {
-        const market = bet?.name;
-        if (!market) continue;
-        for (const value of bet?.values || []) {
-          const odd = Number(value?.odd);
-          if (!Number.isFinite(odd) || odd <= 1) continue;
-          result.push({
-            fixtureId,
-            bookmaker: bookmaker?.name || "Unknown",
-            market,
-            selection: value?.value || "",
-            odds: odd,
-          });
-        }
-      }
-    }
-  }
-  return result;
+function isEuropeanMatch(match: any) {
+  const country = match?.country_name || match?.country || "";
+  const league = match?.league_name || match?.league || "";
+  return EUROPEAN_COUNTRIES.has(country) ||
+    EUROPEAN_COMPETITIONS.some((name) => String(league).toLowerCase().includes(name.toLowerCase()));
 }
 
-function marketPrediction(odds: any[]) {
-  const oneXtwo = odds.filter((o) => /match winner|1x2/i.test(o.market));
-  if (!oneXtwo.length) return null;
-
-  const best: Record<string, any> = {};
-  for (const row of oneXtwo) {
-    if (!best[row.selection] || row.odds < best[row.selection].odds) best[row.selection] = row;
+function pickPrice(m: any, side: "home" | "draw" | "away") {
+  const keys = side === "home"
+    ? ["home_kickoff_price","home_price","home_odds"]
+    : side === "draw"
+      ? ["draw_kickoff_price","draw_price","draw_odds"]
+      : ["away_kickoff_price","away_price","away_odds"];
+  for (const key of keys) {
+    const value = Number(m?.[key]);
+    if (Number.isFinite(value) && value > 1) return value;
   }
+  return null;
+}
 
-  const entries = Object.values(best);
-  if (entries.length < 2) return null;
+function marketPrediction(match: any) {
+  const prices = [
+    { selection: "home", odds: pickPrice(match, "home") },
+    { selection: "draw", odds: pickPrice(match, "draw") },
+    { selection: "away", odds: pickPrice(match, "away") },
+  ].filter((x) => x.odds);
 
-  const inv = entries.map((x: any) => 1 / x.odds);
+  if (prices.length < 2) return null;
+  const inv = prices.map((x) => 1 / Number(x.odds));
   const total = inv.reduce((a, b) => a + b, 0);
-  const ranked = entries
-    .map((x: any, i: number) => ({
-      ...x,
-      probability: inv[i] / total,
-    }))
-    .sort((a: any, b: any) => b.probability - a.probability);
+  const ranked = prices.map((x, i) => ({
+    ...x,
+    probability: inv[i] / total,
+  })).sort((a, b) => b.probability - a.probability);
 
   const pick = ranked[0];
+  const label = pick.selection === "home"
+    ? String(match.home_team_name || match.home_team || "Hjemme")
+    : pick.selection === "away"
+      ? String(match.away_team_name || match.away_team || "Borte")
+      : "Uavgjort";
+
   return {
-    prediction: pick.selection,
+    prediction: label,
     confidence: Math.round(pick.probability * 1000) / 10,
     odds: pick.odds,
-    implied_probability: Math.round((1 / pick.odds) * 1000) / 10,
+    implied_probability: Math.round((1 / Number(pick.odds)) * 1000) / 10,
     model_score: Math.round(pick.probability * 100),
     reasoning: {
-      source: "market_baseline",
-      selections: ranked.map((x: any) => ({
+      source: "football-soccer-api-market",
+      selections: ranked.map((x) => ({
         selection: x.selection,
         odds: x.odds,
         normalized_probability: Math.round(x.probability * 1000) / 10,
@@ -129,131 +109,105 @@ function marketPrediction(odds: any[]) {
   };
 }
 
-async function syncMatches(supabase: any, date: string, leagueIds: number[]) {
+async function syncToday(supabase: any) {
+  const body = await footballApi("/fixtures/today", { limit: "1000" });
+  const all = Array.isArray(body?.data) ? body.data : [];
+  const matches = all.filter(isEuropeanMatch);
+
   let matchesScanned = 0;
   let oddsStored = 0;
-  const leagueMap = new Map(DEFAULT_LEAGUES.map((x) => [x.id, x.name]));
+  let predictionsCreated = 0;
 
-  for (const leagueId of leagueIds) {
-    const leagueName = leagueMap.get(leagueId) || `League ${leagueId}`;
-    const fixtures = await footballApi("/fixtures", {
-      league: String(leagueId),
-      season: String(new Date(date).getUTCFullYear()),
-      date,
-    });
+  for (const m of matches) {
+    matchesScanned++;
+    const externalId = String(m.match_id || m.id || "");
+    if (!externalId) continue;
 
-    for (const f of fixtures?.response || []) {
-      matchesScanned++;
-      const fixture = f.fixture;
-      const teams = f.teams;
-      const league = f.league;
+    const kickoff = m.kickoff_utc || m.kickoff || m.kickoff_at;
+    if (!kickoff) continue;
 
-      const { data: match, error } = await supabase
-        .from("football_matches")
-        .upsert(
-          {
-            external_id: String(fixture.id),
-            league: league?.name || leagueName,
-            season: String(league?.season || new Date(date).getUTCFullYear()),
-            kickoff_at: fixture.date,
-            home_team: teams?.home?.name || "Unknown",
-            away_team: teams?.away?.name || "Unknown",
-            status: String(fixture?.status?.short || "SCHEDULED"),
-            home_score: f.goals?.home ?? null,
-            away_score: f.goals?.away ?? null,
-            venue: fixture?.venue?.name || null,
-            source: "api-football",
-            raw: f,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "external_id" },
-        )
-        .select("id,external_id")
-        .single();
+    const { data: saved, error } = await supabase
+      .from("football_matches")
+      .upsert({
+        external_id: externalId,
+        league: m.league_name || "Unknown",
+        season: m.season ? String(m.season) : null,
+        kickoff_at: kickoff,
+        home_team: m.home_team_name || m.home_team || "Unknown",
+        away_team: m.away_team_name || m.away_team || "Unknown",
+        status: m.status || "scheduled",
+        home_score: m.home_goals ?? null,
+        away_score: m.away_goals ?? null,
+        venue: m.venue_name || null,
+        source: "football-soccer-api",
+        raw: m,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "external_id" })
+      .select("id")
+      .single();
 
-      if (error || !match) continue;
+    if (error || !saved) continue;
 
-      try {
-        const oddsBody = await footballApi("/odds", {
-          fixture: String(fixture.id),
+    const prices = [
+      ["home", pickPrice(m, "home")],
+      ["draw", pickPrice(m, "draw")],
+      ["away", pickPrice(m, "away")],
+    ];
+
+    const oddsRows = prices.filter(([, odds]) => odds).map(([selection, odds]) => ({
+      match_id: saved.id,
+      bookmaker: "Football Soccer API / exchange",
+      market: "1X2",
+      selection,
+      odds,
+      captured_at: new Date().toISOString(),
+      raw: m,
+    }));
+
+    if (oddsRows.length) {
+      const { error: oddsError } = await supabase.from("football_odds").insert(oddsRows);
+      if (!oddsError) oddsStored += oddsRows.length;
+    }
+
+    const prediction = marketPrediction(m);
+    if (prediction) {
+      const { data: existing } = await supabase
+        .from("football_ai_predictions")
+        .select("id")
+        .eq("match_id", saved.id)
+        .eq("status", "OPEN")
+        .limit(1);
+
+      if (!existing?.length) {
+        const { error: predictionError } = await supabase.from("football_ai_predictions").insert({
+          match_id: saved.id,
+          prediction: prediction.prediction,
+          confidence: prediction.confidence,
+          implied_probability: prediction.implied_probability,
+          odds: prediction.odds,
+          value_percent: 0,
+          model_score: prediction.model_score,
+          reasoning: prediction.reasoning,
+          provider: "football-soccer-api",
+          model: "market-baseline-v1",
+          status: "OPEN",
         });
-        const odds = normalizeOdds(oddsBody?.response || []);
-        if (odds.length) {
-          const payload = odds.map((o) => ({
-            match_id: match.id,
-            bookmaker: o.bookmaker,
-            market: o.market,
-            selection: o.selection,
-            odds: o.odds,
-            captured_at: new Date().toISOString(),
-            raw: o,
-          }));
-          const { error: oddsError } = await supabase.from("football_odds").insert(payload);
-          if (!oddsError) oddsStored += payload.length;
-        }
-      } catch (_) {
-        // Odds can be unavailable for individual fixtures; keep the match.
+        if (!predictionError) predictionsCreated++;
       }
     }
   }
 
-  return { matchesScanned, oddsStored };
-}
+  await supabase.from("football_ai_runs").insert({
+    run_type: "DAILY_EUROPE_SCAN",
+    matches_scanned: matchesScanned,
+    predictions_created: predictionsCreated,
+    provider: "football-soccer-api",
+    status: "SUCCESS",
+    started_at: new Date().toISOString(),
+    finished_at: new Date().toISOString(),
+  });
 
-async function createPredictions(supabase: any, date: string) {
-  const start = new Date(date + "T00:00:00Z").toISOString();
-  const end = new Date(date + "T23:59:59Z").toISOString();
-
-  const { data: matches, error } = await supabase
-    .from("football_matches")
-    .select("id,home_team,away_team,league,kickoff_at")
-    .gte("kickoff_at", start)
-    .lte("kickoff_at", end);
-
-  if (error) throw error;
-
-  let created = 0;
-  for (const match of matches || []) {
-    const { data: odds } = await supabase
-      .from("football_odds")
-      .select("market,selection,odds,bookmaker,captured_at")
-      .eq("match_id", match.id)
-      .order("captured_at", { ascending: false })
-      .limit(300);
-
-    const prediction = marketPrediction(odds || []);
-    if (!prediction) continue;
-
-    const { data: existing } = await supabase
-      .from("football_ai_predictions")
-      .select("id")
-      .eq("match_id", match.id)
-      .eq("status", "OPEN")
-      .limit(1);
-
-    if (existing?.length) continue;
-
-    const { error: insertError } = await supabase.from("football_ai_predictions").insert({
-      match_id: match.id,
-      prediction: prediction.prediction,
-      confidence: prediction.confidence,
-      implied_probability: prediction.implied_probability,
-      odds: prediction.odds,
-      value_percent: Math.round((prediction.confidence - prediction.implied_probability) * 100) / 100,
-      model_score: prediction.model_score,
-      reasoning: {
-        ...prediction.reasoning,
-        home_team: match.home_team,
-        away_team: match.away_team,
-        league: match.league,
-      },
-      provider: "market-baseline",
-      model: "normalized-1x2",
-      status: "OPEN",
-    });
-    if (!insertError) created++;
-  }
-  return created;
+  return { matchesScanned, oddsStored, predictionsCreated };
 }
 
 Deno.serve(async (req) => {
@@ -261,52 +215,48 @@ Deno.serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    const action = url.searchParams.get("action") || "sync";
-    const date = url.searchParams.get("date") || getDate(0);
-    const leagueParam = url.searchParams.get("leagues");
-    const leagueIds = leagueParam
-      ? leagueParam.split(",").map(Number).filter(Number.isFinite)
-      : DEFAULT_LEAGUES.map((x) => x.id);
+    const action = url.searchParams.get("action") || "health";
 
-    const secretKey = getSecretKey();
-    if (!secretKey) return json({ ok: false, error: "Supabase server key is not configured" }, 500);
-
-    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, secretKey);
-
-    if (action === "sync") {
-      const started = new Date().toISOString();
-      const synced = await syncMatches(supabase, date, leagueIds);
-      const predictionsCreated = await createPredictions(supabase, date);
-
-      await supabase.from("football_ai_runs").insert({
-        run_type: "MATCH_SCAN",
-        matches_scanned: synced.matchesScanned,
-        predictions_created: predictionsCreated,
-        provider: "api-football",
-        status: "SUCCESS",
-        started_at: started,
-        finished_at: new Date().toISOString(),
-      });
-
+    if (action === "health") {
+      const keyConfigured = Boolean(getSecretKey());
+      let api = null;
+      if (keyConfigured) {
+        try {
+          const usage = await footballApi("/usage");
+          api = usage?.data || null;
+        } catch (error) {
+          api = { error: error instanceof Error ? error.message : String(error) };
+        }
+      }
       return json({
-        ok: true,
-        action,
-        date,
-        leagues: leagueIds,
-        ...synced,
-        predictionsCreated,
+        ok: keyConfigured && !api?.error,
+        service: "football-ai",
+        provider: "football-soccer-api",
+        footballApiConfigured: keyConfigured,
+        usage: api,
       });
     }
 
+    const secretKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || getSecretKey();
+    if (!secretKey) return json({ ok: false, error: "Supabase server key is not configured" }, 500);
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, secretKey);
+
+    if (action === "sync") {
+      const synced = await syncToday(supabase);
+      return json({ ok: true, action, ...synced });
+    }
+
     if (action === "dashboard") {
-      const start = new Date(date + "T00:00:00Z").toISOString();
-      const end = new Date(date + "T23:59:59Z").toISOString();
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const end = new Date();
+      end.setHours(23, 59, 59, 999);
 
       const { data: matches, error: matchError } = await supabase
         .from("football_matches")
         .select("id,league,kickoff_at,home_team,away_team,status,home_score,away_score")
-        .gte("kickoff_at", start)
-        .lte("kickoff_at", end)
+        .gte("kickoff_at", start.toISOString())
+        .lte("kickoff_at", end.toISOString())
         .order("kickoff_at", { ascending: true })
         .limit(100);
 
@@ -315,35 +265,20 @@ Deno.serve(async (req) => {
       const matchIds = (matches || []).map((m: any) => m.id);
       let predictions: any[] = [];
       if (matchIds.length) {
-        const { data: predictionRows, error: predictionError } = await supabase
+        const { data: rows, error } = await supabase
           .from("football_ai_predictions")
           .select("id,match_id,prediction,confidence,odds,value_percent,model_score,status,reasoning,provider,model,created_at")
           .in("match_id", matchIds)
           .order("created_at", { ascending: false });
-        if (predictionError) throw predictionError;
-        predictions = predictionRows || [];
+        if (error) throw error;
+        predictions = rows || [];
       }
 
-      return json({ ok: true, date, matches: matches || [], predictions });
+      return json({ ok: true, matches: matches || [], predictions });
     }
 
-    if (action === "health") {
-      return json({
-        ok: true,
-        service: "football-ai",
-        footballApiConfigured: Boolean(Deno.env.get("FOOTBALL_API_KEY")),
-        aiProvidersConfigured: {
-          groq: Boolean(Deno.env.get("GROQ_API_KEY")),
-          openai: Boolean(Deno.env.get("OPENAI_API_KEY")),
-        },
-      });
-    }
-
-    return json({ ok: false, error: "Unknown action", supported: ["health", "sync"] }, 400);
+    return json({ ok: false, error: "Unknown action", supported: ["health", "sync", "dashboard"] }, 400);
   } catch (error) {
-    return json({
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    }, 500);
+    return json({ ok: false, error: error instanceof Error ? error.message : String(error) }, 500);
   }
 });
