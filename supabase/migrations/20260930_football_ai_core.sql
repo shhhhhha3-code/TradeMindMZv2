@@ -1,4 +1,5 @@
 -- Football AI schema on the existing TradeMindMZ Supabase project.
+-- Migration is executed through the Supabase Management API workflow.
 create extension if not exists "pgcrypto";
 
 create table if not exists public.football_matches (
