@@ -249,8 +249,8 @@ function choosePrediction(probabilities:any,odds:any) {
   const outcomes=["home","draw","away"].map((outcome)=>({
     outcome,probability:probabilities[outcome],value:odds[outcome]?.value_percent ?? null
   }));
-  const withValue=outcomes.filter((x)=>x.value!=null);
-  const pool=withValue.length ? withValue : outcomes;
+  const positiveValue=outcomes.filter((x)=>x.value!=null && x.value>0);
+  const pool=positiveValue.length ? positiveValue : outcomes;
   return pool.sort((a,b)=>{
     const av=a.value==null ? -999 : a.value, bv=b.value==null ? -999 : b.value;
     return Math.abs(bv-av)>0.5 ? bv-av : b.probability-a.probability;
@@ -359,15 +359,17 @@ async function retrainModel(supabase:any) {
   const ids=evaluations.map((e:any)=>e.prediction_id);
   const {data:predictions}=await supabase.from("football_ai_predictions").select("id,feature_vector").in("id",ids);
   const byId=new Map((predictions||[]).map((p:any)=>[p.id,p]));
+  // Full retrain from the base model prevents repeatedly training the same
+  // historical samples on top of already-updated weights.
   const initial=defaultWeights();
   const next={
     ...model,
     weights:{
-      home:[...(model.weights?.home||initial.weights.home)],
-      draw:[...(model.weights?.draw||initial.weights.draw)],
-      away:[...(model.weights?.away||initial.weights.away)]
+      home:[...initial.weights.home],
+      draw:[...initial.weights.draw],
+      away:[...initial.weights.away]
     },
-    bias:{...(model.bias||initial.bias)}
+    bias:{...initial.bias}
   };
   const classes=["home","draw","away"],lr=num(model.learning_rate,0.018);
   let samples=0;
