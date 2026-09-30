@@ -76,6 +76,8 @@ function TradeMindAiCopilot({fullPage=false}){
     STATUS:"CHECK SYSTEM STATUS",
     DIAGNOSTICS:"RUN DIAGNOSTICS",
     ASK:"ASK FOLLOW-UP",
+    WHY:"EXPLAIN CURRENT DECISION",
+    WHAT_CHANGED:"COMPARE WITH PREVIOUS",
   };
   const ask=async(action="ASK",preset="")=>{
     if(loading) return;
