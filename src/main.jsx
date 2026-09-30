@@ -147,7 +147,7 @@ function TradeMindAiCopilot({fullPage=false}){
               <div>
                 <span>TRADEMIND AI</span>
                 <strong>REAL-TIME COPILOT</strong>
-                <small><i/> {answer?.providerStatus === "CONTEXT ENGINE" ? "SAFE FALLBACK ACTIVE" : "MARKET INTELLIGENCE ONLINE"}</small>
+                <small><i/> {answer?.decisionState === "AI_DECISION_UNAVAILABLE" ? "SAFE MODE" : answer?.providerStatus === "CONTEXT ENGINE" ? "SAFE FALLBACK ACTIVE" : "MARKET INTELLIGENCE ONLINE"}</small>
               </div>
             </div>
             {!fullPage && <button type="button" className="tmz-copilot-close" onClick={()=>setOpen(false)}><X/></button>}
@@ -257,7 +257,19 @@ function TradeMindAiCopilot({fullPage=false}){
                     ))}
                   </div>
                 )}
-                {answer.suggestedAction && answer.suggestedAction !== "NONE" && answer.suggestedAction !== "ASK" && (
+                {answer.decisionState === "AI_DECISION_UNAVAILABLE" ? (
+                  <button
+                    type="button"
+                    className="tmz-copilot-smart-followup"
+                    onClick={()=>ask("LIVE_SIGNAL","Retry AI decision with a fresh signal")}
+                    disabled={loading}
+                  >
+                    <Sparkles/>
+                    <span>NEXT SAFE CHECK</span>
+                    <b>RETRY AI DECISION</b>
+                    <ChevronRight/>
+                  </button>
+                ) : answer.suggestedAction && answer.suggestedAction !== "NONE" && answer.suggestedAction !== "ASK" && (
                   <button
                     type="button"
                     className="tmz-copilot-smart-followup"
