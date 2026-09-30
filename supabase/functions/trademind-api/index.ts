@@ -2778,11 +2778,30 @@ async function handle(req) {
         : aiDecisionUnavailable
           ? "AI_DECISION_UNAVAILABLE"
           : "NO_TRADE";
+      const candidate = compactSnapshot?.recommended || null;
       const copilotUiState = aiDecisionUnavailable
-        ? { label:"AI ANALYSIS UNAVAILABLE", safeAction:"WAIT", engineDecision:authoritativeDecision, aiDecision:"UNAVAILABLE", aiConfidence:null }
+        ? {
+            label:"AI ANALYSIS UNAVAILABLE",
+            safeAction:"WAIT",
+            engineDecision:authoritativeDecision,
+            aiDecision:"UNAVAILABLE",
+            aiConfidence:null,
+            candidate: candidate
+              ? {
+                  symbol:candidate.symbol || null,
+                  direction:candidate.direction || null,
+                  score:Number.isFinite(Number(candidate.score)) ? Math.round(Number(candidate.score)) : null,
+                  confidence:Number.isFinite(Number(candidate.confidence)) ? Math.round(Number(candidate.confidence)) : null,
+                  riskReward:Number.isFinite(Number(candidate.riskReward)) ? Number(Number(candidate.riskReward).toFixed(2)) : null,
+                  entry:candidate.entry ?? null,
+                  stopLoss:candidate.stopLoss ?? null,
+                  takeProfit:candidate.takeProfit ?? null,
+                }
+              : null,
+          }
         : authoritativeDecision === "TRADE"
-          ? { label:"CONFIRMED TRADE", safeAction:"REVIEW MANUALLY", engineDecision:authoritativeDecision, aiDecision:"CONFIRMED", aiConfidence:null }
-          : { label:"NO CONFIRMED TRADE", safeAction:"WAIT", engineDecision:authoritativeDecision, aiDecision:"NO_TRADE", aiConfidence:null };
+          ? { label:"CONFIRMED TRADE", safeAction:"REVIEW MANUALLY", engineDecision:authoritativeDecision, aiDecision:"CONFIRMED", aiConfidence:null, candidate:null }
+          : { label:"NO CONFIRMED TRADE", safeAction:"WAIT", engineDecision:authoritativeDecision, aiDecision:"NO_TRADE", aiConfidence:null, candidate:null };
       const engineConfidenceValue = Number(
         compactSnapshot?.recommended?.confidence ??
         snapshotPayload?.recommended?.confidence ??
