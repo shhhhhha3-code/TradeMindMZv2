@@ -81,3 +81,6 @@ function Main(){
     <div className="filters"><button className="selected">Dagens kamper (live)</button>{['Premier League','La Liga','Serie A','Bundesliga','Champions League'].map(x=><button key={x}>{x}</button>)}<button>Flere ligaer⌄</button></div>
     <div className="table panel"><div className="tr th"><span>TID</span><span>LIGA</span><span>KAMP</span><span>TIPS</span><span>AI %</span><span>ODDS</span><span>VERDI</span><span>STATUS</span></div>{displayGames.map(g=><div className="tr" key={g[2]}>{g.map((v,i)=><span key={i} className={i===4?'greenTxt':''}>{v}</span>)}<span className="status">● Ikke startet</span></div>)}</div></div><Engine engine={engine}/></div><Bottom/></main></div>
 }
+
+
+createRoot(document.getElementById('root')).render(<Main />);
