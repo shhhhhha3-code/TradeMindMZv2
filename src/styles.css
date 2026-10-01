@@ -523,3 +523,9 @@ header:after{content:'M';font-family:Orbitron;font-size:210px;color:var(--tm-gre
 }
 .reasoningItem:hover{background:rgba(0,240,160,.025)}
 .reasoningItem:focus-visible{outline:1px solid rgba(0,240,160,.35);outline-offset:-2px}
+
+/* Interactive value cards */
+.valueCardButton{width:100%;border:0;text-align:left;font:inherit;color:inherit;cursor:pointer;appearance:none;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.valueCardButton:hover{background:rgba(0,240,160,.045);transform:translateY(-1px)}
+.valueCardButton:focus-visible{outline:1px solid rgba(0,240,160,.4);outline-offset:-2px}
+@media(max-width:560px){.valueCardButton{gap:10px}.valueCardButton strong{white-space:nowrap}}
