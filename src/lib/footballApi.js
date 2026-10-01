@@ -35,6 +35,10 @@ export async function checkFootballAiHealth() {
   return request("?action=health", { timeoutMs: 8000 });
 }
 
+export async function getFootballDiagnostics() {
+  return request("?action=diagnostics", { timeoutMs: 30000 });
+}
+
 export async function getFootballDashboard(scope = "upcoming") {
   const data = await request("?action=dashboard&scope=" + encodeURIComponent(scope));
   return {
