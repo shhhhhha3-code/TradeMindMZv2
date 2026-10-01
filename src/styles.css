@@ -696,3 +696,60 @@ header:after{content:'M';font-family:Orbitron;font-size:210px;color:var(--tm-gre
     margin-top:2px;
   }
 }
+
+
+/* Match Intelligence terminal pass */
+.matchDetail{
+  position:relative;
+  overflow:hidden;
+  background:
+    radial-gradient(circle at 92% 4%,rgba(0,240,160,.10),transparent 24%),
+    radial-gradient(circle at 4% 70%,rgba(24,201,255,.06),transparent 28%),
+    linear-gradient(145deg,rgba(5,24,34,.99),rgba(2,11,17,.995));
+  border-color:rgba(0,240,160,.18);
+  box-shadow:0 24px 80px rgba(0,0,0,.55),0 0 0 1px rgba(24,201,255,.035);
+}
+.matchDetail:before{
+  content:"";
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  background:repeating-linear-gradient(0deg,transparent 0,transparent 3px,rgba(24,201,255,.018) 4px);
+  opacity:.7;
+}
+.matchDetail>*{position:relative;z-index:1}
+.detailEyebrow{display:flex;align-items:center;gap:7px}
+.detailEyebrow:before{
+  content:"";
+  width:6px;height:6px;border-radius:50%;
+  background:var(--tm-green);
+  box-shadow:0 0 10px var(--tm-green);
+  animation:tmPulse 1.8s ease-in-out infinite;
+}
+.aiSignal{
+  position:relative;
+  border-color:rgba(0,240,160,.16);
+  background:linear-gradient(90deg,rgba(0,240,160,.055),rgba(24,201,255,.035));
+}
+.aiSignal:after{
+  content:"LIVE MODEL";
+  position:absolute;
+  top:7px;right:9px;
+  color:#4f7b84;
+  font:700 6px Orbitron,sans-serif;
+  letter-spacing:1px;
+}
+.detailCard{
+  background:rgba(2,14,22,.68);
+  border-color:rgba(24,201,255,.085);
+}
+.detailCard:hover{border-color:rgba(0,240,160,.18)}
+@keyframes tmPulse{0%,100%{opacity:.45;transform:scale(.85)}50%{opacity:1;transform:scale(1)}}
+@media(max-width:560px){
+  .matchDetail{
+    background:
+      radial-gradient(circle at 90% 0%,rgba(0,240,160,.08),transparent 30%),
+      linear-gradient(145deg,rgba(5,24,34,.99),rgba(2,11,17,.995));
+  }
+  .aiSignal:after{top:6px;right:7px;font-size:5px}
+}
