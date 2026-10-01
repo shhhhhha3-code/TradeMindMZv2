@@ -54,8 +54,6 @@ function getSupabaseSecretKey() {
   } catch { return ""; }
 }
 
-async 
-
 // ---------------- API-Football odds provider ----------------
 const API_FOOTBALL_BASE = "https://v3.football.api-sports.io";
 const API_FOOTBALL_MAX_PAGES_PER_DATE = 3;
@@ -84,9 +82,9 @@ async function apiFootball(path:string, params:Record<string,string> = {}) {
 
 function normalizeTeamName(value:any) {
   return String(value||"")
-    .normalize("NFD").replace(/\\p{Diacritic}/gu,"")
+    .normalize("NFD").replace(/\p{Diacritic}/gu,"")
     .toLowerCase().replace(/[^a-z0-9]+/g," ").trim()
-    .replace(/\\b(fc|afc|cf|sc|ac|fk|sk)\\b/g,"").replace(/\\s+/g," ").trim();
+    .replace(/\b(fc|afc|cf|sc|ac|fk|sk)\b/g,"").replace(/\s+/g," ").trim();
 }
 
 function teamNameSimilarity(a:any,b:any) {
@@ -170,7 +168,7 @@ async function fetchApiFootballOddsDates(dates:string[]) {
   return {rows,requests,remaining,error:null};
 }
 
-function footballApi(path: string, params: Record<string,string> = {}) {
+async function footballApi(path: string, params: Record<string,string> = {}) {
   const key = getFootballKey();
   if (!key) throw new Error("FOOTBALL_API_KEY is not configured in Supabase secrets");
   const url = new URL(API_BASE + path);
