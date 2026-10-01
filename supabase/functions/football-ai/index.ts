@@ -529,7 +529,7 @@ async function retrainModel(supabase:any) {
     model_name:MODEL_NAME,model_version:MODEL_NAME,weights:next.weights,bias:next.bias,
     learning_rate:lr,training_samples:samples,
     accuracy:count?wins/count:null,
-    roi:count?metrics.reduce((s:number,r:any)=>s+num(r.pnl),0)/count:null,
+    roi:count?(metrics||[]).reduce((s:number,r:any)=>s+num(r.pnl),0)/count:null,
     brier_score:brierRows.length?brierRows.reduce((s:number,r:any)=>s+num(r.brier_score),0)/brierRows.length:null,
     log_loss:logRows.length?logRows.reduce((s:number,r:any)=>s+num(r.log_loss),0)/logRows.length:null,
     updated_at:nowIso()
@@ -802,7 +802,7 @@ Deno.serve(async (req)=>{
           model:model||null,
           evaluation:{
             samples:n,accuracy:n?wins/n*100:null,
-            roi_percent_per_unit:n?recent.reduce((s:number,r:any)=>s+num(r.pnl),0)/n*100:null
+            roi_percent_per_unit:n?(recent||[]).reduce((s:number,r:any)=>s+num(r.pnl),0)/n*100:null
           },
           pipeline:["Football API","Feature Engineering","AI Prediction Engine","Probability + Confidence","Odds Engine","Value Finder","Daily Predictions","Result Evaluation","Model Learning","Retrain / Update"]
         }
