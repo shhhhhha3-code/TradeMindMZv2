@@ -3,7 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {Home,Trophy,Globe2,LineChart,Newspaper,BarChart3,FlaskConical,Clock3,Target,Settings,ChevronRight,CheckCircle2,Brain,Database,Activity,ShieldAlert,Search,CalendarDays,Bell,Menu,X,TrendingUp,Zap,SlidersHorizontal} from 'lucide-react';
 import './styles.css';
 import {checkFootballAiHealth} from './lib/footballApi.js';
-import {getFootballDashboard,syncFootballData,getFootballHistory,trainFootballModel,getFootballDiagnostics} from './lib/footballApi.js';
+import {getFootballDashboard,syncFootballData,getFootballHistory,trainFootballModel,getFootballDiagnostics,getFootballLearning} from './lib/footballApi.js';
 
 const asArray = value => Array.isArray(value) ? value : [];
 
@@ -35,7 +35,7 @@ function HistoryPage({history,onReload}){const s=history?.summary||{};return <><
 
 function StatsPage({history,engine}){const s=history?.summary||{},m=history?.model||engine?.model||{};return <><PageTitle title="STATISTIKK" sub="DATA + RESULTATER"/><div className="metricGrid">{[['TREFFSIKKERHET',s.hit_rate!=null?Number(s.hit_rate).toFixed(1)+'%':'–'],['ROI',m.roi!=null?(Number(m.roi)*100).toFixed(2)+'%':'–'],['BRIER',m.brier_score!=null?Number(m.brier_score).toFixed(3):'–'],['LOG LOSS',m.log_loss!=null?Number(m.log_loss).toFixed(3):'–']].map(([a,b])=><div className="metricCard" key={a}><small>{a}</small><strong>{b}</strong></div>)}</div><div className="pageGrid"><section className="panel"><div className="panelTitle"><BarChart3/> LIGAOVERSIKT</div>{(history?.leagues||[]).map(l=><div className="dataStatusRow" key={l.league}><span>{l.league}</span><b>{l.wins}W · {l.losses}L · {Number(l.pnl).toFixed(2)}</b></div>)}{!history?.leagues?.length&&<div className="emptyState">Ingen avgjorte tips i perioden.</div>}</section><section className="panel"><div className="panelTitle"><Activity/> MODELLMÅLINGER</div><div className="dataStatusRow"><span>Treningsdata</span><b>{m.training_samples??0}</b></div><div className="dataStatusRow"><span>Modellversjon</span><b>{m.model_version||'–'}</b></div><div className="dataStatusRow"><span>Oppdatert</span><b>{m.updated_at?new Date(m.updated_at).toLocaleString('nb-NO'):'–'}</b></div></section></div></>}
 
-function ModelPage({engine,history,onTrain}){const m=history?.model||engine?.model||{};return <><PageTitle title="MODEL LAB" sub="LIVE LÆRING"/><div className="metricGrid">{[['MODELL',m.model_version||'–'],['TRENINGSDATA',m.training_samples??0],['TREFFSIKKERHET',m.accuracy!=null?(Number(m.accuracy)*100).toFixed(1)+'%':'–'],['ROI',m.roi!=null?(Number(m.roi)*100).toFixed(2)+'%':'–']].map(([a,b])=><div className="metricCard" key={a}><small>{a}</small><strong>{b}</strong></div>)}</div><section className="panel"><div className="panelTitle"><FlaskConical/> LÆRINGSMODELL <button className="miniBtn" onClick={onTrain}>↻ TREN MODELL</button></div><p className="pageText">Modellen trener på evaluerte historiske prediksjoner. Nye resultater brukes først etter at kampene er avgjort. <b>{Number(m.training_samples||0)===0?'Ingen avgjorte treningsdata er registrert ennå.':'Aktive treningsdata er tilgjengelige.'}</b></p><div className="pipelineLarge">{['FORM','xG/PROXY','RESULTATER','ODDS','PROBABILITY','VALUE','EVALUERING','LÆRING','RETRAIN'].map((x,i)=><span key={x} className={i<8?'done':''}>{i+1}. {x}</span>)}</div></section></>}
+function ModelPage({engine,history,learning,onTrain}){const m=history?.model||engine?.model||{};const l=learning?.learning||{};return <><PageTitle title="MODEL LAB" sub="LIVE LÆRING"/><div className="metricGrid">{[['EVALUERTE',l.evaluated??0],['WON',l.wins??0],['LOST',l.losses??0],['VOID',l.voids??0],['TREFFSIKKERHET',l.accuracy!=null?(Number(l.accuracy)*100).toFixed(1)+'%':'–'],['ROI',m.roi!=null?(Number(m.roi)*100).toFixed(2)+'%':'–']].map(([a,b])=><div className="metricCard" key={a}><small>{a}</small><strong>{b}</strong></div>)}</div><section className="panel"><div className="panelTitle"><FlaskConical/> LÆRINGSMODELL <button className="miniBtn" onClick={onTrain}>↻ TREN MODELL</button></div><p className="pageText">Modellen trener på evaluerte historiske prediksjoner. Nye resultater brukes først etter at kampene er avgjort. <b>{Number(m.training_samples||0)===0?'Ingen avgjorte treningsdata er registrert ennå.':'Aktive treningsdata er tilgjengelige.'}</b></p><div className="pipelineLarge">{['FORM','xG/PROXY','RESULTATER','ODDS','PROBABILITY','VALUE','EVALUERING','LÆRING','RETRAIN'].map((x,i)=><span key={x} className={i<8?'done':''}>{i+1}. {x}</span>)}</div></section></>}
 
 const AI_FEATURES=[
   ["home_form","Hjemmeform"],
@@ -197,15 +197,17 @@ function SettingsPage(){
 function MobileNav({active,setActive}){const items=[["Hjem",Home],["Alle kamper",Globe2],["AI analyse",Brain],["Statistikk",BarChart3],["Value Finder",Target]];return <nav className="mobileNav">{items.map(([label,Icon])=><button key={label} className={active===label?"active":""} onClick={()=>setActive(label)}><Icon size={19}/><span>{label==="Alle kamper"?"Kamper":label==="Value Finder"?"Value":label.replace(" analyse","")}</span></button>)}</nav>}
 
 function Main(){
-  const [active,setActive]=useState('Hjem'),[mobile,setMobile]=useState(false),[liveMatches,setLiveMatches]=useState([]),[livePredictions,setLivePredictions]=useState([]),[engine,setEngine]=useState({}),[syncing,setSyncing]=useState(false),[liveError,setLiveError]=useState(''),[history,setHistory]=useState(null),[historyLoading,setHistoryLoading]=useState(false),[selectedMatch,setSelectedMatch]=useState(null);
+  const [active,setActive]=useState('Hjem'),[mobile,setMobile]=useState(false),[liveMatches,setLiveMatches]=useState([]),[livePredictions,setLivePredictions]=useState([]),[engine,setEngine]=useState({}),[syncing,setSyncing]=useState(false),[liveError,setLiveError]=useState(''),[history,setHistory]=useState(null),[learning,setLearning]=useState(null),[historyLoading,setHistoryLoading]=useState(false),[selectedMatch,setSelectedMatch]=useState(null);
 
   const loadLive=async()=>{try{const data=await getFootballDashboard();if(data?.ok){setLiveMatches(asArray(data.matches));setLivePredictions(asArray(data.predictions));setEngine(data.engine&&typeof data.engine==='object'?data.engine:{});setLiveError('')}}catch(e){setLiveError(e?.message||'Live-data ikke tilgjengelig')}};
   const loadHistory=async()=>{setHistoryLoading(true);try{const d=await getFootballHistory();if(d?.ok)setHistory(d)}catch(e){setLiveError(e?.message||'Historikk ikke tilgjengelig')}finally{setHistoryLoading(false)}};
   useEffect(()=>{loadLive()},[]);
+  const loadLearning=async()=>{try{const d=await getFootballLearning();if(d?.ok)setLearning(d)}catch{}};
   useEffect(()=>{if(['Historikk','Statistikk','Model Lab'].includes(active)&&!history&&!historyLoading)loadHistory()},[active]);
+  useEffect(()=>{if(active==='Model Lab')loadLearning()},[active]);
 
   const handleSync=async()=>{setSyncing(true);setLiveError('');try{await syncFootballData();await loadLive();if(history)await loadHistory()}catch(e){setLiveError(e?.message||'Kunne ikke synkronisere live-data')}finally{setSyncing(false)}};
-  const handleTrain=async()=>{setHistoryLoading(true);try{const r=await trainFootballModel();if(!r.ok)throw new Error('Modelltrening feilet');await loadLive();await loadHistory()}catch(e){setLiveError(e?.message||'Modelltrening feilet')}finally{setHistoryLoading(false)}};
+  const handleTrain=async()=>{setHistoryLoading(true);try{const r=await trainFootballModel();if(!r.ok)throw new Error('Modelltrening feilet');await loadLive();await loadHistory();await loadLearning()}catch(e){setLiveError(e?.message||'Modelltrening feilet')}finally{setHistoryLoading(false)}};
 
   const matchList=asArray(liveMatches);const predictionList=asArray(livePredictions);const predictionByMatch=new Map(predictionList.map(p=>[p.match_id,p]));
   const realPicks=matchList.map(m=>({match:m,prediction:predictionByMatch.get(m.id)})).filter(x=>x.prediction).slice(0,2);
@@ -216,7 +218,7 @@ function Main(){
   :active==='Value Finder'?<ValuePage predictions={predictionList} onSelect={(p)=>{const m=matchList.find(x=>x.id===p.match_id);if(m)setSelectedMatch(m)}}/>
   :active==='Historikk'?<HistoryPage history={history} onReload={loadHistory}/>
   :active==='Statistikk'?<StatsPage history={history} engine={engine}/>
-  :active==='Model Lab'?<ModelPage history={history} engine={engine} onTrain={handleTrain}/>
+  :active==='Model Lab'?<ModelPage history={history} engine={engine} learning={learning} onTrain={handleTrain}/>
    :active==='AI analyse'?<AiAnalysisPage predictions={predictionList} engine={engine} onSelectMatch={(id)=>{const m=matchList.find(x=>x.id===id);if(m)setSelectedMatch(m)}}/>
   :active==='Ekspertanalyse'?<ExpertPage/>
   :<SettingsPage/>;
