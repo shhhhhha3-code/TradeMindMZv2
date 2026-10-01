@@ -511,10 +511,22 @@ async function evaluatePredictions(supabase:any) {
   const evaluations:any[]=[];
   const wonIds:string[]=[];
   const lostIds:string[]=[];
+  const voidIds:string[]=[];
 
   for (const p of predictions) {
     const match:any=matchMap.get(p.match_id);
-    if (!match || !["finished","finished_after_extra_time","awarded"].includes(String(match.status).toLowerCase())) continue;
+    if (!match) continue;
+    const matchStatus=String(match.status||"").toLowerCase();
+    const isVoid=["cancelled","canceled","postponed","abandoned","suspended"].includes(matchStatus);
+    if (isVoid) {
+      voidIds.push(p.id);
+      evaluations.push({
+        prediction_id:p.id,match_id:p.match_id,actual_result:null,predicted_result:null,
+        correct:false,stake:1,pnl:null,brier_score:null,log_loss:null,evaluated_at:nowIso()
+      });
+      continue;
+    }
+    if (!["finished","finished_after_extra_time","awarded"].includes(matchStatus)) continue;
     const actual=resultFromScore(match.home_score,match.away_score);
     if (!actual) continue;
 
@@ -546,12 +558,14 @@ async function evaluatePredictions(supabase:any) {
     .upsert(evaluations,{onConflict:"prediction_id"});
   if (evalError) throw evalError;
 
-  const [wonResult,lostResult]=await Promise.all([
+  const [wonResult,lostResult,voidResult]=await Promise.all([
     wonIds.length ? supabase.from("football_ai_predictions").update({status:"WON"}).in("id",wonIds) : Promise.resolve({error:null}),
-    lostIds.length ? supabase.from("football_ai_predictions").update({status:"LOST"}).in("id",lostIds) : Promise.resolve({error:null})
+    lostIds.length ? supabase.from("football_ai_predictions").update({status:"LOST"}).in("id",lostIds) : Promise.resolve({error:null}),
+    voidIds.length ? supabase.from("football_ai_predictions").update({status:"VOID"}).in("id",voidIds) : Promise.resolve({error:null})
   ]);
   if (wonResult.error) throw wonResult.error;
   if (lostResult.error) throw lostResult.error;
+  if (voidResult.error) throw voidResult.error;
 
   const updateRows=evaluations.map((e:any)=>({
     id:e.prediction_id,settled_result:e.actual_result,pnl:e.pnl,evaluated_at:e.evaluated_at
@@ -604,7 +618,7 @@ async function retrainModel(supabase:any) {
   const brierRows:any[]=metricRows.filter((r:any)=>r.brier_score!=null);
   const logRows:any[]=metricRows.filter((r:any)=>r.log_loss!=null);
   const row={
-    model_name:MODEL_NAME,model_version:MODEL_NAME,weights:next.weights,bias:next.bias,
+    model_name:MODEL_NAME,model_version:`${MODEL_NAME}-r${samples}`,weights:next.weights,bias:next.bias,
     learning_rate:lr,training_samples:samples,
     accuracy:count?wins/count:null,
     roi:count?metricRows.reduce((s:number,r:any)=>s+num(r.pnl),0)/count:null,
@@ -901,6 +915,22 @@ Deno.serve(async (req)=>{
       const evaluated=await evaluatePredictions(supabase);
       const model=evaluated?await retrainModel(supabase):await getModel(supabase);
       return json({ok:true,evaluated,model});
+    }
+    if (action==="learning") {
+      const {data:rows,error}=await supabase.from("football_ai_evaluations")
+        .select("correct,pnl,brier_score,log_loss,evaluated_at").order("evaluated_at",{ascending:false}).limit(5000);
+      if (error) throw error;
+      const evaluations=rows||[];
+      const wins=evaluations.filter((r:any)=>r.correct===true).length;
+      const losses=evaluations.filter((r:any)=>r.correct===false && r.pnl!=null).length;
+      const voids=evaluations.filter((r:any)=>r.pnl==null && r.actual_result==null).length;
+      const model=await getModel(supabase);
+      return json({ok:true,learning:{
+        evaluated:evaluations.length,wins,losses,voids,
+        accuracy:evaluations.length?wins/evaluations.length:null,
+        pnl:evaluations.reduce((s:number,r:any)=>s+num(r.pnl),0),
+        last_evaluated_at:evaluations[0]?.evaluated_at||null
+      },model});
     }
     if (action==="train") return json({ok:true,model:await retrainModel(supabase)});
 
