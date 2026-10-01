@@ -75,3 +75,15 @@ export async function trainFootballModel() {
 export async function getFootballLearning() {
   return request("?action=learning", { timeoutMs: 15000 });
 }
+
+export async function getFootballValidation(from, to) {
+  const params = new URLSearchParams({ action: "validation" });
+  if (from) params.set("from", from);
+  if (to) params.set("to", to);
+  const data = await request("?" + params.toString(), { timeoutMs: 20000 });
+  return {
+    ...data,
+    summary: asObject(data?.summary),
+    breakdowns: asObject(data?.breakdowns),
+  };
+}
