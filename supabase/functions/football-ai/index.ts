@@ -152,7 +152,7 @@ async function fetchApiFootballOddsDates(dates:string[]) {
   if (!getApiFootballKey()) return {rows,requests:0,remaining:null,error:"API_FOOTBALL_KEY missing"};
   const results=await Promise.all(dates.slice(0,2).map(async (date)=>{
     const dateRows:any[]=[];
-    let requests=0,remaining:any=null,error:null;
+    let requests=0,remaining:any=null,error:string|null=null;
     for (let page=1; page<=API_FOOTBALL_MAX_PAGES_PER_DATE; page++) {
       const result=await apiFootball("/odds",{date,timezone:"UTC",page:String(page)});
       requests++;
@@ -484,7 +484,7 @@ async function evaluatePredictions(supabase:any) {
   const lostIds:string[]=[];
 
   for (const p of predictions) {
-    const match=matchMap.get(p.match_id);
+    const match:any=matchMap.get(p.match_id);
     if (!match || !["finished","finished_after_extra_time","awarded"].includes(String(match.status).toLowerCase())) continue;
     const actual=resultFromScore(match.home_score,match.away_score);
     if (!actual) continue;
