@@ -190,4 +190,29 @@ function Main(){
 }
 
 
-createRoot(document.getElementById('root')).render(<Main />);
+function AppRuntimeGuard({children}){
+  const [error,setError]=useState(null);
+  useEffect(()=>{
+    const onError=(event)=>{
+      const message=event?.error?.message||event?.message||'Ukjent app-feil';
+      setError(String(message));
+    };
+    const onRejection=(event)=>{
+      const reason=event?.reason;
+      const message=reason?.message||String(reason||'Ukjent Promise-feil');
+      setError(message);
+    };
+    window.addEventListener('error',onError);
+    window.addEventListener('unhandledrejection',onRejection);
+    return()=>{window.removeEventListener('error',onError);window.removeEventListener('unhandledrejection',onRejection)};
+  },[]);
+  if(error)return <div className="runtimeError"><div className="runtimeErrorCard"><div className="runtimeErrorLogo">MZ</div><h1>TRADEMINDMZ</h1><strong>Appen fikk en midlertidig feil</strong><p>{error}</p><button onClick={()=>window.location.reload()}>LAST INN APPEN PÅ NYTT</button></div></div>;
+  return children;
+}
+
+try{
+  createRoot(document.getElementById('root')).render(<AppRuntimeGuard><Main/></AppRuntimeGuard>);
+}catch(error){
+  const root=document.getElementById('root');
+  if(root)root.innerHTML='<div class="runtimeError"><div class="runtimeErrorCard"><div class="runtimeErrorLogo">MZ</div><h1>TRADEMINDMZ</h1><strong>Kunne ikke starte appen</strong><p>'+String(error?.message||error)+'</p><button onclick="location.reload()">LAST INN APPEN PÅ NYTT</button></div></div>';
+}
