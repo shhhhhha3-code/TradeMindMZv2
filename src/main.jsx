@@ -3,7 +3,7 @@ import {createRoot} from 'react-dom/client';
 import {Home,Trophy,Globe2,LineChart,Newspaper,BarChart3,FlaskConical,Clock3,Target,Settings,ChevronRight,CheckCircle2,Brain,Database,Activity,ShieldAlert,Search,CalendarDays,Bell,Menu,X,TrendingUp,Zap,SlidersHorizontal} from 'lucide-react';
 import './styles.css';
 import {checkFootballAiHealth} from './lib/footballApi.js';
-import {getFootballDashboard,syncFootballData,getFootballHistory,trainFootballModel} from './lib/footballApi.js';
+import {getFootballDashboard,syncFootballData,getFootballHistory,trainFootballModel,getFootballDiagnostics} from './lib/footballApi.js';
 
 const picks=[
  {league:'Premier League',time:'16:00',home:'Liverpool',away:'Everton',homeShort:'LIV',awayShort:'EVE',tip:'Liverpool vinner',confidence:78,odds:'1.62',signal:'STARKT SIGNAL',value:'++',reasons:['Sterk hjemmeform (8-1-1)','Høyere xG (2.08 vs 1.11)','Everton flere skadefravær','Ekspert 7/10 mot Liverpool','Historisk sterk hjemmebane']},
@@ -157,7 +157,46 @@ function AiAnalysisPage({predictions,engine,onSelectMatch}){
 
 function ExpertPage(){return <><PageTitle title="EKSPERTANALYSE" sub="EKSTERNE EKSPERTDATA"/><section className="panel"><div className="panelTitle"><Newspaper/> EKSPERTDATA</div><div className="emptyState">Ingen verifisert ekspertkilde er koblet til akkurat nå. Appen viser derfor ikke oppdiktede ekspertuttalelser eller nyheter.</div></section></>}
 
-function SettingsPage(){return <><PageTitle title="INNSTILLINGER" sub="TRADEMINDMZ"/><div className="pageGrid"><section className="panel"><div className="panelTitle"><Settings/> SYSTEM</div><div className="dataStatusRow"><span>Datakilde</span><b>Football Soccer API</b></div><div className="dataStatusRow"><span>Backend</span><b>Supabase Edge Function</b></div><div className="dataStatusRow"><span>Modell</span><b>Multinomial AI</b></div><div className="dataStatusRow"><span>Persistens</span><b>Supabase</b></div></section><section className="panel"><div className="panelTitle"><ShieldAlert/> DATAPRINSIPPER</div><p className="pageText">Ingen demo-tips brukes når live-data mangler. Skade- og xG-data vises bare når leverandøren faktisk leverer dem.</p></section></div></>}
+function SettingsPage(){
+  const [diag,setDiag]=useState(null),[loading,setLoading]=useState(false),[error,setError]=useState('');
+  const runDiagnostics=async()=>{
+    setLoading(true);setError('');
+    try{const data=await getFootballDiagnostics();setDiag(data);if(!data?.ok)setError('Én eller flere backend-tester feilet. Se detaljene under.');}
+    catch(e){setError(e?.message||'Kunne ikke kjøre backend-testen.');}
+    finally{setLoading(false);}
+  };
+  useEffect(()=>{runDiagnostics()},[]);
+  const checks=diag?.checks&&typeof diag.checks==='object'?Object.entries(diag.checks):[];
+  const label={database:'DATABASE',football_api:'FOOTBALL SOCCER API',api_football_odds:'API-FOOTBALL ODDS',model:'AI-MODELL'};
+  return <><PageTitle title="INNSTILLINGER" sub="SYSTEM + API HEALTH"/>
+    <div className="pageGrid">
+      <section className="panel">
+        <div className="panelTitle"><Settings/> SYSTEM</div>
+        <div className="dataStatusRow"><span>Datakilde</span><b>Football Soccer API</b></div>
+        <div className="dataStatusRow"><span>Backend</span><b>Supabase Edge Function</b></div>
+        <div className="dataStatusRow"><span>Modell</span><b>Multinomial AI</b></div>
+        <div className="dataStatusRow"><span>Persistens</span><b>Supabase</b></div>
+        <div className="healthHeader"><div><small>BACKEND HEALTH</small><strong className={diag?.ok?'greenTxt':'negativeTxt'}>{loading?'TESTER…':diag?.ok?'ALL SYSTEMS READY':'ATTENTION NEEDED'}</strong></div><button className="miniBtn" onClick={runDiagnostics} disabled={loading}>{loading?'TESTER…':'↻ KJØR TEST'}</button></div>
+        {error&&<div className="healthError">{error}</div>}
+        <div className="healthGrid">
+          {checks.map(([key,value])=><div className={'healthCard '+(value?.ok?'ok':'fail')} key={key}>
+            <div><span>{value?.ok?'✓':'!'}</span><b>{label[key]||key}</b></div>
+            <small>{value?.ms!=null?value.ms+' ms':'–'}</small>
+            <p>{value?.ok?(value?.result?.skipped?'Ikke konfigurert – hoppet over':'Tilkobling OK'):(value?.error||'Test feilet')}</p>
+          </div>)}
+        </div>
+        {diag?.checked_at&&<div className="healthFooter">Sist kontrollert {new Date(diag.checked_at).toLocaleString('nb-NO')} · {diag.duration_ms} ms totalt</div>}
+      </section>
+      <section className="panel">
+        <div className="panelTitle"><ShieldAlert/> DATAPRINSIPPER</div>
+        <p className="pageText">Ingen demo-tips brukes når live-data mangler. Skade- og xG-data vises bare når leverandøren faktisk leverer dem.</p>
+        <div className="dataStatusRow"><span>API-helsesjekk</span><b>{diag?.status||'CHECKING'}</b></div>
+        <div className="dataStatusRow"><span>Backend-endepunkt</span><b>football-ai</b></div>
+        <div className="dataStatusRow"><span>Diagnostikk</span><b>{checks.length?checks.filter(([,v])=>v?.ok).length+'/'+checks.length:'–'}</b></div>
+      </section>
+    </div>
+  </>;
+}
 
 function MobileNav({active,setActive}){const items=[["Hjem",Home],["Alle kamper",Globe2],["AI analyse",Brain],["Statistikk",BarChart3],["Value Finder",Target]];return <nav className="mobileNav">{items.map(([label,Icon])=><button key={label} className={active===label?"active":""} onClick={()=>setActive(label)}><Icon size={19}/><span>{label==="Alle kamper"?"Kamper":label==="Value Finder"?"Value":label.replace(" analyse","")}</span></button>)}</nav>}
 
