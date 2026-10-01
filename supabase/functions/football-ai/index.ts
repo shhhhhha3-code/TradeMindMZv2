@@ -1,3 +1,4 @@
+// Runtime redeploy marker: verify current Football AI Edge Function source is deployed.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const corsHeaders = {
