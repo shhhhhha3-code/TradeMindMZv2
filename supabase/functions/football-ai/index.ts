@@ -695,11 +695,16 @@ Deno.serve(async (req)=>{
         catch(e) { usage={error:e instanceof Error?e.message:String(e)}; }
       }
       return json({
-        ok:configured,service:"football-ai",
+        ok:true,
+        status:configured ? "READY" : "DEGRADED",
+        service:"football-ai",
         pipeline:"Football API -> features -> learned model -> odds -> value -> results -> evaluation -> retraining",
-        provider:"football-soccer-api",footballApiConfigured:configured,
+        provider:"football-soccer-api",
+        footballApiConfigured:configured,
+        apiFootballOddsConfigured:Boolean(getApiFootballKey()),
         groqConfigured:Boolean(Deno.env.get("GROQ_API_KEY")),
-        openaiConfigured:Boolean(Deno.env.get("OPENAI_API_KEY")),usage
+        openaiConfigured:Boolean(Deno.env.get("OPENAI_API_KEY")),
+        usage
       });
     }
     const secretKey=getSupabaseSecretKey();
