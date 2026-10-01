@@ -1,4 +1,4 @@
-name: Manual Odds Integration Test
+name: Manual Odds Integration Test v2
 
 on:
   push:
