@@ -1,6 +1,9 @@
 export const FOOTBALL_AI_API = "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai";
 const DEFAULT_TIMEOUT_MS = 12000;
 
+const asArray = value => Array.isArray(value) ? value : [];
+const asObject = value => value && typeof value === "object" && !Array.isArray(value) ? value : {};
+
 async function request(path, { timeoutMs = DEFAULT_TIMEOUT_MS, ...options } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -33,7 +36,13 @@ export async function checkFootballAiHealth() {
 }
 
 export async function getFootballDashboard(scope = "upcoming") {
-  return request("?action=dashboard&scope=" + encodeURIComponent(scope));
+  const data = await request("?action=dashboard&scope=" + encodeURIComponent(scope));
+  return {
+    ...data,
+    matches: asArray(data?.matches),
+    predictions: asArray(data?.predictions),
+    engine: asObject(data?.engine),
+  };
 }
 
 export async function syncFootballData(date = new Date().toISOString().slice(0, 10)) {
@@ -44,7 +53,14 @@ export async function getFootballHistory(from, to) {
   const params = new URLSearchParams({ action: "history" });
   if (from) params.set("from", from);
   if (to) params.set("to", to);
-  return request("?" + params.toString(), { timeoutMs: 15000 });
+  const data = await request("?" + params.toString(), { timeoutMs: 15000 });
+  return {
+    ...data,
+    predictions: asArray(data?.predictions),
+    leagues: asArray(data?.leagues),
+    summary: asObject(data?.summary),
+    model: asObject(data?.model),
+  };
 }
 
 export async function trainFootballModel() {
