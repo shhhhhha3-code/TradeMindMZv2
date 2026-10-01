@@ -515,3 +515,11 @@ header:after{content:'M';font-family:Orbitron;font-size:210px;color:var(--tm-gre
   .weightsHead,.weightsRow{grid-template-columns:1.5fr repeat(3,.65fr)}
   .weightsRow{padding:6px 4px}
 }
+
+
+.reasoningItem{
+  width:100%;text-align:left;cursor:pointer;font:inherit;color:inherit;
+  appearance:none;background:transparent;border-left:0;border-right:0;border-bottom:0;
+}
+.reasoningItem:hover{background:rgba(0,240,160,.025)}
+.reasoningItem:focus-visible{outline:1px solid rgba(0,240,160,.35);outline-offset:-2px}
