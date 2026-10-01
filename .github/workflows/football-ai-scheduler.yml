@@ -25,6 +25,10 @@ jobs:
           url="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai?action=health"
           curl -fsS --max-time 45 "$url" | tee /tmp/health.json
           jq -e '.ok == true' /tmp/health.json >/dev/null
+          if jq -e '.usage.error | strings | contains("quota_exhausted")' /tmp/health.json >/dev/null; then
+            echo "Football Soccer API daily quota is exhausted. Skipping this cycle; it will resume after the provider reset."
+            exit 0
+          fi
 
       - name: Run Football AI pipeline
         shell: bash
