@@ -150,23 +150,33 @@ function findApiFootballOdds(match:any, rows:any[]) {
 async function fetchApiFootballOddsDates(dates:string[]) {
   const rows:any[]=[];
   if (!getApiFootballKey()) return {rows,requests:0,remaining:null,error:"API_FOOTBALL_KEY missing"};
-  let requests=0,remaining:any=null;
-  for (const date of dates) {
+  const results=await Promise.all(dates.slice(0,2).map(async (date)=>{
+    const dateRows:any[]=[];
+    let requests=0,remaining:any=null,error:null;
     for (let page=1; page<=API_FOOTBALL_MAX_PAGES_PER_DATE; page++) {
       const result=await apiFootball("/odds",{date,timezone:"UTC",page:String(page)});
       requests++;
       remaining=result.remaining??remaining;
       if (!result.ok) {
-        return {rows,requests,remaining,error:(result.errors||[]).join(", ")};
+        error=(result.errors||[]).join(", ");
+        break;
       }
-      rows.push(...result.response);
+      dateRows.push(...result.response);
       const total=Number(result?.paging?.total||1);
-      if (page>=total || page>=API_FOOTBALL_MAX_PAGES_PER_DATE) break;
-      if (Number(remaining)<=10) break;
+      if (page>=total || page>=API_FOOTBALL_MAX_PAGES_PER_DATE || Number(remaining)<=10) break;
     }
-    if (Number(remaining)<=10) break;
+    return {dateRows,requests,remaining,error};
+  }));
+  for (const result of results) {
+    rows.push(...result.dateRows);
   }
-  return {rows,requests,remaining,error:null};
+  const errors=results.map(r=>r.error).filter(Boolean);
+  return {
+    rows,
+    requests:results.reduce((s,r)=>s+r.requests,0),
+    remaining:results.map(r=>r.remaining).filter(v=>v!=null).pop()??null,
+    error:errors.length?errors.join(" | "):null
+  };
 }
 
 async function footballApi(path: string, params: Record<string,string> = {}) {
