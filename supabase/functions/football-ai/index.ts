@@ -668,9 +668,10 @@ async function runPipeline(supabase:any) {
       training_samples:modelAfter?.training_samples||0,accuracy:modelAfter?.accuracy??null,
       roi:modelAfter?.roi??null,brier_score:modelAfter?.brier_score??null
     },
-    sync
-  };
-}
+     sync,
+     odds:{provider:"API-Football",requests:oddsFetch.requests,rows:oddsFetch.rows.length,remaining:oddsFetch.remaining,error:oddsFetch.error}
+   };
+ }
 
 Deno.serve(async (req)=>{
   if (req.method==="OPTIONS") return new Response("ok",{headers:corsHeaders});
