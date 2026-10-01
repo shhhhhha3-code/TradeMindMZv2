@@ -49,6 +49,15 @@ jobs:
           body="$(curl -fsS --max-time 45 "$url")"
           echo "$body" | python -c 'import json,sys; d=json.load(sys.stdin); assert d.get("ok") is True, d; assert isinstance(d.get("matches"),list), d; assert isinstance(d.get("predictions"),list), d; print("Dashboard OK:", len(d["matches"]), "matches,", len(d["predictions"]), "predictions")'
 
+      - name: Test learning read path
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai?action=learning"
+          body="$(curl -fsS --max-time 45 "$url")"
+          echo "$body"
+          echo "$body" | python -c 'import json,sys; d=json.load(sys.stdin); assert d.get("ok") is True, d; l=d.get("learning",{}); assert all(k in l for k in ["evaluated","wins","losses","voids","accuracy"]), d; print("Learning OK:", l)'
+
       - name: Test history read path
         shell: bash
         run: |
