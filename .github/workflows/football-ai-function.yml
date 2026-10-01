@@ -27,7 +27,7 @@ jobs:
         with:
           deno-version: v2.x
       - name: Type-check Football AI Edge Function
-        run: deno check supabase/functions/football-ai/index.ts
+        run: deno check --node-modules-dir=auto supabase/functions/football-ai/index.ts
       - uses: supabase/setup-cli@v2
         with:
           version: latest
