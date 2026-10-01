@@ -20,11 +20,17 @@
   </div>
   <script>
     window.__tmBooted=false;
+    window.__tmBootStarted=Date.now();
     window.addEventListener("error",function(e){
+      if(window.__tmBooted || e.filename)return;
+      var root=document.getElementById("root");
+      if(root)root.innerHTML='<div id="boot"><div class="bootCard"><strong>TRADEMINDMZ</strong><div>Kunne ikke starte appen.</div><button onclick="location.reload()" style="margin-top:16px;padding:10px 14px;border:1px solid #1d3b46;border-radius:8px;background:#07151d;color:#d7e9ef;font-weight:700">LAST INN PÅ NYTT</button></div></div>';
+    });
+    window.setTimeout(function(){
       if(window.__tmBooted)return;
       var root=document.getElementById("root");
-      if(root)root.innerHTML='<div id="boot"><div class="bootCard"><strong>TRADEMINDMZ</strong><div>Kunne ikke starte appen.</div></div></div>';
-    });
+      if(root)root.innerHTML='<div id="boot"><div class="bootCard"><strong>TRADEMINDMZ</strong><div>Appen brukte for lang tid på å starte.</div><button onclick="location.reload()" style="margin-top:16px;padding:10px 14px;border:1px solid #1d3b46;border-radius:8px;background:#07151d;color:#d7e9ef;font-weight:700">LAST INN PÅ NYTT</button></div></div>';
+    },15000);
   </script>
   <script type="module" src="/src/main.jsx"></script>
 </body>
