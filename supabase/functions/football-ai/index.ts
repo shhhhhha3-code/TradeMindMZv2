@@ -790,9 +790,10 @@ Deno.serve(async (req)=>{
         try { usage=(await footballApi("/usage"))?.data||null; }
         catch(e) { usage={error:e instanceof Error?e.message:String(e)}; }
       }
+      const ready=configured && !usage?.error;
       return json({
         ok:true,
-        status:configured ? "READY" : "DEGRADED",
+        status:ready ? "READY" : "DEGRADED",
         service:"football-ai",
         pipeline:"Football API -> features -> learned model -> odds -> value -> results -> evaluation -> retraining",
         provider:"football-soccer-api",
