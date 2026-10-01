@@ -416,7 +416,6 @@ async function enrichPredictionWithAi(match:any,prediction:any,featureMeta:any) 
   };
 }
 
-async 
 function classifyCompetition(leagueName:string) {
   const n=String(leagueName||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
   const cupPatterns=[
