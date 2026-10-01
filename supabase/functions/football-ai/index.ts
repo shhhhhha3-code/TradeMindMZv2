@@ -668,7 +668,7 @@ async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:
     if (enrichQueue.length<2 && (chosen.value==null || chosen.value>1 || confidence>60)) {
       enrichQueue.push({
         providerMatch:m,matchId:savedMatch.id,prediction:outcomeLabel(chosen.outcome,m),
-        probabilities:prediction,odds:market.odds,value:oe[chosen.outcome]?.value_percent,
+        confidence,probabilities:prediction,odds:market.odds,value:oe[chosen.outcome]?.value_percent,
         features:built.features,meta:built.meta
       });
     }
