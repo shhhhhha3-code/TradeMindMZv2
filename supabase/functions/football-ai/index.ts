@@ -507,7 +507,7 @@ async function retrainModel(supabase:any) {
   };
   const classes=["home","draw","away"],lr=num(model.learning_rate,0.018);
   let samples=0;
-  for (const ev of evaluations) {
+  for (const ev of (evaluations as any[])) {
     const features=byId.get(String(ev.prediction_id))?.feature_vector?.features;
     if (!features) continue;
     const x=FEATURE_NAMES.map((n)=>num(features[n]));
