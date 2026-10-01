@@ -1029,10 +1029,11 @@ Deno.serve(async (req)=>{
       const matchMap=new Map((matches||[]).map((m:any)=>[m.id,m]));
       const rows=predictions.map((p:any)=>({...p,match:matchMap.get(p.match_id)||null}));
       const settled=rows.filter((p:any)=>p.status==="WON"||p.status==="LOST"||p.status==="VOID");
+      const decided=settled.filter((p:any)=>p.status==="WON"||p.status==="LOST");
       const wins=settled.filter((p:any)=>p.status==="WON").length;
       const losses=settled.filter((p:any)=>p.status==="LOST").length;
       const voids=settled.filter((p:any)=>p.status==="VOID").length;
-      const pnl=settled.reduce((s:number,p:any)=>s+num(p.pnl),0);
+      const pnl=decided.reduce((s:number,p:any)=>s+num(p.pnl),0);
       const value=rows.filter((p:any)=>p.value_percent!=null&&num(p.value_percent)>0);
       const leagues:any={};
       for(const p of settled){
@@ -1048,7 +1049,7 @@ Deno.serve(async (req)=>{
         .eq("model_name",MODEL_NAME).maybeSingle();
       return json({
         ok:true,from,to,predictions:rows,
-        summary:{total:rows.length,settled:settled.length,wins,losses,voids,hit_rate:settled.length?wins/settled.length*100:null,pnl,roi_per_prediction:settled.length?pnl/settled.length*100:null,value_candidates:value.length},
+        summary:{total:rows.length,settled:settled.length,decided:decided.length,wins,losses,voids,hit_rate:decided.length?wins/decided.length*100:null,pnl,roi_per_prediction:decided.length?pnl/decided.length*100:null,value_candidates:value.length},
         leagues:Object.values(leagues).sort((a:any,b:any)=>b.pnl-a.pnl),
         model:model||null
       });
