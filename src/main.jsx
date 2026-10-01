@@ -190,6 +190,36 @@ function Main(){
 }
 
 
+class AppErrorBoundary extends React.Component{
+  constructor(props){
+    super(props);
+    this.state={error:null};
+  }
+  static getDerivedStateFromError(error){
+    return {error};
+  }
+  componentDidCatch(error,info){
+    console.error("TradeMindMZ render error",error,info);
+  }
+  handleReload=()=>{
+    try{window.location.reload()}catch{}
+  };
+  render(){
+    if(this.state.error){
+      return <div className="runtimeError">
+        <div className="runtimeErrorCard">
+          <div className="runtimeErrorLogo">MZ</div>
+          <h1>TRADEMINDMZ</h1>
+          <strong>Appen fikk en midlertidig feil</strong>
+          <p>{this.state.error?.message||String(this.state.error)}</p>
+          <button onClick={this.handleReload}>LAST INN APPEN PÅ NYTT</button>
+        </div>
+      </div>;
+    }
+    return this.props.children;
+  }
+}
+
 function AppRuntimeGuard({children}){
   const [error,setError]=useState(null);
   useEffect(()=>{
@@ -211,7 +241,11 @@ function AppRuntimeGuard({children}){
 }
 
 try{
-  createRoot(document.getElementById('root')).render(<AppRuntimeGuard><Main/></AppRuntimeGuard>);
+  createRoot(document.getElementById('root')).render(
+  <AppErrorBoundary>
+    <AppRuntimeGuard><Main/></AppRuntimeGuard>
+  </AppErrorBoundary>
+);
 }catch(error){
   const root=document.getElementById('root');
   if(root)root.innerHTML='<div class="runtimeError"><div class="runtimeErrorCard"><div class="runtimeErrorLogo">MZ</div><h1>TRADEMINDMZ</h1><strong>Kunne ikke starte appen</strong><p>'+String(error?.message||error)+'</p><button onclick="location.reload()">LAST INN APPEN PÅ NYTT</button></div></div>';
