@@ -17,6 +17,28 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: Preflight Football AI health
+        shell: bash
+        run: |
+          set -u
+          url="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai?action=health"
+          http_code="$(curl -sS --max-time 60 -o /tmp/health.json -w "%{http_code}" "$url" || true)"
+          body="$(cat /tmp/health.json 2>/dev/null || true)"
+          echo "Health HTTP: $http_code"
+          echo "$body"
+          BODY="$body" python - <<'PY'
+import json, os, sys
+try:
+    data=json.loads(os.environ.get("BODY",""))
+except Exception as exc:
+    print("Health returned non-JSON:", exc)
+    sys.exit(1)
+if data.get("ok") is not True:
+    print("Health reported failure:", data)
+    sys.exit(1)
+print("Football AI health:", data.get("status"))
+PY
+
       - name: Run Football AI pipeline with retry
         shell: bash
         run: |
