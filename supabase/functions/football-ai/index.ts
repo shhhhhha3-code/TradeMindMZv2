@@ -68,17 +68,46 @@ async function apiFootball(path:string, params:Record<string,string> = {}) {
   if (!key) return {ok:false, response:[], errors:["API_FOOTBALL_KEY is not configured"]};
   const url=new URL(API_FOOTBALL_BASE+path);
   Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));
-  try {
-    const response=await fetch(url,{
-      headers:{"x-apisports-key":key,Accept:"application/json"}
-    });
-    const body=await response.json();
-    if (!response.ok) return {ok:false,response:[],errors:[`HTTP ${response.status}`],raw:body};
-    if (Array.isArray(body?.errors) && body.errors.length) return {ok:false,response:[],errors:body.errors,raw:body};
-    return {ok:true,response:Array.isArray(body?.response)?body.response:[],paging:body?.paging||{},remaining:response.headers.get("x-ratelimit-requests-remaining")};
-  } catch (error) {
-    return {ok:false,response:[],errors:[error instanceof Error ? error.message : "API-Football request failed"]};
+  let lastError="API-Football request failed";
+  for (let attempt=0; attempt<3; attempt++) {
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),10000);
+    try {
+      const response=await fetch(url,{
+        headers:{"x-apisports-key":key,Accept:"application/json"},
+        signal:controller.signal
+      });
+      const body=await response.json();
+      const retryable=response.status===429 || response.status>=500;
+      if (!response.ok) {
+        lastError=`HTTP ${response.status}`;
+        if (retryable && attempt<2) {
+          await new Promise(resolve=>setTimeout(resolve,350*(attempt+1)));
+          continue;
+        }
+        return {ok:false,response:[],errors:[lastError],raw:body};
+      }
+      if (Array.isArray(body?.errors) && body.errors.length) {
+        lastError=body.errors.join(", ");
+        if (attempt<2 && /rate|limit|too many|temporar/i.test(lastError)) {
+          await new Promise(resolve=>setTimeout(resolve,350*(attempt+1)));
+          continue;
+        }
+        return {ok:false,response:[],errors:body.errors,raw:body};
+      }
+      return {ok:true,response:Array.isArray(body?.response)?body.response:[],paging:body?.paging||{},remaining:response.headers.get("x-ratelimit-requests-remaining")};
+    } catch (error) {
+      lastError=error?.name==="AbortError" ? "API-Football timeout" : (error instanceof Error ? error.message : "API-Football request failed");
+      if (attempt<2) {
+        await new Promise(resolve=>setTimeout(resolve,350*(attempt+1)));
+        continue;
+      }
+      return {ok:false,response:[],errors:[lastError]};
+    } finally {
+      clearTimeout(timer);
+    }
   }
+  return {ok:false,response:[],errors:[lastError]};
 }
 
 function normalizeTeamName(value:any) {
