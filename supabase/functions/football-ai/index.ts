@@ -722,6 +722,58 @@ Deno.serve(async (req)=>{
     if (!secretKey) return json({ok:false,error:"Supabase secret key is not available to the Edge Function"},500);
     const supabase=createClient(Deno.env.get("SUPABASE_URL")!,secretKey);
 
+    if (action==="diagnostics") {
+      const started=Date.now();
+      const checks:any={};
+      const timed=async(name:string,fn:()=>Promise<any>)=>{
+        const t=Date.now();
+        try {
+          const result=await fn();
+          checks[name]={ok:true,ms:Date.now()-t,result};
+        } catch(error) {
+          checks[name]={ok:false,ms:Date.now()-t,error:error instanceof Error?error.message:String(error)};
+        }
+      };
+
+      await timed("database",async()=>{
+        const {data,error}=await supabase.from("football_matches").select("id").limit(1);
+        if(error) throw error;
+        return {reachable:true,sample_rows:data?.length||0};
+      });
+
+      await timed("football_api",async()=>{
+        if(!getFootballKey()) throw new Error("FOOTBALL_API_KEY is not configured");
+        const body=await footballApi("/fixtures/upcoming",{days:"1",limit:"1"});
+        return {configured:true,fixtures:Array.isArray(body?.data)?body.data.length:0};
+      });
+
+      await timed("api_football_odds",async()=>{
+        if(!getApiFootballKey()) return {configured:false,skipped:true};
+        const result=await apiFootball("/odds",{date:new Date().toISOString().slice(0,10),page:"1"});
+        if(!result.ok) throw new Error((result.errors||[]).join(", "));
+        return {configured:true,rows:result.response.length,remaining:result.remaining};
+      });
+
+      await timed("model",async()=>{
+        const {data,error}=await supabase.from("football_ai_model_weights")
+          .select("model_name,model_version,training_samples,accuracy,roi,updated_at")
+          .eq("model_name",MODEL_NAME).maybeSingle();
+        if(error) throw error;
+        return {present:Boolean(data),model:data||null};
+      });
+
+      const failed=Object.entries(checks).filter(([,v]:any)=>!v.ok).map(([name,v]:any)=>({name,error:v.error}));
+      return json({
+        ok:failed.length===0,
+        status:failed.length===0?"READY":"DEGRADED",
+        service:"football-ai",
+        checked_at:nowIso(),
+        duration_ms:Date.now()-started,
+        checks,
+        failures:failed
+      });
+    }
+
     if (action==="sync"||action==="pipeline") return json(await runPipeline(supabase));
     if (action==="evaluate") {
       const evaluated=await evaluatePredictions(supabase);
