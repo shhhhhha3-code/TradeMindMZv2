@@ -40,7 +40,119 @@ function StatsPage({history,engine}){const s=history?.summary||{},m=history?.mod
 
 function ModelPage({engine,history,onTrain}){const m=history?.model||engine?.model||{};return <><PageTitle title="MODEL LAB" sub="LIVE LÆRING"/><div className="metricGrid">{[['MODELL',m.model_version||'–'],['TRENINGSDATA',m.training_samples??0],['TREFFSIKKERHET',m.accuracy!=null?(Number(m.accuracy)*100).toFixed(1)+'%':'–'],['ROI',m.roi!=null?(Number(m.roi)*100).toFixed(2)+'%':'–']].map(([a,b])=><div className="metricCard" key={a}><small>{a}</small><strong>{b}</strong></div>)}</div><section className="panel"><div className="panelTitle"><FlaskConical/> LÆRINGSMODELL <button className="miniBtn" onClick={onTrain}>↻ TREN MODELL</button></div><p className="pageText">Modellen trener på evaluerte historiske prediksjoner. Nye resultater brukes først etter at kampene er avgjort.</p><div className="pipelineLarge">{['FORM','xG/PROXY','RESULTATER','ODDS','PROBABILITY','VALUE','EVALUERING','LÆRING','RETRAIN'].map((x,i)=><span key={x} className={i<8?'done':''}>{i+1}. {x}</span>)}</div></section></>}
 
-function AiAnalysisPage({predictions}){const rows=(predictions||[]).slice(0,20);return <><PageTitle title="AI ANALYSE" sub="MODELLENS AKTUELLE VURDERINGER"/><section className="panel"><div className="panelTitle"><Brain/> PREDIKSJONSANALYSE</div>{rows.length?rows.map(p=><div className="analysisRow" key={p.id}><div><b>{p.prediction}</b><small>Confidence {Number(p.confidence||0).toFixed(1)}% · Model {p.model_version||p.model||'–'}</small></div><span>Odds {p.odds?Number(p.odds).toFixed(2):'–'}</span><strong className={Number(p.value_percent)>0?'greenTxt':''}>{p.value_percent!=null?Number(p.value_percent).toFixed(1)+'% value':'–'}</strong></div>):<div className="emptyState">Ingen live-prediksjoner tilgjengelig.</div>}</section></>}
+const AI_FEATURES=[
+  ["home_form","Hjemmeform"],
+  ["away_form","Borteform"],
+  ["home_goal_diff","Hjemme målforskjell"],
+  ["away_goal_diff","Borte målforskjell"],
+  ["home_attack","Hjemme angrep"],
+  ["away_attack","Borte angrep"],
+  ["home_defense","Hjemme forsvar"],
+  ["away_defense","Borte forsvar"],
+  ["goal_diff_edge","Målforskjell edge"],
+  ["position_edge","Tabellposisjon"],
+  ["travel_load","Reisebelastning"],
+  ["home_xg_proxy","Hjemme xG/proxy"],
+  ["away_xg_proxy","Borte xG/proxy"],
+  ["home_advantage","Hjemmefordel"],
+];
+
+function outcomeLabel(outcome){
+  return outcome==="home"?"HJEMME":outcome==="away"?"BORTE":"UAVGJORT";
+}
+function featureLabel(name){
+  return AI_FEATURES.find(([key])=>key===name)?.[1]||name.replaceAll("_"," ");
+}
+function selectedOutcome(p){
+  if(p?.selected_outcome) return p.selected_outcome;
+  const text=String(p?.prediction||"").toLowerCase();
+  if(text.includes("uavgjort")||text.includes("draw")) return "draw";
+  if(p?.match?.away_team&&text.includes(String(p.match.away_team).toLowerCase())) return "away";
+  return "home";
+}
+function featureImpactRows(p,model){
+  const outcome=selectedOutcome(p);
+  const features=p?.feature_vector?.features||{};
+  const weights=model?.weights?.[outcome]||[];
+  return AI_FEATURES.map(([key],i)=>({
+    key,label:featureLabel(key),
+    value:Number(features[key]||0),
+    weight:Number(weights[i]||0),
+    impact:Number(features[key]||0)*Number(weights[i]||0),
+  })).filter(x=>Number.isFinite(x.impact)).sort((a,b)=>Math.abs(b.impact)-Math.abs(a.impact)).slice(0,8);
+}
+
+function AiAnalysisPage({predictions,engine}){
+  const rows=(predictions||[]).slice(0,20);
+  const model=engine?.model||{};
+  const focus=rows[0];
+  const impacts=focus?featureImpactRows(focus,model):[];
+  const maxImpact=Math.max(0,...impacts.map(x=>Math.abs(x.impact)));
+  const weightRows=AI_FEATURES.map(([key,label],i)=>({
+    key,label,
+    home:Number(model?.weights?.home?.[i]||0),
+    draw:Number(model?.weights?.draw?.[i]||0),
+    away:Number(model?.weights?.away?.[i]||0),
+  }));
+  return <>
+    <PageTitle title="AI ANALYSE" sub="LIVE INTELLIGENCE CENTER"/>
+    <section className="aiTerminal panel">
+      <div className="aiTerminalTop">
+        <div>
+          <div className="terminalEyebrow"><span/> ENGINE ONLINE · FEATURE-V1</div>
+          <h2>MODELLENS <em>INTELLIGENCE CENTER</em></h2>
+          <p>Sanntidsvisning av signaler, modellvekter, sannsynlighet og AI-reasoning.</p>
+        </div>
+        <div className="terminalStats">
+          <span><small>MODEL</small><b>{model.model_version||"football-multinomial-v1"}</b></span>
+          <span><small>TRAINING</small><b>{model.training_samples??0}</b></span>
+          <span><small>UPDATED</small><b>{model.updated_at?new Date(model.updated_at).toLocaleTimeString("nb-NO",{hour:"2-digit",minute:"2-digit"}):"–"}</b></span>
+        </div>
+      </div>
+
+      {focus ? <div className="aiIntelGrid">
+        <section className="intelCard focusCard">
+          <div className="intelLabel"><Brain/> ACTIVE SIGNAL</div>
+          <div className="focusMatch">
+            <div><small>KAMP</small><b>{focus.match?.home_team||"–"} <span>vs</span> {focus.match?.away_team||"–"}</b><p>{focus.match?.league||"Ukjent"} · {focus.match?.country||"Ukjent"}</p></div>
+            <div className="focusOutcome"><small>MODEL OUTPUT</small><strong>{outcomeLabel(selectedOutcome(focus))}</strong><b>{Number(focus.confidence||0).toFixed(1)}%</b></div>
+          </div>
+          <div className="probMatrix">
+            {["home","draw","away"].map(k=><div key={k}><span>{outcomeLabel(k)}<b>{focus.feature_vector?.probabilities?.[k]!=null?(Number(focus.feature_vector.probabilities[k])*100).toFixed(1)+"%":"–"}</b></span><i><em style={{width:(focus.feature_vector?.probabilities?.[k]!=null?Number(focus.feature_vector.probabilities[k])*100:0)+"%"}}/></i></div>)}
+          </div>
+          <div className="signalFoot"><span>ODDS <b>{focus.odds?Number(focus.odds).toFixed(2):"–"}</b></span><span>VALUE <b className={Number(focus.value_percent)>0?"greenTxt":""}>{focus.value_percent!=null?(Number(focus.value_percent)>0?"+":"")+Number(focus.value_percent).toFixed(1)+"%":"–"}</b></span><span>DATA <b>{focus.feature_vector?.metadata?.data_quality!=null?(Number(focus.feature_vector.metadata.data_quality)*100).toFixed(0)+"%":"–"}</b></span></div>
+        </section>
+
+        <section className="intelCard">
+          <div className="intelLabel"><Activity/> FEATURE IMPACT <small>· {outcomeLabel(selectedOutcome(focus))}</small></div>
+          <div className="impactList">{impacts.map(x=><div className="impactRow" key={x.key}>
+            <div><span>{x.label}</span><small>{x.value.toFixed(2)} × {x.weight.toFixed(2)}</small></div>
+            <i><em className={x.impact>=0?"positive":"negative"} style={{width:(maxImpact?Math.max(8,Math.abs(x.impact)/maxImpact*100):0)+"%"}}/></i>
+            <b className={x.impact>=0?"greenTxt":"negativeTxt"}>{x.impact>=0?"+":""}{x.impact.toFixed(3)}</b>
+          </div>)}</div>
+        </section>
+      </div> : <div className="emptyState">Ingen live-prediksjoner tilgjengelig.</div>}
+
+      <div className="aiIntelLower">
+        <section className="intelCard">
+          <div className="intelLabel"><SlidersHorizontal/> MODEL WEIGHTS <small>· MULTINOMIAL</small></div>
+          <div className="weightsTable">
+            <div className="weightsHead"><span>FEATURE</span><span>HJEMME</span><span>UAVGJORT</span><span>BORTE</span></div>
+            {weightRows.map(x=><div className="weightsRow" key={x.key}><span>{x.label}</span><b className={x.home>=0?"greenTxt":"negativeTxt"}>{x.home.toFixed(2)}</b><b className={x.draw>=0?"greenTxt":"negativeTxt"}>{x.draw.toFixed(2)}</b><b className={x.away>=0?"greenTxt":"negativeTxt"}>{x.away.toFixed(2)}</b></div>)}
+          </div>
+        </section>
+
+        <section className="intelCard reasoningCard">
+          <div className="intelLabel"><Zap/> AI REASONING STREAM</div>
+          <div className="reasoningStream">{rows.slice(0,8).map((p,i)=><div className="reasoningItem" key={p.id}>
+            <span className="streamDot">{String(i+1).padStart(2,"0")}</span>
+            <div><b>{p.prediction||"–"}</b><small>{p.match_id?.slice?.(0,8)||"MATCH"} · {Number(p.confidence||0).toFixed(1)}% · {p.value_percent!=null?(Number(p.value_percent)>0?"+":"")+Number(p.value_percent).toFixed(1)+"% value":"no value"}</small><p>{p.reasoning?.llm?.summary||"Modellbasert vurdering fra live feature-sett."}</p></div>
+          </div>)}{!rows.length&&<div className="emptyState">Ingen reasoning tilgjengelig.</div>}</div>
+        </section>
+      </div>
+    </section>
+  </>;
+}
 
 function ExpertPage(){return <><PageTitle title="EKSPERTANALYSE" sub="EKSTERNE EKSPERTDATA"/><section className="panel"><div className="panelTitle"><Newspaper/> EKSPERTDATA</div><div className="emptyState">Ingen verifisert ekspertkilde er koblet til akkurat nå. Appen viser derfor ikke oppdiktede ekspertuttalelser eller nyheter.</div></section></>}
 
