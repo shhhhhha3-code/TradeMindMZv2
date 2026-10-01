@@ -924,10 +924,11 @@ Deno.serve(async (req)=>{
       const wins=evaluations.filter((r:any)=>r.correct===true).length;
       const losses=evaluations.filter((r:any)=>r.correct===false && r.pnl!=null).length;
       const voids=evaluations.filter((r:any)=>r.pnl==null && r.actual_result==null).length;
+      const settled=wins+losses;
       const model=await getModel(supabase);
       return json({ok:true,learning:{
         evaluated:evaluations.length,wins,losses,voids,
-        accuracy:evaluations.length?wins/evaluations.length:null,
+        accuracy:settled?wins/settled:null,
         pnl:evaluations.reduce((s:number,r:any)=>s+num(r.pnl),0),
         last_evaluated_at:evaluations[0]?.evaluated_at||null
       },model});
