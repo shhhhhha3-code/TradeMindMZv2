@@ -1,4 +1,5 @@
 name: Deploy Football AI Edge Function
+# Manual redeploy trigger after runtime boot fix
 
 on:
   push:
