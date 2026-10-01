@@ -591,28 +591,34 @@ async function retrainModel(supabase:any) {
   const model=await getModel(supabase);
   const {data:evaluations}=await supabase.from("football_ai_evaluations")
     .select("prediction_id,actual_result").order("evaluated_at",{ascending:true}).limit(5000);
-  const evaluationRows:any[] = (evaluations || []).filter((e:any)=>["home","draw","away"].includes(String(e.actual_result)));
-  if (!evaluationRows.length) return model;
+  const evaluationRows:any[]=(evaluations||[]).filter((e:any)=>["home","draw","away"].includes(String(e.actual_result)));
+  if(!evaluationRows.length) return model;
+
   const ids=evaluationRows.map((e:any)=>e.prediction_id);
-  const {data:predictions}=await supabase.from("football_ai_predictions").select("id,feature_vector").in("id",ids);
-  const byId:Map<string,any>=new Map((predictions||[]).map((p:any)=>[String(p.id),p]));
-  // Full retrain from the base model prevents repeatedly training the same
-  // historical samples on top of already-updated weights.
+  const {data:predictions}=await supabase.from("football_ai_predictions")
+    .select("id,match_id,feature_vector").in("id",ids);
+  const matchIds=[...new Set((predictions||[]).map((p:any)=>p.match_id).filter(Boolean))];
+  const {data:trainingMatches}=matchIds.length
+    ? await supabase.from("football_matches").select("id,raw,league").in("id",matchIds)
+    : {data:[]};
+  const europeanMatchIds=new Set((trainingMatches||[]).filter(isEuropeanMatch).map((m:any)=>String(m.id)));
+  const europeanPredictions=(predictions||[]).filter((p:any)=>europeanMatchIds.has(String(p.match_id)));
+  const europeanPredictionIds=new Set(europeanPredictions.map((p:any)=>String(p.id)));
+  const europeanEvaluationRows=evaluationRows.filter((e:any)=>europeanPredictionIds.has(String(e.prediction_id)));
+  if(!europeanEvaluationRows.length) return model;
+  const byId:Map<string,any>=new Map(europeanPredictions.map((p:any)=>[String(p.id),p]));
+
   const initial=defaultWeights();
   const next={
     ...model,
-    weights:{
-      home:[...initial.weights.home],
-      draw:[...initial.weights.draw],
-      away:[...initial.weights.away]
-    },
+    weights:{home:[...initial.weights.home],draw:[...initial.weights.draw],away:[...initial.weights.away]},
     bias:{...initial.bias}
   };
   const classes:any[]=["home","draw","away"],lr=num(model.learning_rate,0.018);
   let samples=0;
-  for (const ev of europeanEvaluationRows) {
+  for(const ev of europeanEvaluationRows){
     const features=byId.get(String(ev.prediction_id))?.feature_vector?.features;
-    if (!features) continue;
+    if(!features) continue;
     const x=FEATURE_NAMES.map((n)=>num(features[n]));
     const scores=classes.map((outcome)=>num(next.bias[outcome])+x.reduce((s,v,i)=>s+v*num(next.weights[outcome][i]),0));
     const probs=softmax(scores);
@@ -623,10 +629,21 @@ async function retrainModel(supabase:any) {
     });
     samples++;
   }
+
+  const predictionIds=europeanEvaluationRows.map((e:any)=>e.prediction_id);
+  const {data:metricPredictions}=predictionIds.length
+    ? await supabase.from("football_ai_predictions").select("id,match_id").in("id",predictionIds)
+    : {data:[]};
+  const metricMatchIds=[...new Set((metricPredictions||[]).map((p:any)=>p.match_id).filter(Boolean))];
+  const {data:metricMatches}=metricMatchIds.length
+    ? await supabase.from("football_matches").select("id,raw,league").in("id",metricMatchIds)
+    : {data:[]};
+  const metricEuropeanIds=new Set((metricMatches||[]).filter(isEuropeanMatch).map((m:any)=>String(m.id)));
+  const metricEuropeanPredictionIds=new Set((metricPredictions||[]).filter((p:any)=>metricEuropeanIds.has(String(p.match_id))).map((p:any)=>String(p.id)));
   const {data:metrics}=await supabase.from("football_ai_evaluations")
-    .select("correct,pnl,brier_score,log_loss").order("evaluated_at",{ascending:false}).limit(500);
-  const metricRows:any[] = metrics || [];
-  const settledMetricRows=metricRows.filter((r:any)=>r.pnl!=null && r.correct!=null);
+    .select("prediction_id,correct,pnl,brier_score,log_loss").in("prediction_id",[...metricEuropeanPredictionIds]).order("evaluated_at",{ascending:false}).limit(5000);
+  const metricRows:any[]=metrics||[];
+  const settledMetricRows=metricRows.filter((r:any)=>r.pnl!=null&&r.correct!=null);
   const count=settledMetricRows.length,wins=settledMetricRows.filter((r:any)=>r.correct===true).length;
   const brierRows:any[]=metricRows.filter((r:any)=>r.brier_score!=null);
   const logRows:any[]=metricRows.filter((r:any)=>r.log_loss!=null);
