@@ -23,6 +23,11 @@ jobs:
       SUPABASE_PROJECT_ID: ${{ secrets.SUPABASE_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Type-check Football AI Edge Function
+        run: deno check supabase/functions/football-ai/index.ts
       - uses: supabase/setup-cli@v2
         with:
           version: latest
