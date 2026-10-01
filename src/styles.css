@@ -353,3 +353,72 @@ header:after{content:'M';font-family:Orbitron;font-size:210px;color:var(--tm-gre
   .table .tr:not(.th) .tipCell{font-size:10px;color:#a7c3cd}
   .table .tr:not(.th) .status{font-size:9px}
 }
+
+
+/* AI match intelligence layer */
+.matchRow{
+  width:100%;border:0;border-top:1px solid rgba(24,201,255,.08);
+  color:inherit;text-align:left;cursor:pointer;
+}
+.matchRow:hover{background:rgba(0,240,160,.045)}
+.detailOverlay{
+  position:fixed;inset:0;z-index:1000;display:flex;align-items:center;justify-content:center;
+  padding:24px;background:rgba(1,7,11,.78);backdrop-filter:blur(12px);
+}
+.matchDetail{
+  position:relative;width:min(900px,100%);max-height:90vh;overflow:auto;
+  padding:22px;border:1px solid rgba(0,240,160,.22);
+  background:
+    radial-gradient(circle at 15% 0%,rgba(0,240,160,.08),transparent 30%),
+    radial-gradient(circle at 90% 10%,rgba(24,201,255,.08),transparent 30%),
+    #06131d;
+  box-shadow:0 25px 80px rgba(0,0,0,.55),0 0 45px rgba(0,240,160,.06);
+}
+.detailClose{
+  position:absolute;right:13px;top:13px;width:34px;height:34px;border-radius:9px;
+  border:1px solid #234759;background:#081d29;color:#9db4be;cursor:pointer;
+}
+.detailClose:hover{color:#fff;border-color:var(--tm-green)}
+.detailEyebrow{font-size:8px;letter-spacing:1.4px;color:var(--tm-green);font-weight:900}
+.detailLeague{margin-top:7px;color:#78939f;font-size:10px}
+.detailTeams{
+  display:grid;grid-template-columns:1fr 100px 1fr;gap:16px;align-items:center;
+  margin:22px 0;text-align:center
+}
+.detailTeams>div:first-child{text-align:right}.detailTeams>div:last-child{text-align:left}
+.detailTeams small,.aiSignal small{display:block;color:#66818f;font-size:7px;font-weight:900;letter-spacing:1px;margin-bottom:5px}
+.detailTeams strong{font-size:21px;color:#eff9fb}
+.detailVs{font-weight:900;color:var(--tm-cyan);font-size:12px}
+.detailVs small{margin-top:5px;color:#78939f;font-size:8px}
+.aiSignal{
+  display:grid;grid-template-columns:1.6fr repeat(3,1fr);gap:1px;
+  background:rgba(24,201,255,.08);border:1px solid rgba(24,201,255,.1);border-radius:12px;overflow:hidden;
+}
+.aiSignal>div{padding:12px;background:rgba(4,18,27,.9)}
+.aiSignal b{font-size:15px;color:#eaf8fb}
+.detailGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.detailCard{padding:14px;border-radius:11px;background:rgba(5,20,29,.8);border:1px solid rgba(24,201,255,.09)}
+.detailTitle{display:flex;align-items:center;gap:7px;color:#a9c1cb;font-size:9px;font-weight:900;letter-spacing:.7px;margin-bottom:12px}
+.detailTitle svg{width:15px;color:var(--tm-green)}
+.probBars>div{margin:9px 0}.probBars span{display:flex;justify-content:space-between;font-size:9px;color:#9ab1ba}
+.probBars b{color:#e9f8fb}
+.probBars i{display:block;height:5px;margin-top:5px;border-radius:9px;background:#102b38;overflow:hidden}
+.probBars em{display:block;height:100%;border-radius:9px;background:linear-gradient(90deg,var(--tm-green),var(--tm-cyan))}
+.signalRows{display:grid;gap:0}.signalRows span{display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid rgba(24,201,255,.06);font-size:9px;color:#76919c}
+.signalRows b{color:#dcecf0;text-align:right;overflow:hidden;text-overflow:ellipsis}
+.reasoning{margin:0;color:#b8ccd3;font-size:10px;line-height:1.55}
+.risk{margin-top:10px;padding:7px 8px;border-left:2px solid #e6b84b;background:rgba(230,184,75,.05);color:#d7bd79;font-size:8px}
+.detailFooter{display:flex;flex-wrap:wrap;gap:18px;margin-top:12px;padding-top:11px;border-top:1px solid rgba(24,201,255,.08);color:#5e7b87;font-size:7px;font-weight:800;letter-spacing:.6px}
+.detailFooter b{color:#a8c0c9;margin-left:4px}
+
+@media(max-width:560px){
+  .detailOverlay{padding:8px;align-items:flex-end}
+  .matchDetail{max-height:94vh;border-radius:15px 15px 0 0;padding:16px}
+  .detailTeams{grid-template-columns:1fr 52px 1fr;gap:6px;margin:18px 0}
+  .detailTeams strong{font-size:14px}
+  .aiSignal{grid-template-columns:1fr 1fr}
+  .aiSignal>div:first-child{grid-column:1/3}
+  .detailGrid{grid-template-columns:1fr}
+  .detailCard{padding:11px}
+  .detailFooter{gap:10px}
+}
