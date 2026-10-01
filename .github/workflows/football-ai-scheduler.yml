@@ -27,10 +27,11 @@ jobs:
           jq -e '.ok == true' /tmp/health.json >/dev/null
           if grep -q 'quota_exhausted' /tmp/health.json; then
             echo "Football Soccer API daily quota is exhausted. Skipping this cycle; it will resume after the provider reset."
-            exit 0
+            echo "SKIP_PIPELINE=1" >> "$GITHUB_ENV"
           fi
 
       - name: Run Football AI pipeline
+        if: env.SKIP_PIPELINE != '1'
         shell: bash
         run: |
           set -e
