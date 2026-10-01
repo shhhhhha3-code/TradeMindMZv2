@@ -750,7 +750,7 @@ Deno.serve(async (req)=>{
         leagues[league].pnl+=num(p.pnl);
       }
       const {data:model}=await supabase.from("football_ai_model_weights")
-        .select("model_name,model_version,training_samples,accuracy,roi,brier_score,log_loss,updated_at")
+        .select("model_name,model_version,training_samples,accuracy,roi,brier_score,log_loss,updated_at,weights,bias,learning_rate")
         .eq("model_name",MODEL_NAME).maybeSingle();
       return json({
         ok:true,from,to,predictions:rows,
