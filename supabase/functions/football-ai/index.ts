@@ -427,13 +427,13 @@ function classifyCompetition(leagueName:string) {
   return cupPatterns.some((x)=>n.includes(x)) ? "cup" : "league";
 }
 
-async function upsertMatch(supabase:any,m:any) {
+function matchRecord(m:any) {
   const externalId=String(m.match_id||m.id||"");
   if (!externalId) return null;
   const rawKickoff=m.kickoff_utc ?? m.kickoff ?? m.kickoff_at;
   const kickoff=typeof rawKickoff==="number" ? new Date(rawKickoff*1000).toISOString() : String(rawKickoff||"");
   if (!kickoff) return null;
-  const {data,error}=await supabase.from("football_matches").upsert({
+  return {
     external_id:externalId,league:m.league_name||"Unknown",
     season:m.season_start_year ? String(m.season_start_year) : (m.season ? String(m.season):null),
     kickoff_at:kickoff,home_team:m.home_team_name||m.home_team||"Unknown",
@@ -444,7 +444,13 @@ async function upsertMatch(supabase:any,m:any) {
     home_score:m.home_goals ?? null,away_score:m.away_goals ?? null,
     home_xg:extractXg(m,"home"),away_xg:extractXg(m,"away"),
     venue:m.venue_name||null,source:"football-soccer-api",raw:safeJson(m),updated_at:nowIso()
-  },{onConflict:"external_id"}).select("*").single();
+  };
+}
+
+async function upsertMatch(supabase:any,m:any) {
+  const row=matchRecord(m);
+  if (!row) return null;
+  const {data,error}=await supabase.from("football_matches").upsert(row,{onConflict:"external_id"}).select("*").single();
   if (error) throw error;
   return data;
 }
@@ -572,35 +578,61 @@ async function retrainModel(supabase:any) {
 }
 
 async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:any[] = []) {
-  const filtered=rows.filter(isEuropeanMatch),teamCache=await loadAllTeamHistory(supabase),model=await getModel(supabase);
-  let matchesScanned=0,predictionsCreated=0,oddsStored=0;
-  for (const m of filtered) {
-    const saved=await upsertMatch(supabase,m);
-    if (!saved) continue;
-    matchesScanned++;
-    const externalOdds=findApiFootballOdds(saved,externalOddsRows);
+  const started=Date.now();
+  const filtered=rows.filter(isEuropeanMatch);
+  const [teamCache,model]=await Promise.all([loadAllTeamHistory(supabase),getModel(supabase)]);
+  const payloads=filtered.map(matchRecord).filter(Boolean);
+
+  if (!payloads.length) {
+    await supabase.from("football_ai_runs").insert({
+      run_type:runType,matches_scanned:0,predictions_created:0,
+      provider:"football-soccer-api + learning-engine",status:"SUCCESS",started_at:nowIso(),finished_at:nowIso()
+    });
+    return {matchesScanned:0,oddsStored:0,predictionsCreated:0,duration_ms:Date.now()-started};
+  }
+
+  const {data:savedRows,error:matchError}=await supabase.from("football_matches")
+    .upsert(payloads,{onConflict:"external_id"}).select("*");
+  if (matchError) throw matchError;
+
+  const saved=savedRows||[];
+  const providerByExternal=new Map(filtered.map((m:any)=>[String(m.match_id||m.id),m]));
+  const existingIds=saved.map((m:any)=>m.id).filter(Boolean);
+  const {data:existingOpen,error:existingError}=existingIds.length
+    ? await supabase.from("football_ai_predictions").select("id,match_id").in("match_id",existingIds).eq("status","OPEN")
+    : {data:[],error:null};
+  if (existingError) throw existingError;
+  const existingByMatch=new Map((existingOpen||[]).map((p:any)=>[String(p.match_id),p]));
+
+  const oddsRows:any[]=[];
+  const newPredictions:any[]=[];
+  const featureRows:any[]=[];
+  const enrichQueue:any[]=[];
+
+  for (const savedMatch of saved) {
+    const m=providerByExternal.get(String(savedMatch.external_id));
+    if (!m) continue;
+
+    const externalOdds=findApiFootballOdds(savedMatch,externalOddsRows);
     const baseMarket=marketProbabilities(m);
     const market=externalOdds
-      ? {
-          odds:externalOdds.odds,
-          probabilities:baseMarket.probabilities
-        }
+      ? {odds:externalOdds.odds,probabilities:baseMarket.probabilities}
       : baseMarket;
-    const prices=[["home",market.odds.home],["draw",market.odds.draw],["away",market.odds.away]].filter(([,v])=>v) as [string,number][];
-    if (prices.length) {
-      const {error}=await supabase.from("football_odds").insert(prices.map(([selection,odds])=>({
-        match_id:saved.id,
-        bookmaker:externalOdds ? `API-Football / ${externalOdds.bookmaker}` : "Football Soccer API / exchange",
-        market:"1X2",selection,odds,captured_at:nowIso(),
-        raw:safeJson(externalOdds||m)
-      })));
-      if (!error) oddsStored+=prices.length;
+    const prices=[["home",market.odds.home],["draw",market.odds.draw],["away",market.odds.away]]
+      .filter(([,v])=>v) as [string,number][];
+
+    for (const [selection,odds] of prices) {
+      oddsRows.push({
+        match_id:savedMatch.id,bookmaker:externalOdds ? `API-Football / ${externalOdds.bookmaker}` : "Football Soccer API / exchange",
+        market:"1X2",selection,odds,captured_at:nowIso(),raw:safeJson(externalOdds||m)
+      });
     }
-    if (new Date(saved.kickoff_at).getTime()<=Date.now()) continue;
-    const [homeStats,awayStats]=await Promise.all([
-      Promise.resolve(teamCache.get(saved.home_team)||teamStatsFromRows([])),
-      Promise.resolve(teamCache.get(saved.away_team)||teamStatsFromRows([]))
-    ]);
+
+    if (new Date(savedMatch.kickoff_at).getTime()<=Date.now()) continue;
+    if (existingByMatch.has(String(savedMatch.id))) continue;
+
+    const homeStats=teamCache.get(savedMatch.home_team)||teamStatsFromRows([]);
+    const awayStats=teamCache.get(savedMatch.away_team)||teamStatsFromRows([]);
     const built=buildFeatures(m,homeStats,awayStats);
     const prediction=predictWithWeights(built.features,model);
     const oe=oddsEngine(prediction,market),chosen=choosePrediction(prediction,oe);
@@ -609,28 +641,6 @@ async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:
       features:built.features,probabilities:prediction,odds:market.odds,
       market_probabilities:market.probabilities,odds_engine:oe,metadata:built.meta
     };
-    const {data:existing}=await supabase.from("football_ai_predictions").select("id")
-      .eq("match_id",saved.id).eq("status","OPEN").limit(1);
-    if (existing?.length) {
-      if (externalOdds) {
-        const existingId=existing[0].id;
-        const selectedExisting=choosePrediction(prediction,oe);
-        await supabase.from("football_ai_predictions").update({
-          prediction:outcomeLabel(selectedExisting.outcome,m),
-          selected_outcome:selectedExisting.outcome,
-          implied_probability:market.odds[selectedExisting.outcome]?(1/market.odds[selectedExisting.outcome])*100:null,
-          odds:market.odds[selectedExisting.outcome],
-          value_percent:oe[selectedExisting.outcome]?.value_percent,
-          model_score:Math.max(35,Math.min(95,selectedExisting.probability*100)),
-          reasoning:{
-            odds_source:"api-football",
-            bookmaker:externalOdds.bookmaker,
-            odds_engine:oe
-          }
-        }).eq("id",existingId);
-      }
-      continue;
-    }
     const reasoning={
       engine:"learned-multinomial",feature_version:FEATURE_VERSION,
       model_version:model.model_version||MODEL_NAME,data_quality:built.meta.data_quality,
@@ -643,42 +653,76 @@ async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:
         league_position_edge:built.features.position_edge,travel_load:built.features.travel_load
       }
     };
-    const {data:created,error}=await supabase.from("football_ai_predictions").insert({
-      match_id:saved.id,prediction:outcomeLabel(chosen.outcome,m),selected_outcome:chosen.outcome,
+    newPredictions.push({
+      match_id:savedMatch.id,prediction:outcomeLabel(chosen.outcome,m),selected_outcome:chosen.outcome,
       confidence,implied_probability:market.odds[chosen.outcome]?(1/market.odds[chosen.outcome])*100:null,
       odds:market.odds[chosen.outcome],value_percent:oe[chosen.outcome]?.value_percent,
       model_score:confidence,reasoning,feature_vector:featureVector,feature_version:FEATURE_VERSION,
-      model_version:model.model_version||MODEL_NAME,provider:externalOdds ? "football-soccer-api + API-Football odds + local-learning-model" : "football-soccer-api + local-learning-model",
+      model_version:model.model_version||MODEL_NAME,
+      provider:externalOdds ? "football-soccer-api + API-Football odds + local-learning-model" : "football-soccer-api + local-learning-model",
       model:MODEL_NAME,status:"OPEN"
-    }).select("id").single();
-    if (error||!created) continue;
-    predictionsCreated++;
-    await supabase.from("football_ai_features").upsert({
-      match_id:saved.id,feature_version:FEATURE_VERSION,feature_vector:featureVector,data_quality:built.meta.data_quality
-    },{onConflict:"match_id,feature_version"});
-    if (predictionsCreated<=2 && (chosen.value==null || chosen.value>1 || confidence>60)) {
-      const ai=await enrichPredictionWithAi(m,{
-        prediction:outcomeLabel(chosen.outcome,m),probabilities:prediction,odds:market.odds,
-        value:oe[chosen.outcome]?.value_percent,features:built.features
-      },built.meta);
+    });
+    featureRows.push({
+      match_id:savedMatch.id,feature_version:FEATURE_VERSION,feature_vector:featureVector,data_quality:built.meta.data_quality
+    });
+    if (enrichQueue.length<2 && (chosen.value==null || chosen.value>1 || confidence>60)) {
+      enrichQueue.push({
+        providerMatch:m,matchId:savedMatch.id,prediction:outcomeLabel(chosen.outcome,m),
+        probabilities:prediction,odds:market.odds,value:oe[chosen.outcome]?.value_percent,
+        features:built.features,meta:built.meta
+      });
+    }
+  }
+
+  if (oddsRows.length) {
+    for (let i=0;i<oddsRows.length;i+=300) {
+      const {error}=await supabase.from("football_odds").insert(oddsRows.slice(i,i+300));
+      if (error) throw error;
+    }
+  }
+
+  let created:any[]=[];
+  if (newPredictions.length) {
+    const {data,error}=await supabase.from("football_ai_predictions").insert(newPredictions).select("id,match_id");
+    if (error) throw error;
+    created=data||[];
+  }
+  if (featureRows.length) {
+    const {error}=await supabase.from("football_ai_features").upsert(featureRows,{onConflict:"match_id,feature_version"});
+    if (error) throw error;
+  }
+
+  if (enrichQueue.length && created.length) {
+    const createdByMatch=new Map(created.map((x:any)=>[String(x.match_id),x.id]));
+    await Promise.all(enrichQueue.map(async (item:any)=>{
+      const createdId=createdByMatch.get(String(item.matchId));
+      if (!createdId) return;
+      const ai=await enrichPredictionWithAi(item.providerMatch,{
+        prediction:item.prediction,probabilities:item.probabilities,odds:item.odds,
+        value:item.value,features:item.features
+      },item.meta);
       if (ai.summary||ai.groq||ai.openai) {
-        const adjusted=Math.max(35,Math.min(95,confidence+ai.confidenceAdjustment));
+        const adjusted=Math.max(35,Math.min(95,num(item.confidence,0)+ai.confidenceAdjustment));
         await supabase.from("football_ai_predictions").update({
           confidence:adjusted,model_score:adjusted,
           llm_reasoning:JSON.stringify({groq:ai.groq,openai:ai.openai,summary:ai.summary,risk:ai.risk}),
-          reasoning:{...reasoning,llm:{summary:ai.summary,risk:ai.risk}}
-        }).eq("id",created.id);
+          reasoning:{
+            ...newPredictions.find((p:any)=>p.match_id===item.matchId)?.reasoning,
+            llm:{summary:ai.summary,risk:ai.risk}
+          }
+        }).eq("id",createdId);
       }
-    }
+    }));
   }
+
+  const matchesScanned=saved.length;
+  const predictionsCreated=created.length;
   await supabase.from("football_ai_runs").insert({
     run_type:runType,matches_scanned:matchesScanned,predictions_created:predictionsCreated,
     provider:"football-soccer-api + learning-engine",status:"SUCCESS",started_at:nowIso(),finished_at:nowIso()
   });
-  return {matchesScanned,oddsStored,predictionsCreated};
-}
-
-async function runPipeline(supabase:any) {
+  return {matchesScanned,oddsStored:oddsRows.length,predictionsCreated,duration_ms:Date.now()-started};
+}async function runPipeline(supabase:any) {
   const started=Date.now();
   const [fixturesBody,upcomingBody,resultsBody]=await Promise.all([
     footballApi("/fixtures/today",{limit:"1000"}),
