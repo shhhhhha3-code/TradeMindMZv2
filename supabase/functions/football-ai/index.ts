@@ -18,15 +18,22 @@ const FEATURE_NAMES = [
 ];
 
 const EUROPEAN_COUNTRIES = new Set([
-  "England","Spain","Italy","Germany","France","Netherlands","Portugal","Belgium",
-  "Turkey","Greece","Austria","Switzerland","Scotland","Denmark","Norway","Sweden",
-  "Finland","Poland","Czech Republic","Czechia","Croatia","Serbia","Ukraine",
-  "Romania","Hungary","Slovakia","Slovenia","Bulgaria","Cyprus","Israel",
-  "Republic of Ireland","Ireland","Iceland","Russia","Bosnia","Bosnia And Herzegovina",
-  "Montenegro","North Macedonia","Wales",
+  "albania","andorra","armenia","austria","azerbaijan","belarus","belgium","bosnia",
+  "bosnia and herzegovina","bulgaria","croatia","cyprus","czech republic","czechia",
+  "denmark","england","estonia","faroe islands","finland","france","georgia",
+  "germany","gibraltar","greece","hungary","iceland","ireland","israel","italy",
+  "kazakhstan","kosovo","latvia","liechtenstein","lithuania","luxembourg","malta",
+  "moldova","monaco","montenegro","netherlands","north macedonia","northern ireland",
+  "norway","poland","portugal","romania","russia","san marino","scotland","serbia",
+  "slovakia","slovenia","spain","sweden","switzerland","turkey","ukraine","wales",
 ]);
 
-const EUROPEAN_COMPETITIONS = ["Champions League","Europa League","Conference League"];
+const EUROPEAN_COMPETITIONS = [
+  "champions league","europa league","conference league","uefa champions league",
+  "uefa europa league","uefa conference league","nations league","uefa nations league",
+  "european championship","euro championship","euro qualification","euro qualifiers",
+  "uefa super cup","super cup",
+];
 
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -220,11 +227,16 @@ async function footballApi(path: string, params: Record<string,string> = {}) {
   return body;
 }
 
+function normalizedText(value:any) {
+  return String(value||"").trim().toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g,"");
+}
+
 function isEuropeanMatch(m: any) {
-  const country = String(m?.country_name || m?.country || "");
-  const league = String(m?.league_name || m?.league || "");
+  const raw=m?.raw||{};
+  const country=normalizedText(m?.country_name||m?.country||raw?.country_name||raw?.country||raw?.countryName);
+  const league=normalizedText(m?.league_name||m?.league||raw?.league_name||raw?.league||raw?.competition_name);
   return EUROPEAN_COUNTRIES.has(country) ||
-    EUROPEAN_COMPETITIONS.some((name) => league.toLowerCase().includes(name.toLowerCase()));
+    EUROPEAN_COMPETITIONS.some((name)=>league.includes(normalizedText(name)));
 }
 
 function pickPrice(m: any, side: "home"|"draw"|"away") {
@@ -941,10 +953,11 @@ Deno.serve(async (req)=>{
       const to=url.searchParams.get("to")||new Date().toISOString().slice(0,10);
       const start=new Date(from+"T00:00:00.000Z"),end=new Date(to+"T23:59:59.999Z");
       const {data:matches,error:matchError}=await supabase.from("football_matches")
-        .select("id,league,kickoff_at,home_team,away_team").gte("kickoff_at",start.toISOString()).lte("kickoff_at",end.toISOString()).limit(5000);
+        .select("id,league,kickoff_at,home_team,away_team,raw").gte("kickoff_at",start.toISOString()).lte("kickoff_at",end.toISOString()).limit(5000);
       if(matchError) throw matchError;
-      const ids=(matches||[]).map((m:any)=>m.id);
-      if(!ids.length) return json({ok:true,from,to,summary:{evaluated:0,settled:0,wins:0,losses:0,voids:0,accuracy:null,pnl:0,roi:null,brier_score:null,log_loss:null},breakdowns:{league:[],market:[],confidence:[],odds:[],value:[],period:[]}});
+      const europeanMatches=(matches||[]).filter(isEuropeanMatch);
+      const ids=europeanMatches.map((m:any)=>m.id);
+      if(!ids.length) return json({ok:true,from,to,summary:{evaluated:0,settled:0,wins:0,losses:0,voids:0,accuracy:null,pnl:0,roi:null,brier_score:null,log_loss:null},breakdowns:{league:[],market:[],outcome:[],confidence:[],odds:[],value:[],period:[]},scope:"Europe"});
 
       const [{data:predictions,error:predictionError},{data:evaluations,error:evaluationError}]=await Promise.all([
         supabase.from("football_ai_predictions").select("id,match_id,selected_outcome,prediction,confidence,odds,value_percent,created_at,evaluated_at,status").in("match_id",ids).limit(5000),
@@ -954,7 +967,7 @@ Deno.serve(async (req)=>{
       if(evaluationError) throw evaluationError;
 
       const predictionMap=new Map((predictions||[]).map((p:any)=>[String(p.id),p]));
-      const matchMap=new Map((matches||[]).map((m:any)=>[String(m.id),m]));
+      const matchMap=new Map(europeanMatches.map((m:any)=>[String(m.id),m]));
       const rows=(evaluations||[]).map((e:any)=>{
         const p=predictionMap.get(String(e.prediction_id)); const m=p?matchMap.get(String(p.match_id)):null;
         return {...e,p,m};
@@ -997,7 +1010,7 @@ Deno.serve(async (req)=>{
         return age<=7?"Siste 7 dager":age<=30?"Siste 30 dager":"31–90 dager";
       };
       const summary={evaluated:rows.length,settled:settled.length,wins,losses,voids:voids.length,accuracy:settled.length?wins/settled.length:null,pnl,roi:settled.length?pnl/settled.length:null,brier_score:avg("brier_score"),log_loss:avg("log_loss")};
-      return json({ok:true,from,to,summary,breakdowns:{
+      return json({ok:true,from,to,scope:"Europe",summary,breakdowns:{
         league:group("league",(r)=>String(r.m?.league||"Ukjent")),
         market:group("market",()=> "1X2"),
         outcome:group("outcome",(r)=>String(r.p?.selected_outcome||"unknown").toUpperCase()),
@@ -1013,7 +1026,7 @@ Deno.serve(async (req)=>{
       const to=url.searchParams.get("to")||new Date().toISOString().slice(0,10);
       const start=new Date(from+"T00:00:00.000Z"),end=new Date(to+"T23:59:59.999Z");
       const {data:matches,error:matchError}=await supabase.from("football_matches")
-        .select("id,league,kickoff_at,home_team,away_team,status,home_score,away_score")
+        .select("id,league,kickoff_at,home_team,away_team,status,home_score,away_score,raw")
         .gte("kickoff_at",start.toISOString()).lte("kickoff_at",end.toISOString())
         .order("kickoff_at",{ascending:false}).limit(1000);
       if(matchError) throw matchError;
@@ -1026,7 +1039,10 @@ Deno.serve(async (req)=>{
         if(error) throw error;
         predictions=rows||[];
       }
-      const matchMap=new Map((matches||[]).map((m:any)=>[m.id,m]));
+      const europeanMatches=(matches||[]).filter(isEuropeanMatch);
+      const europeanIds=new Set(europeanMatches.map((m:any)=>String(m.id)));
+      predictions=predictions.filter((p:any)=>europeanIds.has(String(p.match_id)));
+      const matchMap=new Map(europeanMatches.map((m:any)=>[m.id,m]));
       const rows=predictions.map((p:any)=>({...p,match:matchMap.get(p.match_id)||null}));
       const settled=rows.filter((p:any)=>p.status==="WON"||p.status==="LOST"||p.status==="VOID");
       const decided=settled.filter((p:any)=>p.status==="WON"||p.status==="LOST");
@@ -1048,7 +1064,7 @@ Deno.serve(async (req)=>{
         .select("model_name,model_version,training_samples,accuracy,roi,brier_score,log_loss,updated_at,weights,bias,learning_rate")
         .eq("model_name",MODEL_NAME).maybeSingle();
       return json({
-        ok:true,from,to,predictions:rows,
+        ok:true,scope:"Europe",from,to,predictions:rows,
         summary:{total:rows.length,settled:settled.length,decided:decided.length,wins,losses,voids,hit_rate:decided.length?wins/decided.length*100:null,pnl,roi_per_prediction:decided.length?pnl/decided.length*100:null,value_candidates:value.length},
         leagues:Object.values(leagues).sort((a:any,b:any)=>b.pnl-a.pnl),
         model:model||null
@@ -1068,7 +1084,7 @@ Deno.serve(async (req)=>{
         .gte("kickoff_at",start.toISOString()).lte("kickoff_at",end.toISOString())
         .order("kickoff_at",{ascending:true}).limit(200);
       if (matchError) throw matchError;
-      const normalizedMatches=(matches||[]).map((m:any)=>({
+      const normalizedMatches=(matches||[]).filter(isEuropeanMatch).map((m:any)=>({
         ...m,
         country:m?.raw?.country_name||"Ukjent",
         competition_type:classifyCompetition(m?.league||"")
