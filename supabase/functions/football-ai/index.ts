@@ -416,7 +416,18 @@ async function enrichPredictionWithAi(match:any,prediction:any,featureMeta:any) 
   };
 }
 
-async function upsertMatch(supabase:any,m:any) {
+async 
+function classifyCompetition(leagueName:string) {
+  const n=String(leagueName||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+  const cupPatterns=[
+    "cup","copa","pokal","beker","coupe","coppa","taca","trophy","shield",
+    "super cup","supercup","community shield","champions league","europa league",
+    "conference league","nations league","world cup","euro","qualification"
+  ];
+  return cupPatterns.some((x)=>n.includes(x)) ? "cup" : "league";
+}
+
+function upsertMatch(supabase:any,m:any) {
   const externalId=String(m.match_id||m.id||"");
   if (!externalId) return null;
   const rawKickoff=m.kickoff_utc ?? m.kickoff ?? m.kickoff_at;
@@ -758,11 +769,16 @@ Deno.serve(async (req)=>{
         ? new Date(start.getTime()+2*86400000+86399999)
         : new Date(startDate+"T23:59:59.999Z");
       const {data:matches,error:matchError}=await supabase.from("football_matches")
-        .select("id,league,kickoff_at,home_team,away_team,status,home_score,away_score,home_xg,away_xg,venue")
+        .select("id,league,kickoff_at,home_team,away_team,status,home_score,away_score,home_xg,away_xg,venue,raw")
         .gte("kickoff_at",start.toISOString()).lte("kickoff_at",end.toISOString())
         .order("kickoff_at",{ascending:true}).limit(200);
       if (matchError) throw matchError;
-      const ids=(matches||[]).map((m:any)=>m.id); let predictions:any[]=[];
+      const normalizedMatches=(matches||[]).map((m:any)=>({
+        ...m,
+        country:m?.raw?.country_name||"Ukjent",
+        competition_type:classifyCompetition(m?.league||"")
+      }));
+      const ids=normalizedMatches.map((m:any)=>m.id); let predictions:any[]=[];
       if (ids.length) {
         const {data:rows,error}=await supabase.from("football_ai_predictions")
           .select("id,match_id,prediction,selected_outcome,confidence,implied_probability,odds,value_percent,model_score,status,reasoning,feature_vector,model_version,provider,model,created_at,evaluated_at,pnl")
@@ -776,7 +792,7 @@ Deno.serve(async (req)=>{
         .select("correct,pnl,brier_score,log_loss,evaluated_at").order("evaluated_at",{ascending:false}).limit(500);
       const n=recent?.length||0,wins=recent?.filter((r:any)=>r.correct).length||0;
       return json({
-        ok:true,date,matches:matches||[],predictions,
+        ok:true,date,matches:normalizedMatches,predictions,
         engine:{
           model:model||null,
           evaluation:{
