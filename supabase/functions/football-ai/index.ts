@@ -97,7 +97,7 @@ async function apiFootball(path:string, params:Record<string,string> = {}) {
       }
       return {ok:true,response:Array.isArray(body?.response)?body.response:[],paging:body?.paging||{},remaining:response.headers.get("x-ratelimit-requests-remaining")};
     } catch (error) {
-      lastError=error?.name==="AbortError" ? "API-Football timeout" : (error instanceof Error ? error.message : "API-Football request failed");
+      lastError=error instanceof DOMException && error.name==="AbortError" ? "API-Football timeout" : (error instanceof Error ? error.message : "API-Football request failed");
       if (attempt<2) {
         await new Promise(resolve=>setTimeout(resolve,350*(attempt+1)));
         continue;
