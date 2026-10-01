@@ -58,6 +58,26 @@ jobs:
           echo "$body"
           echo "$body" | python -c 'import json,sys; d=json.load(sys.stdin); assert d.get("ok") is True, d; l=d.get("learning",{}); assert all(k in l for k in ["evaluated","wins","losses","voids","accuracy"]), d; print("Learning OK:", l)'
 
+      - name: Test validation read path
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai?action=validation"
+          body="$(curl -fsS --max-time 60 "$url")"
+          echo "$body"
+          BODY="$body" python - <<'PY'
+          import json, os, sys
+          data=json.loads(os.environ["BODY"])
+          assert data.get("ok") is True, data
+          summary=data.get("summary",{})
+          breakdowns=data.get("breakdowns",{})
+          for key in ["evaluated","settled","wins","losses","voids","accuracy","roi"]:
+              assert key in summary, data
+          for key in ["league","market","outcome","confidence","odds","value","period"]:
+              assert isinstance(breakdowns.get(key),list), data
+          print("Validation OK:", summary)
+          PY
+
       - name: Test history read path
         shell: bash
         run: |
