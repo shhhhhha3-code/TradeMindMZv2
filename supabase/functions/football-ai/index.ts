@@ -454,13 +454,25 @@ async function evaluatePredictions(supabase:any) {
     .select("id,match_id,prediction,confidence,odds,selected_outcome,feature_vector,model_version,status")
     .eq("status","OPEN").limit(500);
   if (error) throw error;
-  let evaluated=0;
-  for (const p of predictions||[]) {
-    const {data:match}=await supabase.from("football_matches")
-      .select("id,home_team,away_team,home_score,away_score,status").eq("id",p.match_id).maybeSingle();
+  if (!predictions?.length) return 0;
+
+  const matchIds=[...new Set(predictions.map((p:any)=>p.match_id).filter(Boolean))];
+  const {data:matches,error:matchError}=await supabase.from("football_matches")
+    .select("id,home_team,away_team,home_score,away_score,status")
+    .in("id",matchIds);
+  if (matchError) throw matchError;
+
+  const matchMap=new Map((matches||[]).map((m:any)=>[m.id,m]));
+  const evaluations:any[]=[];
+  const wonIds:string[]=[];
+  const lostIds:string[]=[];
+
+  for (const p of predictions) {
+    const match=matchMap.get(p.match_id);
     if (!match || !["finished","finished_after_extra_time","awarded"].includes(String(match.status).toLowerCase())) continue;
     const actual=resultFromScore(match.home_score,match.away_score);
     if (!actual) continue;
+
     let selected=p.selected_outcome;
     if (!selected) {
       if (p.prediction===match.home_team) selected="home";
@@ -468,21 +480,42 @@ async function evaluatePredictions(supabase:any) {
       else if (String(p.prediction).toLowerCase().includes("uavgjort")) selected="draw";
     }
     if (!selected) continue;
-    const correct=selected===actual, odds=num(p.odds,0);
+
+    const correct=selected===actual;
+    const odds=num(p.odds,0);
     const pnl=odds>1 ? (correct ? odds-1 : -1) : null;
     const probs=p.feature_vector?.probabilities;
     const brier=probs ? ["home","draw","away"].reduce((sum,k)=>sum+Math.pow(num(probs[k])-(actual===k?1:0),2),0)/3 : null;
     const logLoss=probs ? -Math.log(Math.max(0.000001,Math.min(0.999999,num(probs[actual])))) : null;
-    await supabase.from("football_ai_evaluations").upsert({
+
+    evaluations.push({
       prediction_id:p.id,match_id:p.match_id,actual_result:actual,predicted_result:selected,
       correct,stake:1,pnl,brier_score:brier,log_loss:logLoss,evaluated_at:nowIso()
-    },{onConflict:"prediction_id"});
-    await supabase.from("football_ai_predictions").update({
-      status:correct?"WON":"LOST",settled_result:actual,pnl,evaluated_at:nowIso()
-    }).eq("id",p.id);
-    evaluated++;
+    });
+    (correct?wonIds:lostIds).push(p.id);
   }
-  return evaluated;
+
+  if (!evaluations.length) return 0;
+
+  const {error:evalError}=await supabase.from("football_ai_evaluations")
+    .upsert(evaluations,{onConflict:"prediction_id"});
+  if (evalError) throw evalError;
+
+  const [wonResult,lostResult]=await Promise.all([
+    wonIds.length ? supabase.from("football_ai_predictions").update({status:"WON"}).in("id",wonIds) : Promise.resolve({error:null}),
+    lostIds.length ? supabase.from("football_ai_predictions").update({status:"LOST"}).in("id",lostIds) : Promise.resolve({error:null})
+  ]);
+  if (wonResult.error) throw wonResult.error;
+  if (lostResult.error) throw lostResult.error;
+
+  const updateRows=evaluations.map((e:any)=>({
+    id:e.prediction_id,settled_result:e.actual_result,pnl:e.pnl,evaluated_at:e.evaluated_at
+  }));
+  for (const chunk of chunkArray(updateRows,100)) {
+    const {error}=await supabase.from("football_ai_predictions").upsert(chunk,{onConflict:"id"});
+    if (error) throw error;
+  }
+  return evaluations.length;
 }
 
 async function retrainModel(supabase:any) {
