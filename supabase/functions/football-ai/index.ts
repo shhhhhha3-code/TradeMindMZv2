@@ -579,7 +579,7 @@ async function retrainModel(supabase:any) {
   const model=await getModel(supabase);
   const {data:evaluations}=await supabase.from("football_ai_evaluations")
     .select("prediction_id,actual_result").order("evaluated_at",{ascending:true}).limit(5000);
-  const evaluationRows:any[] = evaluations || [];
+  const evaluationRows:any[] = (evaluations || []).filter((e:any)=>["home","draw","away"].includes(String(e.actual_result)));
   if (!evaluationRows.length) return model;
   const ids=evaluationRows.map((e:any)=>e.prediction_id);
   const {data:predictions}=await supabase.from("football_ai_predictions").select("id,feature_vector").in("id",ids);
@@ -965,7 +965,7 @@ Deno.serve(async (req)=>{
       const losses=settled.length-wins;
       const pnl=settled.reduce((s:number,r:any)=>s+num(r.e.pnl),0);
       const avg=(key:string,arr=settled)=>{
-        const vals=arr.map((r:any)=>num(r.e[key],NaN)).filter(Number.isFinite);
+        const vals=arr.map((r:any)=>r.e?.[key]).filter((v:any)=>v!=null && Number.isFinite(Number(v))).map(Number);
         return vals.length?vals.reduce((a:number,b:number)=>a+b,0)/vals.length:null;
       };
       const metrics=(arr:any[])=>{
