@@ -220,7 +220,7 @@ function HomePage({matchList,predictionList,realPicks,setSelectedMatch}){
 }
 
 function Main(){
-  const [active,setActive]=useState('Hjem'),[mobile,setMobile]=useState(false),[liveMatches,setLiveMatches]=useState([]),[livePredictions,setLivePredictions]=useState([]),[engine,setEngine]=useState({}),[syncing,setSyncing]=useState(false),[liveError,setLiveError]=useState(''),[history,setHistory]=useState(null),[learning,setLearning]=useState(null),[historyLoading,setHistoryLoading]=useState(false),[selectedMatch,setSelectedMatch]=useState(null);
+  const [active,setActive]=useState('Hjem'),[mobile,setMobile]=useState(false),[liveMatches,setLiveMatches]=useState([]),[livePredictions,setLivePredictions]=useState([]),[engine,setEngine]=useState({}),[syncing,setSyncing]=useState(false),[liveError,setLiveError]=useState(''),[history,setHistory]=useState(null),[learning,setLearning]=useState(null),[validation,setValidation]=useState(null),[historyLoading,setHistoryLoading]=useState(false),[selectedMatch,setSelectedMatch]=useState(null);
 
   const loadLive=async()=>{try{const data=await getFootballDashboard();if(data?.ok){setLiveMatches(asArray(data.matches));setLivePredictions(asArray(data.predictions));setEngine(data.engine&&typeof data.engine==='object'?data.engine:{});setLiveError('')}}catch(e){setLiveError(e?.message||'Live-data ikke tilgjengelig')}};
   const loadHistory=async()=>{setHistoryLoading(true);try{const d=await getFootballHistory();if(d?.ok)setHistory(d)}catch(e){setLiveError(e?.message||'Historikk ikke tilgjengelig')}finally{setHistoryLoading(false)}};
