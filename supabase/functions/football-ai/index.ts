@@ -20,11 +20,11 @@ const FEATURE_NAMES = [
 const EUROPEAN_COUNTRIES = new Set([
   "albania","andorra","armenia","austria","azerbaijan","belarus","belgium","bosnia",
   "bosnia and herzegovina","bulgaria","croatia","cyprus","czech republic","czechia",
-  "denmark","england","estonia","faroe islands","finland","france","georgia",
+  "denmark","england","estonia","faroe islands","finland","france","georgia","united kingdom",
   "germany","gibraltar","greece","hungary","iceland","ireland","israel","italy",
   "kazakhstan","kosovo","latvia","liechtenstein","lithuania","luxembourg","malta",
   "moldova","monaco","montenegro","netherlands","north macedonia","northern ireland",
-  "norway","poland","portugal","romania","russia","san marino","scotland","serbia",
+  "norway","poland","portugal","romania","russia","san marino","scotland","serbia","republic of ireland","slovak republic",
   "slovakia","slovenia","spain","sweden","switzerland","turkey","ukraine","wales",
 ]);
 
