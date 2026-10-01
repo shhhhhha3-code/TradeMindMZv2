@@ -77,7 +77,7 @@ async function apiFootball(path:string, params:Record<string,string> = {}) {
     if (Array.isArray(body?.errors) && body.errors.length) return {ok:false,response:[],errors:body.errors,raw:body};
     return {ok:true,response:Array.isArray(body?.response)?body.response:[],paging:body?.paging||{},remaining:response.headers.get("x-ratelimit-requests-remaining")};
   } catch (error) {
-    return {ok:false,response:[],errors:[error?.message||"API-Football request failed"]};
+    return {ok:false,response:[],errors:[error instanceof Error ? error.message : "API-Football request failed"]};
   }
 }
 
