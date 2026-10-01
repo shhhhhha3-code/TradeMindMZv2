@@ -1,7 +1,7 @@
 export const FOOTBALL_AI_API = "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai";
 
-export async function getFootballDashboard(date = new Date().toISOString().slice(0, 10)) {
-  const response = await fetch(`${FOOTBALL_AI_API}?action=dashboard&date=${date}`, { headers: { Accept: "application/json" } });
+export async function getFootballDashboard(scope = "upcoming") {
+  const response = await fetch(FOOTBALL_AI_API + "?action=dashboard&scope=" + encodeURIComponent(scope), { headers: { Accept: "application/json" } });
   if (!response.ok) throw new Error(`Football AI API ${response.status}`);
   return response.json();
 }
