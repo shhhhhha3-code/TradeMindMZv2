@@ -147,7 +147,7 @@ function AiAnalysisPage({predictions,engine,onSelectMatch}){
           <div className="reasoningStream">{rows.slice(0,8).map((p,i)=><button className="reasoningItem" key={p.id} onClick={()=>onSelectMatch?.(p.match_id)}>
             <span className="streamDot">{String(i+1).padStart(2,"0")}</span>
             <div><b>{p.prediction||"–"}</b><small>{p.match_id?.slice?.(0,8)||"MATCH"} · {Number(p.confidence||0).toFixed(1)}% · {p.value_percent!=null?(Number(p.value_percent)>0?"+":"")+Number(p.value_percent).toFixed(1)+"% value":"no value"}</small><p>{p.reasoning?.llm?.summary||"Modellbasert vurdering fra live feature-sett."}</p></div>
-          </div>)}{!rows.length&&<div className="emptyState">Ingen reasoning tilgjengelig.</div>}</div>
+          </button>)}{!rows.length&&<div className="emptyState">Ingen reasoning tilgjengelig.</div>}</div>
         </section>
       </div>
     </section>
