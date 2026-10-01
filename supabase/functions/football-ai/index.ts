@@ -522,14 +522,15 @@ async function retrainModel(supabase:any) {
   }
   const {data:metrics}=await supabase.from("football_ai_evaluations")
     .select("correct,pnl,brier_score,log_loss").order("evaluated_at",{ascending:false}).limit(500);
-  const count=metrics?.length||0,wins=metrics?.filter((r:any)=>r.correct).length||0;
-  const brierRows=metrics?.filter((r:any)=>r.brier_score!=null)||[];
-  const logRows=metrics?.filter((r:any)=>r.log_loss!=null)||[];
+  const metricRows:any[] = metrics || [];
+  const count=metricRows.length,wins=metricRows.filter((r:any)=>r.correct).length;
+  const brierRows:any[]=metricRows.filter((r:any)=>r.brier_score!=null);
+  const logRows:any[]=metricRows.filter((r:any)=>r.log_loss!=null);
   const row={
     model_name:MODEL_NAME,model_version:MODEL_NAME,weights:next.weights,bias:next.bias,
     learning_rate:lr,training_samples:samples,
     accuracy:count?wins/count:null,
-    roi:count?(metrics||[]).reduce((s:number,r:any)=>s+num(r.pnl),0)/count:null,
+    roi:count?metricRows.reduce((s:number,r:any)=>s+num(r.pnl),0)/count:null,
     brier_score:brierRows.length?brierRows.reduce((s:number,r:any)=>s+num(r.brier_score),0)/brierRows.length:null,
     log_loss:logRows.length?logRows.reduce((s:number,r:any)=>s+num(r.log_loss),0)/logRows.length:null,
     updated_at:nowIso()
