@@ -1,3 +1,4 @@
+# Autonomous pipeline after backend deployment is green.
 name: Football AI Autonomous Engine
 
 on:
