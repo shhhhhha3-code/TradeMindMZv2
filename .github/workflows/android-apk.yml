@@ -12,6 +12,7 @@ on:
       - "package-lock.json"
       - "capacitor.config.*"
       - "android/**"
+      - "supabase/functions/football-ai/**"
       - ".github/workflows/android-apk.yml"
 
 permissions:
