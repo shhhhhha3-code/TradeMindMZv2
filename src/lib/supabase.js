@@ -11,28 +11,35 @@ export const supabase =
     ? createClient(supabaseUrl, supabaseAnonKey)
     : null;
 
-export const SUPABASE_EDGE_API =
-  "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/trademind-api";
-
+/**
+ * Legacy compatibility export.
+ * The app no longer uses the old /trademind-api service.
+ * All live football/backend traffic goes through football-ai.
+ */
 export async function checkSupabaseConnection() {
   try {
     const response = await fetch(
-      `${SUPABASE_EDGE_API}/api/supabase/status`,
+      "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai?action=health",
       { headers: { Accept: "application/json" } }
     );
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     return {
-      ok: Boolean(data?.ok),
-      status: data?.status || "UNKNOWN",
-      error: data?.error || null,
-      provider: data?.provider || "supabase",
+      ok: Boolean(response.ok && data?.ok),
+      status: data?.status || (response.ok ? "UNKNOWN" : "HTTP_ERROR"),
+      error: data?.error || (!response.ok ? `Football AI API ${response.status}` : null),
+      provider: "football-ai",
+      footballApiConfigured: Boolean(data?.footballApiConfigured),
+      apiFootballOddsConfigured: Boolean(data?.apiFootballOddsConfigured),
+      groqConfigured: Boolean(data?.groqConfigured),
+      openaiConfigured: Boolean(data?.openaiConfigured),
+      usage: data?.usage || null,
     };
   } catch (error) {
     return {
       ok: false,
       status: "CONNECTION_FAILED",
-      error: error?.message || "Supabase connection failed",
-      provider: "supabase",
+      error: error?.message || "Football AI health check failed",
+      provider: "football-ai",
     };
   }
 }
