@@ -604,8 +604,13 @@ Deno.serve(async (req)=>{
     }
 
     if (action==="dashboard") {
-      const date=url.searchParams.get("date")||new Date().toISOString().slice(0,10);
-      const start=new Date(date+"T00:00:00.000Z"),end=new Date(date+"T23:59:59.999Z");
+      const date=url.searchParams.get("date");
+      const scope=url.searchParams.get("scope")||"today";
+      const startDate=date||new Date().toISOString().slice(0,10);
+      const start=new Date(startDate+"T00:00:00.000Z");
+      const end=scope==="upcoming"
+        ? new Date(start.getTime()+2*86400000+86399999)
+        : new Date(startDate+"T23:59:59.999Z");
       const {data:matches,error:matchError}=await supabase.from("football_matches")
         .select("id,league,kickoff_at,home_team,away_team,status,home_score,away_score,home_xg,away_xg,venue")
         .gte("kickoff_at",start.toISOString()).lte("kickoff_at",end.toISOString())
