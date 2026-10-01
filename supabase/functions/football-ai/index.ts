@@ -610,7 +610,7 @@ async function retrainModel(supabase:any) {
   };
   const classes:any[]=["home","draw","away"],lr=num(model.learning_rate,0.018);
   let samples=0;
-  for (const ev of evaluationRows) {
+  for (const ev of europeanEvaluationRows) {
     const features=byId.get(String(ev.prediction_id))?.feature_vector?.features;
     if (!features) continue;
     const x=FEATURE_NAMES.map((n)=>num(features[n]));
@@ -931,9 +931,20 @@ Deno.serve(async (req)=>{
     }
     if (action==="learning") {
       const {data:rows,error}=await supabase.from("football_ai_evaluations")
-        .select("correct,pnl,brier_score,log_loss,actual_result,evaluated_at").order("evaluated_at",{ascending:false}).limit(5000);
+        .select("prediction_id,correct,pnl,brier_score,log_loss,actual_result,evaluated_at").order("evaluated_at",{ascending:false}).limit(5000);
       if (error) throw error;
-      const evaluations=rows||[];
+      const evaluationRows=rows||[];
+      const predictionIds=[...new Set(evaluationRows.map((r:any)=>r.prediction_id).filter(Boolean))];
+      const {data:learningPredictions}=predictionIds.length
+        ? await supabase.from("football_ai_predictions").select("id,match_id").in("id",predictionIds)
+        : {data:[]};
+      const learningMatchIds=[...new Set((learningPredictions||[]).map((p:any)=>p.match_id).filter(Boolean))];
+      const {data:learningMatches}=learningMatchIds.length
+        ? await supabase.from("football_matches").select("id,raw,league").in("id",learningMatchIds)
+        : {data:[]};
+      const europeanLearningMatchIds=new Set((learningMatches||[]).filter(isEuropeanMatch).map((m:any)=>String(m.id)));
+      const europeanLearningPredictionIds=new Set((learningPredictions||[]).filter((p:any)=>europeanLearningMatchIds.has(String(p.match_id))).map((p:any)=>String(p.id)));
+      const evaluations=evaluationRows.filter((r:any)=>europeanLearningPredictionIds.has(String(r.prediction_id)));
       const wins=evaluations.filter((r:any)=>r.correct===true).length;
       const losses=evaluations.filter((r:any)=>r.correct===false && r.pnl!=null).length;
       const voids=evaluations.filter((r:any)=>r.pnl==null && r.actual_result==null).length;
@@ -1028,9 +1039,10 @@ Deno.serve(async (req)=>{
       const {data:matches,error:matchError}=await supabase.from("football_matches")
         .select("id,league,kickoff_at,home_team,away_team,status,home_score,away_score,raw")
         .gte("kickoff_at",start.toISOString()).lte("kickoff_at",end.toISOString())
-        .order("kickoff_at",{ascending:false}).limit(1000);
+        .order("kickoff_at",{ascending:false}).limit(5000);
       if(matchError) throw matchError;
-      const ids=(matches||[]).map((m:any)=>m.id);
+      const europeanMatches=(matches||[]).filter(isEuropeanMatch);
+      const ids=europeanMatches.map((m:any)=>m.id);
       let predictions:any[]=[];
       if(ids.length){
         const {data:rows,error}=await supabase.from("football_ai_predictions")
@@ -1039,7 +1051,6 @@ Deno.serve(async (req)=>{
         if(error) throw error;
         predictions=rows||[];
       }
-      const europeanMatches=(matches||[]).filter(isEuropeanMatch);
       const europeanIds=new Set(europeanMatches.map((m:any)=>String(m.id)));
       predictions=predictions.filter((p:any)=>europeanIds.has(String(p.match_id)));
       const matchMap=new Map(europeanMatches.map((m:any)=>[m.id,m]));
@@ -1082,7 +1093,7 @@ Deno.serve(async (req)=>{
       const {data:matches,error:matchError}=await supabase.from("football_matches")
         .select("id,league,kickoff_at,home_team,away_team,status,home_score,away_score,home_xg,away_xg,venue,raw")
         .gte("kickoff_at",start.toISOString()).lte("kickoff_at",end.toISOString())
-        .order("kickoff_at",{ascending:true}).limit(200);
+        .order("kickoff_at",{ascending:true}).limit(5000);
       if (matchError) throw matchError;
       const normalizedMatches=(matches||[]).filter(isEuropeanMatch).map((m:any)=>({
         ...m,
@@ -1100,8 +1111,18 @@ Deno.serve(async (req)=>{
         .select("model_name,model_version,training_samples,accuracy,roi,brier_score,log_loss,updated_at")
         .eq("model_name",MODEL_NAME).maybeSingle();
       const {data:recent}=await supabase.from("football_ai_evaluations")
-        .select("correct,pnl,brier_score,log_loss,evaluated_at").order("evaluated_at",{ascending:false}).limit(500);
-      const settledRecent=(recent||[]).filter((r:any)=>r.pnl!=null && r.correct!=null);
+        .select("prediction_id,correct,pnl,brier_score,log_loss,evaluated_at").order("evaluated_at",{ascending:false}).limit(500);
+      const recentPredictionIds=[...new Set((recent||[]).map((r:any)=>r.prediction_id).filter(Boolean))];
+      const {data:recentPredictions}=recentPredictionIds.length
+        ? await supabase.from("football_ai_predictions").select("id,match_id").in("id",recentPredictionIds)
+        : {data:[]};
+      const recentMatchIds=[...new Set((recentPredictions||[]).map((p:any)=>p.match_id).filter(Boolean))];
+      const {data:recentMatches}=recentMatchIds.length
+        ? await supabase.from("football_matches").select("id,raw,league").in("id",recentMatchIds)
+        : {data:[]};
+      const europeanRecentMatchIds=new Set((recentMatches||[]).filter(isEuropeanMatch).map((m:any)=>String(m.id)));
+      const europeanRecentPredictionIds=new Set((recentPredictions||[]).filter((p:any)=>europeanRecentMatchIds.has(String(p.match_id))).map((p:any)=>String(p.id)));
+      const settledRecent=(recent||[]).filter((r:any)=>europeanRecentPredictionIds.has(String(r.prediction_id)) && r.pnl!=null && r.correct!=null);
       const n=settledRecent.length,wins=settledRecent.filter((r:any)=>r.correct===true).length;
       return json({
         ok:true,date,matches:normalizedMatches,predictions,
