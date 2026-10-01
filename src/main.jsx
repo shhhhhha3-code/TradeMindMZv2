@@ -196,6 +196,29 @@ function SettingsPage(){
 
 function MobileNav({active,setActive}){const items=[["Hjem",Home],["Alle kamper",Globe2],["AI analyse",Brain],["Statistikk",BarChart3],["Value Finder",Target]];return <nav className="mobileNav">{items.map(([label,Icon])=><button key={label} className={active===label?"active":""} onClick={()=>setActive(label)}><Icon size={19}/><span>{label==="Alle kamper"?"Kamper":label==="Value Finder"?"Value":label.replace(" analyse","")}</span></button>)}</nav>}
 
+function HomePage({matchList,predictionList,realPicks,setSelectedMatch}){
+  const picks=realPicks.slice(0,3).map((x,i)=>({match:x.match,prediction:x.prediction,index:i,time:new Date(x.match.kickoff_at).toLocaleTimeString('nb-NO',{hour:'2-digit',minute:'2-digit'})}));
+  const featured=picks[0], more=picks.slice(1,3);
+  const countries=['ALLE','NORGE','ENGLAND','SPANIA','ITALIA','TYSKLAND'];
+  const [country,setCountry]=useState('ALLE');
+  const filtered=matchList.filter(m=>country==='ALLE'||String(m.country||'').toUpperCase().includes(country)).slice(0,8);
+  const renderTeam=name=>String(name||'').slice(0,3).toUpperCase();
+  const confidence=p=>Math.round(Number(p?.confidence||0));
+  const odds=p=>p?.odds&&Number(p.odds)>1?Number(p.odds).toFixed(2):'Ingen odds';
+  return <div className="homeV2">
+    <section className="homeQuickStats"><div><span>⚽</span><b>{matchList.length}</b><small>KAMPER</small></div><div><span>♧</span><b>{predictionList.length}</b><small>AI-ANALYSER</small></div><button className="homeRegion"><span>🇪🇺</span><b>EUROPA</b><ChevronRight size={17}/></button></section>
+    {featured&&<section className="homeFeatured"><div className="homeSectionHead"><h2>🏆 DAGENS BESTE TIPS</h2><span>{confidence(featured.prediction)>=70?'STERKT SIGNAL':'MODERAT SIGNAL'}</span></div>
+      <button className="homeFeaturedCard" onClick={()=>setSelectedMatch(featured.match)}>
+        <div className="homeMatchHero"><div><div className="homeCrest">{renderTeam(featured.match.home_team)}</div><strong>{featured.match.home_team}</strong></div><div className="homeVs"><small>{featured.match.league||'Europa'} · I DAG · {featured.time}</small><b>VS</b></div><div><div className="homeCrest away">{renderTeam(featured.match.away_team)}</div><strong>{featured.match.away_team}</strong></div></div>
+        <div className="homeMetrics"><div><small>AI SJANSE</small><b className="greenTxt">{confidence(featured.prediction)}%</b></div><div><small>ODDS</small><b>{odds(featured.prediction)}</b></div><div><small>VERDI</small><b className={Number(featured.prediction?.value_percent)>0?'greenTxt':''}>{featured.prediction?.value_percent!=null?Number(featured.prediction.value_percent).toFixed(1)+'%':'–'}</b></div></div>
+        <div className="homeSignals"><span>▥ Form</span><span>⚽ Resultater</span><span>⌁ xG</span><span>◈ Lagstyrke</span></div><div className="homeAnalyse">SE FULL ANALYSE <ChevronRight size={17}/></div>
+      </button>
+    </section>}
+    {more.length>0&&<section className="homeMore"><div className="homeListHead"><h2>⭐ FLERE GODE TIPS</h2><button onClick={()=>setSelectedMatch(more[0].match)}>SE ALLE <ChevronRight size={16}/></button></div><div className="homeMiniGrid">{more.map(x=><button className="homeMiniCard" key={x.match.id} onClick={()=>setSelectedMatch(x.match)}><div className="homeMiniTop"><b>#{x.index+1}</b><span>{confidence(x.prediction)>=70?'STERKT':'MODERAT'}</span></div><div className="homeMiniTeams"><div><i>{renderTeam(x.match.home_team)}</i><b>{x.match.home_team}</b></div><small>{x.time}<br/>{x.match.league||'Europa'}<br/><strong>VS</strong></small><div><i>{renderTeam(x.match.away_team)}</i><b>{x.match.away_team}</b></div></div><div className="homeMiniMeta"><span>AI <b>{confidence(x.prediction)}%</b></span><span>Odds <b>{odds(x.prediction)}</b></span></div></button>)}</div></section>}
+    <section className="homeUpcoming"><div className="homeListHead"><h2>▣ KOMMENDE KAMPER</h2><button>SE ALLE <ChevronRight size={16}/></button></div><div className="homeCountryFilters">{countries.map(x=><button key={x} className={country===x?'active':''} onClick={()=>setCountry(x)}>{x}</button>)}</div><div className="homeMatchList">{filtered.map(m=>{const p=predictionList.find(x=>x.match_id===m.id);return <button key={m.id} onClick={()=>setSelectedMatch(m)}><span>{new Date(m.kickoff_at).toLocaleTimeString('nb-NO',{hour:'2-digit',minute:'2-digit'})}</span><b>{m.home_team} – {m.away_team}</b><small>{m.league||'Europa'}</small><strong>{p?confidence(p)+'%':'–'}</strong><ChevronRight size={16}/></button>})}</div></section>
+  </div>
+}
+
 function Main(){
   const [active,setActive]=useState('Hjem'),[mobile,setMobile]=useState(false),[liveMatches,setLiveMatches]=useState([]),[livePredictions,setLivePredictions]=useState([]),[engine,setEngine]=useState({}),[syncing,setSyncing]=useState(false),[liveError,setLiveError]=useState(''),[history,setHistory]=useState(null),[learning,setLearning]=useState(null),[historyLoading,setHistoryLoading]=useState(false),[selectedMatch,setSelectedMatch]=useState(null);
 
@@ -213,7 +236,7 @@ function Main(){
   const matchList=asArray(liveMatches);const predictionList=asArray(livePredictions);const predictionByMatch=new Map(predictionList.map(p=>[p.match_id,p]));
   const realPicks=matchList.map(m=>({match:m,prediction:predictionByMatch.get(m.id)})).filter(x=>x.prediction).slice(0,2);
   const displayPicks=realPicks.map(x=>({league:x.match.league,time:new Date(x.match.kickoff_at).toLocaleTimeString('nb-NO',{hour:'2-digit',minute:'2-digit'}),home:x.match.home_team,away:x.match.away_team,homeShort:x.match.home_team.slice(0,3).toUpperCase(),awayShort:x.match.away_team.slice(0,3).toUpperCase(),tip:x.prediction.prediction,confidence:Number(x.prediction.confidence||0),odds:x.prediction.odds?Number(x.prediction.odds).toFixed(2):'Ingen odds',signal:Number(x.prediction.confidence||0)>=70?'STARKT SIGNAL':'MODERAT SIGNAL',value:Number(x.prediction.value_percent||0)>10?'++':'+',valuePercent:x.prediction.value_percent,reasons:['Modell: '+(x.prediction.model||'Football AI'),'Sannsynlighet: '+Number(x.prediction.confidence||0).toFixed(1)+'%', 'Value: '+(x.prediction.value_percent!=null?Number(x.prediction.value_percent).toFixed(1)+'%':'ikke tilgjengelig'),x.prediction.reasoning?.llm?.summary||('Datakilde: '+(x.prediction.provider||'live'))]}));
-  const page=active==='Hjem'?<><div className="homeHeroTitle"><div><small>TRADEMINDMZ · LIVE INTELLIGENCE</small><h2>Kommende <em>AI-tips</em></h2><p>Modellbaserte vurderinger, odds og value samlet på ett sted.</p></div><div className="heroLive"><i/> LIVE DATA</div></div><div className="grid"><div className="center"><div className="picks">{displayPicks.map((p,i)=><PickCard key={p.home+p.away} p={p} index={i} onAnalyse={()=>{const x=realPicks[i];if(x?.match)setSelectedMatch(x.match)}}/>)}</div><div className="filters"><button className="selected">Kommende kamper (live)</button>{['Premier League','La Liga','Serie A','Bundesliga','Champions League'].map(x=><button key={x}>{x}</button>)}</div><MatchesTable matches={matchList.slice(0,20)} predictions={predictionList} onSelect={setSelectedMatch}/></div><Engine engine={engine}/></div><Bottom predictions={predictionList} engine={engine}/></>
+  const page=active==='Hjem'?<HomePage matchList={matchList} predictionList={predictionList} realPicks={realPicks} setSelectedMatch={setSelectedMatch}/>
   :active==='AI Tips'?<><PageTitle title="AI TIPS" sub="KOMMENDE 2 DAGER"/><div className="picks pagePicks">{displayPicks.map((p,i)=><PickCard key={p.home+p.away} p={p} index={i} onAnalyse={()=>{const x=realPicks[i];if(x?.match)setSelectedMatch(x.match)}}/>)}</div></>
   :active==='Alle kamper'?<AllMatchesPage matches={matchList} predictions={predictionList} onSelect={setSelectedMatch}/>
   :active==='Value Finder'?<ValuePage predictions={predictionList} onSelect={(p)=>{const m=matchList.find(x=>x.id===p.match_id);if(m)setSelectedMatch(m)}}/>
@@ -224,7 +247,7 @@ function Main(){
   :active==='Ekspertanalyse'?<ExpertPage/>
   :<SettingsPage/>;
 
-  return <div className="app"><Sidebar active={active} setActive={setActive} mobile={mobile} setMobile={setMobile}/><main><Header setMobile={setMobile} onSync={handleSync} syncing={syncing}/><StatBar matches={matchList.length} predictions={predictionList.length} engine={engine}/>{liveError&&<div className="liveNotice">LIVE-DATA: {liveError}</div>}{page}<MobileNav active={active} setActive={setActive}/>{selectedMatch&&<MatchDetail match={selectedMatch} prediction={predictionByMatch.get(selectedMatch.id)} onClose={()=>setSelectedMatch(null)}/>}</main></div>
+  return <div className="app"><Sidebar active={active} setActive={setActive} mobile={mobile} setMobile={setMobile}/><main><Header setMobile={setMobile} onSync={handleSync} syncing={syncing}/>{active!=='Hjem'&&<StatBar matches={matchList.length} predictions={predictionList.length} engine={engine}/>} {liveError&&<div className="liveNotice">LIVE-DATA: {liveError}</div>}{page}<MobileNav active={active} setActive={setActive}/>{selectedMatch&&<MatchDetail match={selectedMatch} prediction={predictionByMatch.get(selectedMatch.id)} onClose={()=>setSelectedMatch(null)}/>}</main></div>
 }
 
 
