@@ -695,7 +695,7 @@ Deno.serve(async (req)=>{
         catch(e) { usage={error:e instanceof Error?e.message:String(e)}; }
       }
       return json({
-        ok:configured&&!usage?.error,service:"football-ai",
+        ok:configured,service:"football-ai",
         pipeline:"Football API -> features -> learned model -> odds -> value -> results -> evaluation -> retraining",
         provider:"football-soccer-api",footballApiConfigured:configured,
         groqConfigured:Boolean(Deno.env.get("GROQ_API_KEY")),
