@@ -511,10 +511,8 @@ async function evaluatePredictions(supabase:any) {
   const updateRows=evaluations.map((e:any)=>({
     id:e.prediction_id,settled_result:e.actual_result,pnl:e.pnl,evaluated_at:e.evaluated_at
   }));
-  for (const chunk of chunkArray(updateRows,100)) {
-    const {error}=await supabase.from("football_ai_predictions").upsert(chunk,{onConflict:"id"});
-    if (error) throw error;
-  }
+  const {error:updateError}=await supabase.from("football_ai_predictions").upsert(updateRows,{onConflict:"id"});
+  if (updateError) throw updateError;
   return evaluations.length;
 }
 
