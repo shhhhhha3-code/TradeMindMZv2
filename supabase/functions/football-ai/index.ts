@@ -54,7 +54,123 @@ function getSupabaseSecretKey() {
   } catch { return ""; }
 }
 
-async function footballApi(path: string, params: Record<string,string> = {}) {
+async 
+
+// ---------------- API-Football odds provider ----------------
+const API_FOOTBALL_BASE = "https://v3.football.api-sports.io";
+const API_FOOTBALL_MAX_PAGES_PER_DATE = 3;
+
+function getApiFootballKey() {
+  return Deno.env.get("API_FOOTBALL_KEY") || "";
+}
+
+async function apiFootball(path:string, params:Record<string,string> = {}) {
+  const key=getApiFootballKey();
+  if (!key) return {ok:false, response:[], errors:["API_FOOTBALL_KEY is not configured"]};
+  const url=new URL(API_FOOTBALL_BASE+path);
+  Object.entries(params).forEach(([k,v])=>url.searchParams.set(k,v));
+  try {
+    const response=await fetch(url,{
+      headers:{"x-apisports-key":key,Accept:"application/json"}
+    });
+    const body=await response.json();
+    if (!response.ok) return {ok:false,response:[],errors:[`HTTP ${response.status}`],raw:body};
+    if (Array.isArray(body?.errors) && body.errors.length) return {ok:false,response:[],errors:body.errors,raw:body};
+    return {ok:true,response:Array.isArray(body?.response)?body.response:[],paging:body?.paging||{},remaining:response.headers.get("x-ratelimit-requests-remaining")};
+  } catch (error) {
+    return {ok:false,response:[],errors:[error?.message||"API-Football request failed"]};
+  }
+}
+
+function normalizeTeamName(value:any) {
+  return String(value||"")
+    .normalize("NFD").replace(/\\p{Diacritic}/gu,"")
+    .toLowerCase().replace(/[^a-z0-9]+/g," ").trim()
+    .replace(/\\b(fc|afc|cf|sc|ac|fk|sk)\\b/g,"").replace(/\\s+/g," ").trim();
+}
+
+function teamNameSimilarity(a:any,b:any) {
+  const aa=new Set(normalizeTeamName(a).split(" ").filter(Boolean));
+  const bb=new Set(normalizeTeamName(b).split(" ").filter(Boolean));
+  if (!aa.size || !bb.size) return 0;
+  let common=0; for (const token of aa) if (bb.has(token)) common++;
+  return common/Math.max(aa.size,bb.size);
+}
+
+function extractApiFootball1x2(row:any) {
+  const bookmakers=Array.isArray(row?.bookmakers)?row.bookmakers:[];
+  const candidates:any[]=[];
+  for (const bookmaker of bookmakers) {
+    for (const bet of (Array.isArray(bookmaker?.bets)?bookmaker.bets:[])) {
+      const betName=String(bet?.name||"").toLowerCase();
+      if (!betName.includes("match winner") && betName!=="1x2") continue;
+      const values=Array.isArray(bet?.values)?bet.values:[];
+      const find=(names:string[])=>values.find((v:any)=>names.includes(String(v?.value||"").toLowerCase()));
+      const home=find(["home","1"]), draw=find(["draw","x"]), away=find(["away","2"]);
+      const odds={home:num(home?.odd,0),draw:num(draw?.odd,0),away:num(away?.odd,0)};
+      if (odds.home>1 && odds.draw>1 && odds.away>1) {
+        candidates.push({
+          bookmaker:String(bookmaker?.name||"API-Football"),
+          bookmaker_id:bookmaker?.id??null,
+          odds,
+          updated_at:row?.update||null,
+          fixture_id:row?.fixture?.id??null
+        });
+      }
+    }
+  }
+  return candidates;
+}
+
+function findApiFootballOdds(match:any, rows:any[]) {
+  const kickoff=new Date(match.kickoff_at).getTime();
+  let best:any=null, bestScore=-1;
+  for (const row of rows) {
+    const home=row?.teams?.home?.name, away=row?.teams?.away?.name;
+    const homeScore=teamNameSimilarity(match.home_team,home);
+    const awayScore=teamNameSimilarity(match.away_team,away);
+    const time=new Date(row?.fixture?.date||"").getTime();
+    const hours=Number.isFinite(kickoff)&&Number.isFinite(time)?Math.abs(kickoff-time)/3600000:99;
+    if (homeScore<0.5 || awayScore<0.5 || hours>6) continue;
+    const score=homeScore+awayScore-Math.min(hours/24,0.25);
+    if (score>bestScore) {
+      const candidates=extractApiFootball1x2(row);
+      if (candidates.length) {
+        const selected=candidates.reduce((a,b)=>(
+          ["home","draw","away"].reduce((s,k)=>s+(b.odds[k]||0),0) >
+          ["home","draw","away"].reduce((s,k)=>s+(a.odds[k]||0),0) ? b : a
+        ));
+        best={...selected,match_score:score};
+        bestScore=score;
+      }
+    }
+  }
+  return best;
+}
+
+async function fetchApiFootballOddsDates(dates:string[]) {
+  const rows:any[]=[];
+  if (!getApiFootballKey()) return {rows,requests:0,remaining:null,error:"API_FOOTBALL_KEY missing"};
+  let requests=0,remaining:any=null;
+  for (const date of dates) {
+    for (let page=1; page<=API_FOOTBALL_MAX_PAGES_PER_DATE; page++) {
+      const result=await apiFootball("/odds",{date,timezone:"UTC",page:String(page)});
+      requests++;
+      remaining=result.remaining??remaining;
+      if (!result.ok) {
+        return {rows,requests,remaining,error:(result.errors||[]).join(", ")};
+      }
+      rows.push(...result.response);
+      const total=Number(result?.paging?.total||1);
+      if (page>=total || page>=API_FOOTBALL_MAX_PAGES_PER_DATE) break;
+      if (Number(remaining)<=10) break;
+    }
+    if (Number(remaining)<=10) break;
+  }
+  return {rows,requests,remaining,error:null};
+}
+
+function footballApi(path: string, params: Record<string,string> = {}) {
   const key = getFootballKey();
   if (!key) throw new Error("FOOTBALL_API_KEY is not configured in Supabase secrets");
   const url = new URL(API_BASE + path);
@@ -413,19 +529,28 @@ async function retrainModel(supabase:any) {
   return row;
 }
 
-async function syncRows(supabase:any,rows:any[],runType:string) {
+async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:any[] = []) {
   const filtered=rows.filter(isEuropeanMatch),teamCache=await loadAllTeamHistory(supabase),model=await getModel(supabase);
   let matchesScanned=0,predictionsCreated=0,oddsStored=0;
   for (const m of filtered) {
     const saved=await upsertMatch(supabase,m);
     if (!saved) continue;
     matchesScanned++;
-    const market=marketProbabilities(m);
+    const externalOdds=findApiFootballOdds(saved,externalOddsRows);
+    const baseMarket=marketProbabilities(m);
+    const market=externalOdds
+      ? {
+          odds:externalOdds.odds,
+          probabilities:baseMarket.probabilities
+        }
+      : baseMarket;
     const prices=[["home",market.odds.home],["draw",market.odds.draw],["away",market.odds.away]].filter(([,v])=>v) as [string,number][];
     if (prices.length) {
       const {error}=await supabase.from("football_odds").insert(prices.map(([selection,odds])=>({
-        match_id:saved.id,bookmaker:"Football Soccer API / exchange",market:"1X2",selection,odds,
-        captured_at:nowIso(),raw:safeJson(m)
+        match_id:saved.id,
+        bookmaker:externalOdds ? `API-Football / ${externalOdds.bookmaker}` : "Football Soccer API / exchange",
+        market:"1X2",selection,odds,captured_at:nowIso(),
+        raw:safeJson(externalOdds||m)
       })));
       if (!error) oddsStored+=prices.length;
     }
@@ -444,7 +569,26 @@ async function syncRows(supabase:any,rows:any[],runType:string) {
     };
     const {data:existing}=await supabase.from("football_ai_predictions").select("id")
       .eq("match_id",saved.id).eq("status","OPEN").limit(1);
-    if (existing?.length) continue;
+    if (existing?.length) {
+      if (externalOdds) {
+        const existingId=existing[0].id;
+        const selectedExisting=choosePrediction(prediction,oe);
+        await supabase.from("football_ai_predictions").update({
+          prediction:outcomeLabel(selectedExisting.outcome,m),
+          selected_outcome:selectedExisting.outcome,
+          implied_probability:market.odds[selectedExisting.outcome]?(1/market.odds[selectedExisting.outcome])*100:null,
+          odds:market.odds[selectedExisting.outcome],
+          value_percent:oe[selectedExisting.outcome]?.value_percent,
+          model_score:Math.max(35,Math.min(95,selectedExisting.probability*100)),
+          reasoning:{
+            odds_source:"api-football",
+            bookmaker:externalOdds.bookmaker,
+            odds_engine:oe
+          }
+        }).eq("id",existingId);
+      }
+      continue;
+    }
     const reasoning={
       engine:"learned-multinomial",feature_version:FEATURE_VERSION,
       model_version:model.model_version||MODEL_NAME,data_quality:built.meta.data_quality,
@@ -462,7 +606,7 @@ async function syncRows(supabase:any,rows:any[],runType:string) {
       confidence,implied_probability:market.odds[chosen.outcome]?(1/market.odds[chosen.outcome])*100:null,
       odds:market.odds[chosen.outcome],value_percent:oe[chosen.outcome]?.value_percent,
       model_score:confidence,reasoning,feature_vector:featureVector,feature_version:FEATURE_VERSION,
-      model_version:model.model_version||MODEL_NAME,provider:"football-soccer-api + local-learning-model",
+      model_version:model.model_version||MODEL_NAME,provider:externalOdds ? "football-soccer-api + API-Football odds + local-learning-model" : "football-soccer-api + local-learning-model",
       model:MODEL_NAME,status:"OPEN"
     }).select("id").single();
     if (error||!created) continue;
@@ -510,7 +654,10 @@ async function runPipeline(supabase:any) {
   for (const row of resultRows.filter(isEuropeanMatch)) await upsertMatch(supabase,row);
   const evaluatedBefore=await evaluatePredictions(supabase);
   const modelBefore=evaluatedBefore ? await retrainModel(supabase) : await getModel(supabase);
-  const sync=await syncRows(supabase,fixtureRows,"DAILY_EUROPE_AI_SCAN");
+  const utcToday=new Date().toISOString().slice(0,10);
+  const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
+  const oddsFetch=await fetchApiFootballOddsDates([utcToday,tomorrow]);
+  const sync=await syncRows(supabase,fixtureRows,"DAILY_EUROPE_AI_SCAN",oddsFetch.rows);
   const evaluatedAfter=await evaluatePredictions(supabase);
   const modelAfter=evaluatedAfter ? await retrainModel(supabase) : modelBefore;
   return {
