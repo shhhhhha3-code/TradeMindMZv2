@@ -207,7 +207,7 @@ function teamLogo(match,side){
     raw?.[sideName]?.logo,raw?.[sideName]?.image,
     raw?.team?.[sideName]?.logo,raw?.team?.[sideName]?.image
   ];
-  const url=direct.find(v=>typeof v==='string'&&/^https?:\\/\\//.test(v));
+  const url=direct.find(v=>typeof v==='string'&&/^https?:\/\//.test(v));
   return url||null;
 }
 function TeamBadge({match,side,className=''}){const name=side==='home'?match?.home_team:match?.away_team;const logo=teamLogo(match,side);const initials=String(name||'').slice(0,3).toUpperCase();return <div className={'teamBadge '+className}>{logo?<img src={logo} alt="" loading="lazy" onError={e=>{e.currentTarget.style.display='none'}}/>:<span>{initials}</span>}</div>}
