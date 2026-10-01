@@ -56,7 +56,7 @@ function getSupabaseSecretKey() {
 
 // ---------------- API-Football odds provider ----------------
 const API_FOOTBALL_BASE = "https://v3.football.api-sports.io";
-const API_FOOTBALL_MAX_PAGES_PER_DATE = 3;
+const API_FOOTBALL_MAX_PAGES_PER_DATE = 3; // redeploy verification
 
 function getApiFootballKey() {
   return Deno.env.get("API_FOOTBALL_KEY") || "";
