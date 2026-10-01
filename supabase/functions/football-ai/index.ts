@@ -489,8 +489,9 @@ async function retrainModel(supabase:any) {
   const model=await getModel(supabase);
   const {data:evaluations}=await supabase.from("football_ai_evaluations")
     .select("prediction_id,actual_result").order("evaluated_at",{ascending:true}).limit(5000);
-  if (!evaluations?.length) return model;
-  const ids=evaluations.map((e:any)=>e.prediction_id);
+  const evaluationRows:any[] = evaluations || [];
+  if (!evaluationRows.length) return model;
+  const ids=evaluationRows.map((e:any)=>e.prediction_id);
   const {data:predictions}=await supabase.from("football_ai_predictions").select("id,feature_vector").in("id",ids);
   const byId:Map<string,any>=new Map((predictions||[]).map((p:any)=>[String(p.id),p]));
   // Full retrain from the base model prevents repeatedly training the same
@@ -505,9 +506,9 @@ async function retrainModel(supabase:any) {
     },
     bias:{...initial.bias}
   };
-  const classes=["home","draw","away"],lr=num(model.learning_rate,0.018);
+  const classes:any[]=["home","draw","away"],lr=num(model.learning_rate,0.018);
   let samples=0;
-  for (const ev of (evaluations as any[])) {
+  for (const ev of evaluationRows) {
     const features=byId.get(String(ev.prediction_id))?.feature_vector?.features;
     if (!features) continue;
     const x=FEATURE_NAMES.map((n)=>num(features[n]));
@@ -671,7 +672,7 @@ async function runPipeline(supabase:any) {
   const evaluatedAfter=await evaluatePredictions(supabase);
   const modelAfter=evaluatedAfter ? await retrainModel(supabase) : modelBefore;
   return {
-    ok:true,duration_ms:Date.now()-started,
+    ok:true,status:"SUCCESS",duration_ms:Date.now()-started,
     fixtures:fixtureRows.filter(isEuropeanMatch).length,
     settled_yesterday:resultRows.filter(isEuropeanMatch).length,
     evaluated:evaluatedBefore+evaluatedAfter,retrained:Boolean(evaluatedBefore||evaluatedAfter),
@@ -681,7 +682,16 @@ async function runPipeline(supabase:any) {
       roi:modelAfter?.roi??null,brier_score:modelAfter?.brier_score??null
     },
      sync,
-     odds:{provider:"API-Football",requests:oddsFetch.requests,rows:oddsFetch.rows.length,remaining:oddsFetch.remaining,error:oddsFetch.error}
+    stages:{
+      fixtures:fixtureRows.filter(isEuropeanMatch).length,
+      results:resultRows.filter(isEuropeanMatch).length,
+      odds_requests:oddsFetch.requests,
+      odds_rows:oddsFetch.rows.length,
+      predictions_created:sync.predictionsCreated,
+      evaluated:evaluatedBefore+evaluatedAfter,
+      retrained:Boolean(evaluatedBefore||evaluatedAfter)
+    },
+    odds:{provider:"API-Football",requests:oddsFetch.requests,rows:oddsFetch.rows.length,remaining:oddsFetch.remaining,error:oddsFetch.error}
    };
  }
 
