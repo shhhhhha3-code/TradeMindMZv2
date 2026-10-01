@@ -21,7 +21,7 @@ const EUROPEAN_COUNTRIES = new Set([
   "albania","andorra","armenia","austria","azerbaijan","belarus","belgium","bosnia",
   "bosnia and herzegovina","bulgaria","croatia","cyprus","czech republic","czechia",
   "denmark","england","estonia","faroe islands","finland","france","georgia","united kingdom",
-  "germany","gibraltar","greece","hungary","iceland","ireland","israel","italy",
+  "germany","gibraltar","greece","hungary","iceland","ireland","italy",
   "kazakhstan","kosovo","latvia","liechtenstein","lithuania","luxembourg","malta",
   "moldova","monaco","montenegro","netherlands","north macedonia","northern ireland",
   "norway","poland","portugal","romania","russia","san marino","scotland","serbia","republic of ireland","slovak republic",
@@ -231,12 +231,34 @@ function normalizedText(value:any) {
   return String(value||"").trim().toLowerCase().normalize("NFD").replace(/[\\u0300-\\u036f]/g,"");
 }
 
+function isAllowedEuropeanCompetition(m:any) {
+  const raw=m?.raw||{};
+  const league=normalizedText(m?.league_name||m?.league||raw?.league_name||raw?.league||raw?.competition_name||raw?.competition);
+  const type=normalizedText(raw?.league_type||raw?.competition_type||raw?.type||m?.league_type||m?.competition_type);
+
+  // Only European leagues/cups/UEFA competitions are allowed into the AI universe.
+  // Explicit friendlies/test matches are excluded even when the country is European.
+  const excluded=[
+    "friendly","friendlies","club friendly","international friendly","friendly matches",
+    "test match","test matches","testimonial","charity match"
+  ];
+  if(excluded.some((name)=>league.includes(name)||type.includes(name))) return false;
+
+  const cupOrCompetition=EUROPEAN_COMPETITIONS.some((name)=>league.includes(normalizedText(name)));
+  const leagueLike=!type.includes("friendly") && (
+    type.includes("league") ||
+    type.includes("cup") ||
+    type.includes("competition") ||
+    type.includes("domestic") ||
+    (!type && Boolean(league))
+  );
+  return cupOrCompetition || leagueLike;
+}
+
 function isEuropeanMatch(m: any) {
   const raw=m?.raw||{};
   const country=normalizedText(m?.country_name||m?.country||raw?.country_name||raw?.country||raw?.countryName);
-  const league=normalizedText(m?.league_name||m?.league||raw?.league_name||raw?.league||raw?.competition_name);
-  return EUROPEAN_COUNTRIES.has(country) ||
-    EUROPEAN_COMPETITIONS.some((name)=>league.includes(normalizedText(name)));
+  return EUROPEAN_COUNTRIES.has(country) && isAllowedEuropeanCompetition(m);
 }
 
 function pickPrice(m: any, side: "home"|"draw"|"away") {
@@ -1115,6 +1137,7 @@ Deno.serve(async (req)=>{
       const normalizedMatches=(matches||[]).filter(isEuropeanMatch).map((m:any)=>({
         ...m,
         country:m?.raw?.country_name||"Ukjent",
+        region:"Europe",
         competition_type:classifyCompetition(m?.league||"")
       }));
       const ids=normalizedMatches.map((m:any)=>m.id); let predictions:any[]=[];
