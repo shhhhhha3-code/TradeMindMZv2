@@ -70,3 +70,8 @@ export async function getFootballHistory(from, to) {
 export async function trainFootballModel() {
   return request("?action=train", { timeoutMs: 30000 });
 }
+
+
+export async function getFootballLearning() {
+  return request("?action=learning", { timeoutMs: 15000 });
+}
