@@ -35,10 +35,19 @@ jobs:
           BODY="$body" python - <<'PY'
           import json, os, sys
           data=json.loads(os.environ["BODY"])
-          if data.get("ok") is not True:
-              print("Diagnostics failed:", data.get("failures"))
-              sys.exit(1)
-          print("Diagnostics passed:", list(data.get("checks", {}).keys()))
+          if data.get("ok") is True:
+              print("Diagnostics passed:", list(data.get("checks", {}).keys()))
+              sys.exit(0)
+          failures=data.get("failures", [])
+          quota_only=bool(failures) and all(
+              f.get("name") == "football_api" and "quota_exhausted" in f.get("error", "")
+              for f in failures
+          )
+          if quota_only:
+              print("Diagnostics degraded only because Football API daily quota is exhausted; continuing read-path smoke tests.")
+              sys.exit(0)
+          print("Diagnostics failed:", failures)
+          sys.exit(1)
           PY
 
       - name: Test dashboard read path
