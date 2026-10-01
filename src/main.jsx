@@ -223,6 +223,7 @@ class AppErrorBoundary extends React.Component{
 function AppRuntimeGuard({children}){
   const [error,setError]=useState(null);
   useEffect(()=>{
+    window.__tmBooted=true;
     const onError=(event)=>{
       const message=event?.error?.message||event?.message||'Ukjent app-feil';
       setError(String(message));
