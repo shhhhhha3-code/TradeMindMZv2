@@ -362,7 +362,7 @@ function oddsEngine(probabilities:any,market:any) {
     const odds=market.odds[outcome], p=probabilities[outcome], implied=odds ? 1/odds : null;
     out[outcome]={
       odds,model_probability:p,implied_probability:implied,
-      edge:odds ? p-implied : null,
+      edge:odds && implied != null ? p-implied : null,
       value_percent:odds ? (p*odds-1)*100 : null
     };
   }
@@ -427,7 +427,7 @@ function classifyCompetition(leagueName:string) {
   return cupPatterns.some((x)=>n.includes(x)) ? "cup" : "league";
 }
 
-function upsertMatch(supabase:any,m:any) {
+async function upsertMatch(supabase:any,m:any) {
   const externalId=String(m.match_id||m.id||"");
   if (!externalId) return null;
   const rawKickoff=m.kickoff_utc ?? m.kickoff ?? m.kickoff_at;
