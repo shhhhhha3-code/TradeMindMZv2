@@ -1,11 +1,6 @@
-# Autonomous pipeline after backend deployment is green.
 name: Football AI Autonomous Engine
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/football-ai-scheduler.yml"
   schedule:
     - cron: "17 */2 * * *"
   workflow_dispatch:
@@ -18,67 +13,28 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Preflight Football AI health
+      - name: Backend health
         shell: bash
         run: |
-          set -u
+          set -e
           url="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai?action=health"
-          http_code="$(curl -sS --max-time 60 -o /tmp/health.json -w "%{http_code}" "$url" || true)"
-          body="$(cat /tmp/health.json 2>/dev/null || true)"
-          echo "Health HTTP: $http_code"
-          echo "$body"
-          BODY="$body" python - <<'PY'
-import json, os, sys
-try:
-    data=json.loads(os.environ.get("BODY",""))
-except Exception as exc:
-    print("Health returned non-JSON:", exc)
-    sys.exit(1)
-if data.get("ok") is not True:
-    print("Health reported failure:", data)
-    sys.exit(1)
-print("Football AI health:", data.get("status"))
-PY
+          curl -fsS --max-time 45 "$url" | tee /tmp/health.json
+          jq -e '.ok == true' /tmp/health.json >/dev/null
 
-      - name: Run Football AI pipeline with retry
+      - name: Run Football AI pipeline
         shell: bash
         run: |
-          set -u
+          set -e
           url="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai?action=pipeline"
           for attempt in 1 2 3; do
             echo "Pipeline attempt $attempt/3"
-            http_code="$(curl -sS --max-time 180 -o /tmp/pipeline.json -w "%{http_code}" "$url" || true)"
-            body="$(cat /tmp/pipeline.json 2>/dev/null || true)"
-            echo "HTTP: $http_code"
-            echo "$body"
-
-            if [ "$http_code" = "200" ]; then
-              BODY="$body" python - <<'PY'
-import json, os, sys
-raw=os.environ.get("BODY","")
-try:
-    data=json.loads(raw)
-except Exception as exc:
-    print("Pipeline returned non-JSON:", exc)
-    sys.exit(1)
-
-if data.get("ok") is not True:
-    print("Pipeline reported failure:", data)
-    sys.exit(1)
-
-print("Status:", data.get("status"))
-print("Evaluated:", data.get("evaluated"))
-print("Predictions:", data.get("sync",{}).get("predictionsCreated"))
-print("Training samples:", data.get("model",{}).get("training_samples"))
-print("Stages:", data.get("stages",{}))
-sys.exit(0)
-PY
-              exit $?
+            if curl -fsS --max-time 180 "$url" | tee /tmp/pipeline.json; then
+              jq -e '.ok == true' /tmp/pipeline.json >/dev/null
+              echo "Pipeline completed successfully."
+              exit 0
             fi
-
-            echo "Pipeline request failed; waiting before retry."
+            echo "Pipeline attempt failed."
             sleep $((attempt * 10))
           done
-
           echo "Football AI pipeline failed after 3 attempts."
           exit 1
