@@ -614,14 +614,15 @@ async function retrainModel(supabase:any) {
   const {data:metrics}=await supabase.from("football_ai_evaluations")
     .select("correct,pnl,brier_score,log_loss").order("evaluated_at",{ascending:false}).limit(500);
   const metricRows:any[] = metrics || [];
-  const count=metricRows.length,wins=metricRows.filter((r:any)=>r.correct).length;
+  const settledMetricRows=metricRows.filter((r:any)=>r.pnl!=null && r.correct!=null);
+  const count=settledMetricRows.length,wins=settledMetricRows.filter((r:any)=>r.correct===true).length;
   const brierRows:any[]=metricRows.filter((r:any)=>r.brier_score!=null);
   const logRows:any[]=metricRows.filter((r:any)=>r.log_loss!=null);
   const row={
     model_name:MODEL_NAME,model_version:`${MODEL_NAME}-r${samples}`,weights:next.weights,bias:next.bias,
     learning_rate:lr,training_samples:samples,
     accuracy:count?wins/count:null,
-    roi:count?metricRows.reduce((s:number,r:any)=>s+num(r.pnl),0)/count:null,
+    roi:count?settledMetricRows.reduce((s:number,r:any)=>s+num(r.pnl),0)/count:null,
     brier_score:brierRows.length?brierRows.reduce((s:number,r:any)=>s+num(r.brier_score),0)/brierRows.length:null,
     log_loss:logRows.length?logRows.reduce((s:number,r:any)=>s+num(r.log_loss),0)/logRows.length:null,
     updated_at:nowIso()
@@ -935,6 +936,78 @@ Deno.serve(async (req)=>{
     }
     if (action==="train") return json({ok:true,model:await retrainModel(supabase)});
 
+    if (action==="validation") {
+      const from=url.searchParams.get("from")||new Date(Date.now()-90*86400000).toISOString().slice(0,10);
+      const to=url.searchParams.get("to")||new Date().toISOString().slice(0,10);
+      const start=new Date(from+"T00:00:00.000Z"),end=new Date(to+"T23:59:59.999Z");
+      const {data:matches,error:matchError}=await supabase.from("football_matches")
+        .select("id,league,kickoff_at,home_team,away_team").gte("kickoff_at",start.toISOString()).lte("kickoff_at",end.toISOString()).limit(5000);
+      if(matchError) throw matchError;
+      const ids=(matches||[]).map((m:any)=>m.id);
+      if(!ids.length) return json({ok:true,from,to,summary:{evaluated:0,settled:0,wins:0,losses:0,voids:0,accuracy:null,pnl:0,roi:null,brier_score:null,log_loss:null},breakdowns:{league:[],market:[],confidence:[],odds:[],value:[],period:[]}});
+
+      const [{data:predictions,error:predictionError},{data:evaluations,error:evaluationError}]=await Promise.all([
+        supabase.from("football_ai_predictions").select("id,match_id,selected_outcome,prediction,confidence,odds,value_percent,created_at,evaluated_at,status").in("match_id",ids).limit(5000),
+        supabase.from("football_ai_evaluations").select("prediction_id,actual_result,correct,pnl,brier_score,log_loss,evaluated_at").in("match_id",ids).gte("evaluated_at",start.toISOString()).lte("evaluated_at",end.toISOString()).limit(5000)
+      ]);
+      if(predictionError) throw predictionError;
+      if(evaluationError) throw evaluationError;
+
+      const predictionMap=new Map((predictions||[]).map((p:any)=>[String(p.id),p]));
+      const matchMap=new Map((matches||[]).map((m:any)=>[String(m.id),m]));
+      const rows=(evaluations||[]).map((e:any)=>{
+        const p=predictionMap.get(String(e.prediction_id)); const m=p?matchMap.get(String(p.match_id)):null;
+        return {...e,p,m};
+      }).filter((r:any)=>r.p);
+      const settled=rows.filter((r:any)=>r.e.pnl!=null && r.e.actual_result!=null && r.e.correct!=null);
+      const voids=rows.filter((r:any)=>r.e.pnl==null && r.e.actual_result==null);
+      const wins=settled.filter((r:any)=>r.e.correct===true).length;
+      const losses=settled.length-wins;
+      const pnl=settled.reduce((s:number,r:any)=>s+num(r.e.pnl),0);
+      const avg=(key:string,arr=settled)=>{
+        const vals=arr.map((r:any)=>num(r.e[key],NaN)).filter(Number.isFinite);
+        return vals.length?vals.reduce((a:number,b:number)=>a+b,0)/vals.length:null;
+      };
+      const metrics=(arr:any[])=>{
+        const s=arr.filter((r:any)=>r.e.pnl!=null && r.e.actual_result!=null && r.e.correct!=null);
+        const w=s.filter((r:any)=>r.e.correct===true).length;
+        const p=s.reduce((sum:number,r:any)=>sum+num(r.e.pnl),0);
+        return {samples:s.length,wins:w,losses:s.length-w,accuracy:s.length?w/s.length:null,pnl:p,roi:s.length?p/s.length:null,brier_score:avg("brier_score",s),log_loss:avg("log_loss",s)};
+      };
+      const group=(key:string,fn:(r:any)=>string)=>{
+        const map=new Map<string,any[]>();
+        for(const r of settled){const k=fn(r)||"Ukjent";const list=map.get(k)||[];list.push(r);map.set(k,list);}
+        return [...map.entries()].map(([name,list])=>({key:name,...metrics(list)})).sort((a,b)=>b.samples-a.samples);
+      };
+      const confidenceBucket=(v:number)=>{
+        if(!Number.isFinite(v)) return "Ukjent";
+        if(v<50) return "<50%"; if(v<60) return "50–59%"; if(v<70) return "60–69%"; if(v<80) return "70–79%"; return "80%+";
+      };
+      const oddsBucket=(v:number)=>{
+        if(!Number.isFinite(v)||v<=1) return "Ukjent";
+        if(v<1.5) return "<1.50"; if(v<2) return "1.50–1.99"; if(v<3) return "2.00–2.99"; return "3.00+";
+      };
+      const valueBucket=(v:number)=>{
+        if(!Number.isFinite(v)) return "Ingen value";
+        if(v<0) return "<0%"; if(v<5) return "0–4.9%"; if(v<10) return "5–9.9%"; return "10%+";
+      };
+      const periodBucket=(r:any)=>{
+        const d=new Date(r.e.evaluated_at||r.p.evaluated_at||r.p.created_at).getTime();
+        const age=(Date.now()-d)/86400000;
+        return age<=7?"Siste 7 dager":age<=30?"Siste 30 dager":"31–90 dager";
+      };
+      const summary={evaluated:rows.length,settled:settled.length,wins,losses,voids:voids.length,accuracy:settled.length?wins/settled.length:null,pnl,roi:settled.length?pnl/settled.length:null,brier_score:avg("brier_score"),log_loss:avg("log_loss")};
+      return json({ok:true,from,to,summary,breakdowns:{
+        league:group("league",(r)=>String(r.m?.league||"Ukjent")),
+        market:group("market",()=> "1X2"),
+        outcome:group("outcome",(r)=>String(r.p?.selected_outcome||"unknown").toUpperCase()),
+        confidence:group("confidence",(r)=>confidenceBucket(num(r.p?.confidence,NaN))),
+        odds:group("odds",(r)=>oddsBucket(num(r.p?.odds,NaN))),
+        value:group("value",(r)=>valueBucket(num(r.p?.value_percent,NaN))),
+        period:group("period",periodBucket)
+      }});
+    }
+
     if (action==="history") {
       const from=url.searchParams.get("from")||new Date(Date.now()-30*86400000).toISOString().slice(0,10);
       const to=url.searchParams.get("to")||new Date().toISOString().slice(0,10);
@@ -1011,14 +1084,15 @@ Deno.serve(async (req)=>{
         .eq("model_name",MODEL_NAME).maybeSingle();
       const {data:recent}=await supabase.from("football_ai_evaluations")
         .select("correct,pnl,brier_score,log_loss,evaluated_at").order("evaluated_at",{ascending:false}).limit(500);
-      const n=recent?.length||0,wins=recent?.filter((r:any)=>r.correct).length||0;
+      const settledRecent=(recent||[]).filter((r:any)=>r.pnl!=null && r.correct!=null);
+      const n=settledRecent.length,wins=settledRecent.filter((r:any)=>r.correct===true).length;
       return json({
         ok:true,date,matches:normalizedMatches,predictions,
         engine:{
           model:model||null,
           evaluation:{
             samples:n,accuracy:n?wins/n*100:null,
-            roi_percent_per_unit:n?(recent||[]).reduce((s:number,r:any)=>s+num(r.pnl),0)/n*100:null
+            roi_percent_per_unit:n?settledRecent.reduce((s:number,r:any)=>s+num(r.pnl),0)/n*100:null
           },
           pipeline:["Football API","Feature Engineering","AI Prediction Engine","Probability + Confidence","Odds Engine","Value Finder","Daily Predictions","Result Evaluation","Model Learning","Retrain / Update"]
         }
@@ -1029,7 +1103,7 @@ Deno.serve(async (req)=>{
       const result=await fetchApiFootballOddsDates([date]);
       return json({ok:!result.error,provider:"API-Football",date,requests:result.requests,rows:result.rows.length,remaining:result.remaining,error:result.error},result.error?502:200);
     }
-    return json({ok:false,error:"Unknown action",supported:["health","diagnostics","pipeline","sync","odds","dashboard","history","evaluate","train"]},400);
+    return json({ok:false,error:"Unknown action",supported:["health","diagnostics","pipeline","sync","odds","dashboard","learning","validation","history","evaluate","train"]},400);
   } catch(error) {
     return json({ok:false,error:error instanceof Error?error.message:String(error)},500);
   }
