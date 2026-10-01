@@ -11,16 +11,47 @@ permissions:
 jobs:
   pipeline:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - name: Run Football AI pipeline
+      - name: Run Football AI pipeline with retry
+        shell: bash
         run: |
-          response="$(curl --fail-with-body -sS "https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai?action=pipeline")"
-          echo "$response"
-          python - <<'PY' "$response"
-          import json, sys
-          data=json.loads(sys.argv[1])
-          assert data.get("ok") is True, data
-          print("Evaluated:", data.get("evaluated"))
-          print("Predictions:", data.get("sync",{}).get("predictionsCreated"))
-          print("Training samples:", data.get("model",{}).get("training_samples"))
-          PY
+          set -u
+          url="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai?action=pipeline"
+          for attempt in 1 2 3; do
+            echo "Pipeline attempt $attempt/3"
+            http_code="$(curl -sS --max-time 180 -o /tmp/pipeline.json -w "%{http_code}" "$url" || true)"
+            body="$(cat /tmp/pipeline.json 2>/dev/null || true)"
+            echo "HTTP: $http_code"
+            echo "$body"
+
+            if [ "$http_code" = "200" ]; then
+              BODY="$body" python - <<'PY'
+import json, os, sys
+raw=os.environ.get("BODY","")
+try:
+    data=json.loads(raw)
+except Exception as exc:
+    print("Pipeline returned non-JSON:", exc)
+    sys.exit(1)
+
+if data.get("ok") is not True:
+    print("Pipeline reported failure:", data)
+    sys.exit(1)
+
+print("Status:", data.get("status"))
+print("Evaluated:", data.get("evaluated"))
+print("Predictions:", data.get("sync",{}).get("predictionsCreated"))
+print("Training samples:", data.get("model",{}).get("training_samples"))
+print("Stages:", data.get("stages",{}))
+sys.exit(0)
+PY
+              exit $?
+            fi
+
+            echo "Pipeline request failed; waiting before retry."
+            sleep $((attempt * 10))
+          done
+
+          echo "Football AI pipeline failed after 3 attempts."
+          exit 1
