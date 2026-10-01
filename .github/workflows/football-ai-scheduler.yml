@@ -30,15 +30,11 @@ jobs:
         run: |
           set -e
           url="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai?action=pipeline"
-          for attempt in 1 2 3; do
-            echo "Pipeline attempt $attempt/3"
-            if curl -fsS --max-time 180 "$url" | tee /tmp/pipeline.json; then
-              jq -e '.ok == true' /tmp/pipeline.json >/dev/null
-              echo "Pipeline completed successfully."
-              exit 0
-            fi
-            echo "Pipeline attempt failed."
-            sleep $((attempt * 10))
-          done
-          echo "Football AI pipeline failed after 3 attempts."
+          echo "Running optimized Football AI pipeline"
+          if curl -fsS --max-time 140 "$url" | tee /tmp/pipeline.json; then
+            jq -e '.ok == true' /tmp/pipeline.json >/dev/null
+            echo "Pipeline completed successfully."
+            exit 0
+          fi
+          echo "Football AI pipeline did not complete within the Edge Function request budget."
           exit 1
