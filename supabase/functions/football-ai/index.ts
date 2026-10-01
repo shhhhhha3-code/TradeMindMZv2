@@ -492,7 +492,7 @@ async function retrainModel(supabase:any) {
   if (!evaluations?.length) return model;
   const ids=evaluations.map((e:any)=>e.prediction_id);
   const {data:predictions}=await supabase.from("football_ai_predictions").select("id,feature_vector").in("id",ids);
-  const byId=new Map((predictions||[]).map((p:any)=>[p.id,p]));
+  const byId:Map<string,any>=new Map((predictions||[]).map((p:any)=>[String(p.id),p]));
   // Full retrain from the base model prevents repeatedly training the same
   // historical samples on top of already-updated weights.
   const initial=defaultWeights();
@@ -508,7 +508,7 @@ async function retrainModel(supabase:any) {
   const classes=["home","draw","away"],lr=num(model.learning_rate,0.018);
   let samples=0;
   for (const ev of evaluations) {
-    const features=byId.get(ev.prediction_id)?.feature_vector?.features;
+    const features=byId.get(String(ev.prediction_id))?.feature_vector?.features;
     if (!features) continue;
     const x=FEATURE_NAMES.map((n)=>num(features[n]));
     const scores=classes.map((outcome)=>num(next.bias[outcome])+x.reduce((s,v,i)=>s+v*num(next.weights[outcome][i]),0));
