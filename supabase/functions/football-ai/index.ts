@@ -918,7 +918,7 @@ Deno.serve(async (req)=>{
     }
     if (action==="learning") {
       const {data:rows,error}=await supabase.from("football_ai_evaluations")
-        .select("correct,pnl,brier_score,log_loss,evaluated_at").order("evaluated_at",{ascending:false}).limit(5000);
+        .select("correct,pnl,brier_score,log_loss,actual_result,evaluated_at").order("evaluated_at",{ascending:false}).limit(5000);
       if (error) throw error;
       const evaluations=rows||[];
       const wins=evaluations.filter((r:any)=>r.correct===true).length;
