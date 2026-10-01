@@ -732,12 +732,18 @@ async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:
     provider:"football-soccer-api + learning-engine",status:"SUCCESS",started_at:nowIso(),finished_at:nowIso()
   });
   return {matchesScanned,oddsStored:oddsRows.length,predictionsCreated,duration_ms:Date.now()-started};
-}async function runPipeline(supabase:any) {
+}async function runPipeline(supabase:any, requestedDate:string|null = null) {
+  const baseDate=/^\d{4}-\d{2}-\d{2}$/.test(String(requestedDate||""))
+    ? String(requestedDate)
+    : new Date().toISOString().slice(0,10);
+  const baseStart=new Date(baseDate+"T00:00:00.000Z");
+  const tomorrowDate=new Date(baseStart.getTime()+86400000).toISOString().slice(0,10);
+  const yesterdayDate=new Date(baseStart.getTime()-86400000).toISOString().slice(0,10);
   const started=Date.now();
   const [fixturesBody,upcomingBody,resultsBody]=await Promise.all([
-    footballApi("/fixtures/today",{limit:"1000"}),
+    footballApi("/fixtures/today",{date:baseDate,limit:"1000"}),
     footballApi("/fixtures/upcoming",{days:"2",limit:"1000"}),
-    footballApi("/results/yesterday",{limit:"1000"})
+    footballApi("/results/yesterday",{date:yesterdayDate,limit:"1000"})
   ]);
   const todayRows=Array.isArray(fixturesBody?.data)?fixturesBody.data:[];
   const upcomingRows=Array.isArray(upcomingBody?.data)?upcomingBody.data:[];
@@ -750,9 +756,7 @@ async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:
   for (const row of resultRows.filter(isEuropeanMatch)) await upsertMatch(supabase,row);
   const evaluatedBefore=await evaluatePredictions(supabase);
   const modelBefore=evaluatedBefore ? await retrainModel(supabase) : await getModel(supabase);
-  const utcToday=new Date().toISOString().slice(0,10);
-  const tomorrow=new Date(Date.now()+86400000).toISOString().slice(0,10);
-  const oddsFetch=await fetchApiFootballOddsDates([utcToday,tomorrow]);
+  const oddsFetch=await fetchApiFootballOddsDates([baseDate,tomorrowDate]);
   const sync=await syncRows(supabase,fixtureRows,"DAILY_EUROPE_AI_SCAN",oddsFetch.rows);
   const evaluatedAfter=await evaluatePredictions(supabase);
   const modelAfter=evaluatedAfter ? await retrainModel(supabase) : modelBefore;
@@ -860,7 +864,10 @@ Deno.serve(async (req)=>{
       });
     }
 
-    if (action==="sync"||action==="pipeline") return json(await runPipeline(supabase));
+    if (action==="sync"||action==="pipeline") {
+      const requestedDate=url.searchParams.get("date");
+      return json(await runPipeline(supabase,requestedDate));
+    }
     if (action==="evaluate") {
       const evaluated=await evaluatePredictions(supabase);
       const model=evaluated?await retrainModel(supabase):await getModel(supabase);
@@ -957,7 +964,12 @@ Deno.serve(async (req)=>{
         }
       });
     }
-    return json({ok:false,error:"Unknown action",supported:["health","pipeline","sync","dashboard","history","evaluate","train"]},400);
+    if (action==="odds") {
+      const date=url.searchParams.get("date")||new Date().toISOString().slice(0,10);
+      const result=await fetchApiFootballOddsDates([date]);
+      return json({ok:!result.error,provider:"API-Football",date,requests:result.requests,rows:result.rows.length,remaining:result.remaining,error:result.error},result.error?502:200);
+    }
+    return json({ok:false,error:"Unknown action",supported:["health","diagnostics","pipeline","sync","odds","dashboard","history","evaluate","train"]},400);
   } catch(error) {
     return json({ok:false,error:error instanceof Error?error.message:String(error)},500);
   }
