@@ -1340,12 +1340,16 @@ Deno.serve(async (req)=>{
         home_logo:logoCache.get(normalizeTeamName(m?.home_team))||null,
         away_logo:logoCache.get(normalizeTeamName(m?.away_team))||null
       }));
-      const ids=normalizedMatches.map((m:any)=>m.id); let predictions:any[]=[];
-      if (ids.length) {
+      const ids=[...new Set(normalizedMatches.map((m:any)=>m.id).filter(Boolean))]; let predictions:any[]=[];
+      // Keep PostgREST URLs small. The upcoming Europe feed can contain hundreds of matches,
+      // and a single .in(match_id, ids) request can exceed URL/proxy limits on mobile.
+      for (let i=0;i<ids.length;i+=50) {
+        const chunk=ids.slice(i,i+50);
         const {data:rows,error}=await supabase.from("football_ai_predictions")
           .select("id,match_id,prediction,selected_outcome,confidence,implied_probability,odds,value_percent,model_score,status,reasoning,feature_vector,feature_version,model_version,provider,model,created_at,evaluated_at,pnl")
-          .in("match_id",ids).order("created_at",{ascending:false});
-        if (error) throw error; predictions=rows||[];
+          .in("match_id",chunk).order("created_at",{ascending:false});
+        if (error) throw error;
+        predictions.push(...(rows||[]));
       }
       const {data:model}=await supabase.from("football_ai_model_weights")
         .select("model_name,model_version,training_samples,accuracy,roi,brier_score,log_loss,updated_at")
