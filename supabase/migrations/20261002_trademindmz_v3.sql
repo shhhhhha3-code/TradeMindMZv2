@@ -1,0 +1,11 @@
+create table if not exists public.football_ai_settings (id boolean primary key default true, football_api_enabled boolean not null default true, odds_api_enabled boolean not null default true, groq_enabled boolean not null default true, openai_enabled boolean not null default true, news_enabled boolean not null default true, updated_at timestamptz not null default now());
+insert into public.football_ai_settings(id) values(true) on conflict(id) do nothing;
+create table if not exists public.football_ai_news (id uuid primary key default gen_random_uuid(), match_id uuid references public.football_matches(id) on delete cascade, home_team text, away_team text, title text not null, source text, url text, published_at timestamptz, relevance numeric(6,3), summary text, created_at timestamptz not null default now());
+create index if not exists idx_tmz_news_match on public.football_ai_news(match_id,created_at desc);
+create table if not exists public.football_ai_model_state (model_name text primary key, model_version text not null, learning_samples integer not null default 0, correct_samples integer not null default 0, learning_rate numeric(10,6) not null default 0.02, weights jsonb not null default '{}'::jsonb, metrics jsonb not null default '{}'::jsonb, updated_at timestamptz not null default now());
+alter table public.football_ai_settings enable row level security; alter table public.football_ai_news enable row level security; alter table public.football_ai_model_state enable row level security;
+drop policy if exists "tmz settings" on public.football_ai_settings; create policy "tmz settings" on public.football_ai_settings for select to anon,authenticated using(true);
+drop policy if exists "tmz news" on public.football_ai_news; create policy "tmz news" on public.football_ai_news for select to anon,authenticated using(true);
+drop policy if exists "tmz model" on public.football_ai_model_state; create policy "tmz model" on public.football_ai_model_state for select to anon,authenticated using(true);
+grant select on public.football_ai_settings,public.football_ai_news,public.football_ai_model_state to anon,authenticated;
+notify pgrst,'reload schema';
