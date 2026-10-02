@@ -891,14 +891,23 @@ async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:
   }
 
   let created:any[]=[];
-  if (newPredictions.length) {
-    const {data,error}=await supabase.from("football_ai_predictions").insert(newPredictions).select("id,match_id");
-    if (error) throw error;
-    created=data||[];
+  const validPredictions=newPredictions.filter((p:any)=>Boolean(p?.match_id&&p?.prediction&&p?.selected_outcome));
+  const validPredictionMatchIds=new Set(validPredictions.map((p:any)=>String(p.match_id)));
+  const validFeatureRows=featureRows.filter((r:any)=>validPredictionMatchIds.has(String(r.match_id)));
+  if (validPredictions.length) {
+    for (let i=0;i<validPredictions.length;i+=100) {
+      const {data,error}=await supabase.from("football_ai_predictions")
+        .insert(validPredictions.slice(i,i+100),{defaultToNull:false}).select("id,match_id");
+      if (error) throw error;
+      created.push(...(data||[]));
+    }
   }
-  if (featureRows.length) {
-    const {error}=await supabase.from("football_ai_features").upsert(featureRows,{onConflict:"match_id,feature_version"});
-    if (error) throw error;
+  if (validFeatureRows.length) {
+    for (let i=0;i<validFeatureRows.length;i+=100) {
+      const {error}=await supabase.from("football_ai_features")
+        .upsert(validFeatureRows.slice(i,i+100),{onConflict:"match_id,feature_version"});
+      if (error) throw error;
+    }
   }
 
   if (enrichQueue.length && created.length) {
