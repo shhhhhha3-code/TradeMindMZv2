@@ -1011,11 +1011,10 @@ async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:
     status:m.status,
     country_name:m.raw?.country_name||m.raw?.country||null
   }));
-  let oddsFetch=await fetchApiFootballOddsDates([baseDate,new Date(start.getTime()+86400000).toISOString().slice(0,10)]);
-  if (!oddsFetch.rows.length && !oddsFetch.error) {
-    const fallback=await fetchApiFootballOddsForStoredMatches(european,[baseDate,new Date(start.getTime()+86400000).toISOString().slice(0,10)]);
-    oddsFetch={...fallback,requests:oddsFetch.requests+fallback.requests};
-  }
+  const oddsFetch=await fetchApiFootballOddsForStoredMatches(
+    european,
+    [baseDate,new Date(start.getTime()+86400000).toISOString().slice(0,10)]
+  );
   const sync=await syncRows(supabase,providerRows,"DB_EXISTING_LIVE_ENRICH",oddsFetch.rows);
   return {
     ok:true,mode:"stored-match-enrich",date:baseDate,
