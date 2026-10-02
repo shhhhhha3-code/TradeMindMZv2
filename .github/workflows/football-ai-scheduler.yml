@@ -1,4 +1,5 @@
 # Phase 4 optimized pipeline verification
+# Live sync runs on push/workflow_dispatch to refresh odds and cached team logos.
 name: Football AI Autonomous Engine
 
 on:
