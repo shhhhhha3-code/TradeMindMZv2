@@ -187,15 +187,8 @@ function findApiFootballOdds(match:any, rows:any[]) {
 
 async function fetchApiFootballOddsForStoredMatches(matches:any[],dates:string[]) {
   const fixtureRows:any[]=[];
-  for (const date of dates.slice(0,2)) {
-    const result=await apiFootball("/fixtures",{date,timezone:"UTC",page:"1"});
-    fixtureRows.push(...(result.response||[]));
-    const total=Math.min(Number(result?.paging?.total||1),2);
-    for (let page=2;page<=total;page++) {
-      const next=await apiFootball("/fixtures",{date,timezone:"UTC",page:String(page)});
-      fixtureRows.push(...(next.response||[]));
-    }
-  }
+  const result=await apiFootball("/fixtures",{next:"100",timezone:"UTC"});
+  fixtureRows.push(...(result.response||[]));
   const candidates=fixtureRows.filter((f:any)=>f?.fixture?.id&&f?.teams?.home?.name&&f?.teams?.away?.name);
   const targets=matches
     .filter((m:any)=>new Date(m.kickoff_at).getTime()>Date.now())
