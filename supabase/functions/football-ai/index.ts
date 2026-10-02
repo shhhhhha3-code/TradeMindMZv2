@@ -1280,6 +1280,7 @@ Deno.serve(async (req)=>{
     }
     return json({ok:false,error:"Unknown action",supported:["health","diagnostics","pipeline","sync","odds","dashboard","learning","validation","history","evaluate","train"]},400);
   } catch(error) {
-    return json({ok:false,error:error instanceof Error?error.message:String(error)},500);
+    const detail = error instanceof Error ? error.message : (error && typeof error === "object" ? JSON.stringify(error) : String(error));
+    return json({ok:false,error:detail},500);
   }
 });
