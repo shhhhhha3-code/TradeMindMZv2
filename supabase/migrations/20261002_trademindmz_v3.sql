@@ -9,3 +9,4 @@ drop policy if exists "tmz news" on public.football_ai_news; create policy "tmz 
 drop policy if exists "tmz model" on public.football_ai_model_state; create policy "tmz model" on public.football_ai_model_state for select to anon,authenticated using(true);
 grant select on public.football_ai_settings,public.football_ai_news,public.football_ai_model_state to anon,authenticated;
 notify pgrst,'reload schema';
+-- v3 migration trigger
