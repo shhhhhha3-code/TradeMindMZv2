@@ -1,0 +1,1 @@
+# TradeMindMZ Football Intelligence v3\n\nNy app: Europa-only pre-score -> TOPP 6 -> deep AI -> news -> results -> learning.\n
