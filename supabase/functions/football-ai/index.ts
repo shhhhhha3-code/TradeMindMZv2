@@ -778,11 +778,16 @@ async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:
   const providerByExternal=new Map(filtered.map((m:any)=>[String(m.match_id||m.id),m]));
   const logoCache=await resolveTeamLogos(supabase,saved);
   const existingIds=saved.map((m:any)=>m.id).filter(Boolean);
-  const {data:existingOpen,error:existingError}=existingIds.length
-    ? await supabase.from("football_ai_predictions").select("id,match_id,confidence,feature_vector,reasoning,model_version").in("match_id",existingIds).eq("status","OPEN")
-    : {data:[],error:null};
-  if (existingError) throw existingError;
-  const existingByMatch=new Map((existingOpen||[]).map((p:any)=>[String(p.match_id),p]));
+  const existingOpen:any[]=[];
+  for (let i=0;i<existingIds.length;i+=100) {
+    const chunk=existingIds.slice(i,i+100);
+    const {data,error}=await supabase.from("football_ai_predictions")
+      .select("id,match_id,confidence,feature_vector,reasoning,model_version")
+      .in("match_id",chunk).eq("status","OPEN");
+    if (error) throw error;
+    existingOpen.push(...(data||[]));
+  }
+  const existingByMatch=new Map(existingOpen.map((p:any)=>[String(p.match_id),p]));
 
   const oddsRows:any[]=[];
   const newPredictions:any[]=[];
