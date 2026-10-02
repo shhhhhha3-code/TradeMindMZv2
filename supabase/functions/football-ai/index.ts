@@ -538,12 +538,16 @@ async function evaluatePredictions(supabase:any) {
   if (!predictions?.length) return 0;
 
   const matchIds=[...new Set(predictions.map((p:any)=>p.match_id).filter(Boolean))];
-  const {data:matches,error:matchError}=await supabase.from("football_matches")
-    .select("id,home_team,away_team,home_score,away_score,status")
-    .in("id",matchIds);
-  if (matchError) throw matchError;
+  const matches:any[]=[];
+  for (let i=0;i<matchIds.length;i+=100) {
+    const chunk=matchIds.slice(i,i+100);
+    const {data,error}=await supabase.from("football_matches")
+      .select("id,home_team,away_team,home_score,away_score,status").in("id",chunk);
+    if (error) throw error;
+    matches.push(...(data||[]));
+  }
 
-  const matchMap=new Map((matches||[]).map((m:any)=>[m.id,m]));
+  const matchMap=new Map(matches.map((m:any)=>[m.id,m]));
   const evaluations:any[]=[];
   const wonIds:string[]=[];
   const lostIds:string[]=[];
@@ -962,16 +966,16 @@ async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:
       .map((row:any)=>[String(row.match_id||row.id),row])
   ).values());
   for (const row of resultRows.filter(isEuropeanMatch)) await upsertMatch(supabase,row);
-  const evaluatedBefore=await evaluatePredictions(supabase);
-  const modelBefore=evaluatedBefore ? await retrainModel(supabase) : await getModel(supabase);
+  const evaluatedBefore=forceOdds ? 0 : await evaluatePredictions(supabase);
+  const modelBefore=forceOdds ? await getModel(supabase) : (evaluatedBefore ? await retrainModel(supabase) : await getModel(supabase));
   const utcHour=new Date().getUTCHours();
   const shouldRefreshOdds=forceOdds || utcHour % API_FOOTBALL_ODDS_REFRESH_HOURS === 0;
   const oddsFetch=shouldRefreshOdds
     ? await fetchApiFootballOddsDates([baseDate,tomorrowDate])
     : {rows:[],requests:0,remaining:null,error:null};
   const sync=await syncRows(supabase,fixtureRows,"DAILY_EUROPE_AI_SCAN",oddsFetch.rows);
-  const evaluatedAfter=await evaluatePredictions(supabase);
-  const modelAfter=evaluatedAfter ? await retrainModel(supabase) : modelBefore;
+  const evaluatedAfter=forceOdds ? 0 : await evaluatePredictions(supabase);
+  const modelAfter=forceOdds ? modelBefore : (evaluatedAfter ? await retrainModel(supabase) : modelBefore);
   return {
     ok:true,status:"SUCCESS",duration_ms:Date.now()-started,
     fixtures:fixtureRows.filter(isEuropeanMatch).length,
