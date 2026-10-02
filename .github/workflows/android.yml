@@ -1,4 +1,5 @@
 name: Build TradeMindMZ APK
+# Force APK rebuild when backend-only changes need a matching mobile artifact.
 on:
   workflow_dispatch:
   push:
