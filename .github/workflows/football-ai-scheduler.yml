@@ -29,8 +29,8 @@ jobs:
           url="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai?action=health"
           curl -fsS --max-time 45 "$url" | tee /tmp/health.json
           jq -e '.ok == true' /tmp/health.json >/dev/null
-          if grep -q 'quota_exhausted' /tmp/health.json; then
-            echo "Football Soccer API daily quota is exhausted. Skipping this cycle; it will resume after the provider reset."
+          if grep -q 'quota_exhausted' /tmp/health.json && [ "$GITHUB_EVENT_NAME" = "schedule" ]; then
+            echo "Football Soccer API daily quota is exhausted. Skipping scheduled fixture refresh; stored-match sync remains available on push/manual runs."
             echo "SKIP_PIPELINE=1" >> "$GITHUB_ENV"
           fi
 
