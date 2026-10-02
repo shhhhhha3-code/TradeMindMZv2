@@ -35,8 +35,12 @@ jobs:
         shell: bash
         run: |
           set -e
-          url="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai?action=pipeline"
-          echo "Running optimized Football AI pipeline"
+          action="pipeline"
+          if [ "$GITHUB_EVENT_NAME" = "push" ] || [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            action="sync"
+          fi
+          url="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai?action=$action"
+          echo "Running Football AI $action"
           if curl -fsS --max-time 140 "$url" | tee /tmp/pipeline.json; then
             jq -e '.ok == true' /tmp/pipeline.json >/dev/null
             echo "Pipeline completed successfully."
