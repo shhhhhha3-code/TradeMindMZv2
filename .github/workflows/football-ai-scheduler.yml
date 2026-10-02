@@ -12,6 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
+# Triggered after FK lookup fix
 # Triggered after VOID evaluation schema fix
   contents: read
 
