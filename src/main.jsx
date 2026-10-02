@@ -250,7 +250,15 @@ function Main(){
   const handleTrain=async()=>{setHistoryLoading(true);try{const r=await trainFootballModel();if(!r.ok)throw new Error('Modelltrening feilet');await loadLive();await loadHistory();await loadLearning();await loadValidation()}catch(e){setLiveError(e?.message||'Modelltrening feilet')}finally{setHistoryLoading(false)}};
 
   const matchList=asArray(liveMatches);const predictionList=asArray(livePredictions);const predictionByMatch=new Map(predictionList.map(p=>[p.match_id,p]));
-  const realPicks=matchList.map(m=>({match:m,prediction:predictionByMatch.get(m.id)})).filter(x=>x.prediction).slice(0,2);
+  const realPicks=matchList.map(m=>({match:m,prediction:predictionByMatch.get(m.id)}))
+    .filter(x=>x.prediction)
+    .sort((a,b)=>{
+      const aOdds=Number(a.prediction?.odds)>1?1:0;
+      const bOdds=Number(b.prediction?.odds)>1?1:0;
+      if(bOdds!==aOdds)return bOdds-aOdds;
+      return Number(b.prediction?.confidence||0)-Number(a.prediction?.confidence||0);
+    })
+    .slice(0,6);
   const displayPicks=realPicks.map(x=>({league:x.match.league,time:new Date(x.match.kickoff_at).toLocaleTimeString('nb-NO',{hour:'2-digit',minute:'2-digit'}),home:x.match.home_team,away:x.match.away_team,homeShort:x.match.home_team.slice(0,3).toUpperCase(),awayShort:x.match.away_team.slice(0,3).toUpperCase(),homeLogo:teamLogo(x.match,'home'),awayLogo:teamLogo(x.match,'away'),tip:x.prediction.prediction,confidence:Number(x.prediction.confidence||0),odds:x.prediction.odds?Number(x.prediction.odds).toFixed(2):'Ingen odds',signal:Number(x.prediction.confidence||0)>=70?'STARKT SIGNAL':'MODERAT SIGNAL',value:Number(x.prediction.value_percent||0)>10?'++':'+',valuePercent:x.prediction.value_percent,reasons:['Modell: '+(x.prediction.model||'Football AI'),'Sannsynlighet: '+Number(x.prediction.confidence||0).toFixed(1)+'%', 'Value: '+(x.prediction.value_percent!=null?Number(x.prediction.value_percent).toFixed(1)+'%':'ikke tilgjengelig'),x.prediction.reasoning?.llm?.summary||('Datakilde: '+(x.prediction.provider||'live'))]}));
   const page=active==='Hjem'?<HomePage matchList={matchList} predictionList={predictionList} realPicks={realPicks} setSelectedMatch={setSelectedMatch}/>
   :active==='AI Tips'?<><PageTitle title="AI TIPS" sub="KOMMENDE 2 DAGER"/><div className="picks pagePicks">{displayPicks.map((p,i)=><PickCard key={p.home+p.away} p={p} index={i} onAnalyse={()=>{const x=realPicks[i];if(x?.match)setSelectedMatch(x.match)}}/>)}</div></>
