@@ -12,6 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
+# Triggered after VOID evaluation schema fix
   contents: read
 
 jobs:
