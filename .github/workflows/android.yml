@@ -8,7 +8,6 @@ on:
       - "public/**"
       - "index.html"
       - "package.json"
-      - "vite.config.js"
       - "capacitor.config.ts"
       - ".github/workflows/android.yml"
 permissions:
@@ -27,10 +26,12 @@ jobs:
           java-version: "21"
       - name: Install dependencies
         run: npm install
+      - name: Verify Capacitor packages
+        run: npm ls @capacitor/core @capacitor/android @capacitor/cli
       - name: Build web app
         run: npm run build
       - name: Add Android platform
-        run: npx cap add android
+        run: npx cap add android --verbose
       - name: Sync web app
         run: npx cap sync android
       - name: Build debug APK
