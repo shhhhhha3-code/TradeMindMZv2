@@ -185,6 +185,49 @@ function findApiFootballOdds(match:any, rows:any[]) {
   return best;
 }
 
+async function fetchApiFootballOddsForStoredMatches(matches:any[],dates:string[]) {
+  const fixtureRows:any[]=[];
+  for (const date of dates.slice(0,2)) {
+    const result=await apiFootball("/fixtures",{date,timezone:"UTC",page:"1"});
+    fixtureRows.push(...(result.response||[]));
+    const total=Math.min(Number(result?.paging?.total||1),2);
+    for (let page=2;page<=total;page++) {
+      const next=await apiFootball("/fixtures",{date,timezone:"UTC",page:String(page)});
+      fixtureRows.push(...(next.response||[]));
+    }
+  }
+  const candidates=fixtureRows.filter((f:any)=>f?.fixture?.id&&f?.teams?.home?.name&&f?.teams?.away?.name);
+  const targets=matches
+    .filter((m:any)=>new Date(m.kickoff_at).getTime()>Date.now())
+    .sort((a:any,b:any)=>new Date(a.kickoff_at).getTime()-new Date(b.kickoff_at).getTime())
+    .slice(0,12);
+  const selected:any[]=[];
+  for (const m of targets) {
+    let best:any=null,bestScore=0;
+    for (const f of candidates) {
+      const kickoff=new Date(f.fixture.date).getTime();
+      const delta=Math.abs(kickoff-new Date(m.kickoff_at).getTime());
+      if (delta>6*3600000) continue;
+      const score=(teamNameSimilarity(m.home_team,f.teams.home.name)+teamNameSimilarity(m.away_team,f.teams.away.name))/2;
+      if (score>bestScore) { bestScore=score; best=f; }
+    }
+    if (best && bestScore>=0.55 && !selected.some((x:any)=>x.fixture.id===best.fixture.id)) selected.push(best);
+  }
+  const rows:any[]=[];
+  let remaining:any=null,errors:string[]=[];
+  for (let i=0;i<selected.length;i+=5) {
+    if (i>0) await new Promise(r=>setTimeout(r,30000));
+    const batch=selected.slice(i,i+5);
+    const results=await Promise.all(batch.map((f:any)=>apiFootball("/odds",{fixture:String(f.fixture.id)})));
+    for (const result of results) {
+      remaining=result.remaining??remaining;
+      if (!result.ok) errors.push(...(result.errors||[]));
+      else rows.push(...(result.response||[]));
+    }
+  }
+  return {rows,requests:fixtureRows.length?2+Math.max(0,fixtureRows.length*0):0,remaining,error:errors.length?errors.join(", "):null,fixtures_considered:candidates.length,fixtures_selected:selected.length};
+}
+
 async function fetchApiFootballOddsDates(dates:string[]) {
   const rows:any[]=[];
   if (!getApiFootballKey()) return {rows,requests:0,remaining:null,error:"API_FOOTBALL_KEY missing"};
@@ -968,7 +1011,11 @@ async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:
     status:m.status,
     country_name:m.raw?.country_name||m.raw?.country||null
   }));
-  const oddsFetch=await fetchApiFootballOddsDates([baseDate,new Date(start.getTime()+86400000).toISOString().slice(0,10)]);
+  let oddsFetch=await fetchApiFootballOddsDates([baseDate,new Date(start.getTime()+86400000).toISOString().slice(0,10)]);
+  if (!oddsFetch.rows.length && !oddsFetch.error) {
+    const fallback=await fetchApiFootballOddsForStoredMatches(european,[baseDate,new Date(start.getTime()+86400000).toISOString().slice(0,10)]);
+    oddsFetch={...fallback,requests:oddsFetch.requests+fallback.requests};
+  }
   const sync=await syncRows(supabase,providerRows,"DB_EXISTING_LIVE_ENRICH",oddsFetch.rows);
   return {
     ok:true,mode:"stored-match-enrich",date:baseDate,
