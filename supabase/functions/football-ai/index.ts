@@ -4,7 +4,7 @@ const EUROPE=new Set(["Albania","Andorra","Armenia","Austria","Azerbaijan","Bela
 const VOID=new Set(["cancelled","canceled","postponed","abandoned","suspended"]);
 const out=(status:number,data:any)=>new Response(JSON.stringify(data),{status,headers:{"content-type":"application/json","access-control-allow-origin":"*","access-control-allow-headers":"authorization,apikey,content-type"}});
 const norm=(s:any)=>String(s||"").toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9 ]/g," ").replace(/\\s+/g," ").trim();
-const european=(m:any)=>{const c=String(m.raw?.country||m.country||"");const text=String(m.league||"")+" "+String(m.type||m.raw?.type||"");return EUROPE.has(c)&&!/friendly|test match/i.test(text)};
+const european=(m:any)=>{const c=String(m.raw?.country||m.country||"");const league=String(m.league||"");const text=league+" "+String(m.type||m.raw?.type||"");const uefa=/uefa\s+(champions league|europa league|conference league|europa conference league|nations league|super cup)/i.test(league);return(EUROPE.has(c)||uefa)&&!/friendly|test match/i.test(text)};
 const softmax=(a:number[])=>{const mx=Math.max(...a),e=a.map(x=>Math.exp(x-mx)),s=e.reduce((a,b)=>a+b,0);return e.map(x=>x/s)};
 async function getSettings(){try{const {data}=await sb.from("football_ai_settings").select("*").eq("id",true).maybeSingle();if(data)return data}catch{}return{football_api_enabled:true,odds_api_enabled:true,groq_enabled:true,openai_enabled:true,news_enabled:true}}
 async function getMatches(){const {data,error}=await sb.from("football_matches").select("*").gte("kickoff_at",new Date().toISOString()).order("kickoff_at").limit(1000);if(error)throw error;return (data||[]).filter(european)}
