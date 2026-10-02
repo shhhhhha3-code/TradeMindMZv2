@@ -1,0 +1,6 @@
+{
+  "appId": "com.trademindmz.football",
+  "appName": "TradeMindMZ",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}
