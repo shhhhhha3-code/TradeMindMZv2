@@ -48,7 +48,7 @@ jobs:
       - name: Publish APK release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: trademindmz-v3-build-\${{ github.run_number }}
-          name: TradeMindMZ v3 APK build \${{ github.run_number }}
+          tag_name: trademindmz-v3-build-${{ github.run_number }}
+          name: TradeMindMZ v3 APK build ${{ github.run_number }}
           prerelease: true
           files: TradeMindMZ-v3-debug.apk
