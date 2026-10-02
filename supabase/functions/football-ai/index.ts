@@ -761,11 +761,20 @@ async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:
     return {matchesScanned:0,oddsStored:0,predictionsCreated:0,duration_ms:Date.now()-started};
   }
 
-  const {data:savedRows,error:matchError}=await supabase.from("football_matches")
-    .upsert(payloads,{onConflict:"external_id"}).select("*");
+  const {error:matchError}=await supabase.from("football_matches")
+    .upsert(payloads,{onConflict:"external_id"});
   if (matchError) throw matchError;
 
-  const saved=savedRows||[];
+  // Re-read by external_id so every downstream prediction/odds row has a real FK id.
+  const externalIds=payloads.map((p:any)=>String(p.external_id)).filter(Boolean);
+  const {data:savedRows,error:savedError}=externalIds.length
+    ? await supabase.from("football_matches").select("*").in("external_id",externalIds)
+    : {data:[],error:null};
+  if (savedError) throw savedError;
+  const saved=(savedRows||[]).filter((row:any)=>row?.id);
+  if (saved.length !== externalIds.length) {
+    throw new Error(`football_matches FK lookup incomplete: expected ${externalIds.length}, got ${saved.length}`);
+  }
   const providerByExternal=new Map(filtered.map((m:any)=>[String(m.match_id||m.id),m]));
   const logoCache=await resolveTeamLogos(supabase,saved);
   const existingIds=saved.map((m:any)=>m.id).filter(Boolean);
