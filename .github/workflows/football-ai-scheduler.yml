@@ -12,6 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
+# Triggered after upcoming-fixture odds resolver
 # Triggered after direct fixture-odds resolver
 # Triggered after chunked prediction lookup
 # Triggered after FK lookup fix
