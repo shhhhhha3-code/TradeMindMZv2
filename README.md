@@ -1,46 +1,20 @@
-# TradeMindMZ · Football AI Dashboard
+# TradeMindMZ Football Intelligence v3
 
-A React/Vite football intelligence dashboard with a responsive dark interface, live match data, AI predictions, odds/value signals, model evaluation and an autonomous learning pipeline.
+Ny arkitektur for TradeMindMZ:
+- Europa-only match universe
+- Fast pre-score av alle relevante kamper
+- TOPP 6 deep AI analysis
+- AI Resultat og resultatevaluering
+- Egen learning/performance layer
+- AI News som separat informasjonslag
+- Settings med av/på for Football API, Odds API, Groq, OpenAI og News Engine
+- Samme Supabase/API-infrastruktur kan kobles til via environment variables
 
-## Included
-- Dark cinematic responsive dashboard
-- Live football fixtures and results
-- AI confidence, 1X2 probabilities, odds and value
-- Match Intelligence detail view
-- AI Intelligence Center with feature impact and model weights
-- AI reasoning stream
-- Country / league / competition filters
-- Mobile-friendly match cards and navigation
-- Supabase Edge Function backend
-- Football data ingestion and result settlement
-- API-Football odds integration
-- Feature extraction, prediction evaluation and model retraining
-- Automated GitHub Actions build, deployment and pipeline checks
-
-## Architecture
-
-Frontend: React + Vite  
-Backend: Supabase Edge Functions  
-Database: Supabase Postgres  
-Football data: Football Soccer API  
-Odds: API-Football  
-ML pipeline: feature engineering + multiclass model + evaluation/retraining
-
-## Development
-
-```bash
-npm install
-npm run dev
-```
-
-## Production checks
-
-```bash
-npm run build
-```
-
-The production build is validated in GitHub Actions. The Football AI Edge Function is type-checked, deployed and health-tested automatically when backend changes reach `main`.
-
-## APK preparation
-
-The web dashboard is responsive and is being validated on mobile before packaging the production frontend as an Android APK.
+## Neste byggefasene
+1. Koble Supabase og eksisterende tabeller/API-er
+2. Flytte pre-score/top-6 engine server-side
+3. Koble Groq/OpenAI med provider toggles
+4. Koble odds og team-logo cache
+5. Bygge news retrieval med kilder
+6. Resultatevaluering og egen learning/retraining
+7. E2E + Android build
