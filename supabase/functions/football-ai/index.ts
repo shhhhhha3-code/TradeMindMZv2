@@ -64,7 +64,8 @@ function getSupabaseSecretKey() {
 
 // ---------------- API-Football odds provider ----------------
 const API_FOOTBALL_BASE = "https://v3.football.api-sports.io";
-const API_FOOTBALL_MAX_PAGES_PER_DATE = 3; // redeploy verification
+const API_FOOTBALL_MAX_PAGES_PER_DATE = 4;
+const API_FOOTBALL_ODDS_REFRESH_HOURS = 6;
 
 function getApiFootballKey() {
   return Deno.env.get("API_FOOTBALL_KEY") || "";
@@ -121,7 +122,8 @@ function normalizeTeamName(value:any) {
   return String(value||"")
     .normalize("NFD").replace(/\p{Diacritic}/gu,"")
     .toLowerCase().replace(/[^a-z0-9]+/g," ").trim()
-    .replace(/\b(fc|afc|cf|sc|ac|fk|sk)\b/g,"").replace(/\s+/g," ").trim();
+    .replace(/\b(fc|afc|cf|sc|ac|fk|sk|u17|u18|u19|u20|u21|u23|ii|iii|iv|reserves|reserve|b)\b/g,"")
+    .replace(/\s+/g," ").trim();
 }
 
 function teamNameSimilarity(a:any,b:any) {
@@ -682,6 +684,69 @@ async function retrainModel(supabase:any) {
   return row;
 }
 
+async function loadTeamLogoCache(supabase:any) {
+  const {data,error}=await supabase.from("football_team_assets").select("team_key,team_name,logo_url");
+  if (error) return new Map<string,string>();
+  return new Map((data||[]).filter((r:any)=>r.logo_url).map((r:any)=>[String(r.team_key),String(r.logo_url)]));
+}
+
+function apiFootballCountryName(country:any) {
+  const key=normalizedText(country).replace(/[^a-z0-9]+/g," ");
+  const aliases:any={
+    "bosnia and herzegovina":"Bosnia",
+    "czech republic":"Czech-Republic",
+    "faroe islands":"Faroe-Islands",
+    "north macedonia":"North-Macedonia",
+    "republic of ireland":"Ireland",
+    "slovak republic":"Slovakia",
+    "united kingdom":"England"
+  };
+  return aliases[key]||String(country||"").trim();
+}
+
+async function resolveTeamLogos(supabase:any,matches:any[]) {
+  const cache=await loadTeamLogoCache(supabase);
+  if (!getApiFootballKey()) return cache;
+  const missing=new Map<string,{name:string,country:string}>();
+  for (const m of matches.slice(0,40)) {
+    for (const side of ["home","away"]) {
+      const name=String(m?.[side+"_team"]||"").trim();
+      const key=normalizeTeamName(name);
+      if (!key || cache.has(key)) continue;
+      const country=String(m?.raw?.country_name||m?.raw?.country||m?.country_name||"").trim();
+      missing.set(key,{name,country});
+    }
+  }
+  if (!missing.size) return cache;
+
+  const countries=[...new Set([...missing.values()].map(x=>x.country).filter(Boolean))].slice(0,8);
+  for (const country of countries) {
+    const result=await apiFootball("/teams",{country:apiFootballCountryName(country)});
+    if (!result.ok) continue;
+    for (const row of result.response||[]) {
+      const team=row?.team||{};
+      const logo=typeof team.logo==="string"&&/^https?:\/\//.test(team.logo)?team.logo:null;
+      if (!logo||!team.name) continue;
+      const key=normalizeTeamName(team.name);
+      const requested=[...missing.entries()].filter(([,x])=>x.country===country);
+      let best:any=null,bestScore=0;
+      for (const [requestedKey,x] of requested) {
+        const score=teamNameSimilarity(x.name,team.name);
+        if (score>bestScore){bestScore=score;best={requestedKey,x};}
+      }
+      if (best && bestScore>=0.5) {
+        cache.set(best.requestedKey,logo);
+        await supabase.from("football_team_assets").upsert({
+          team_key:best.requestedKey,team_name:best.x.name,country,
+          provider_team_id:team.id!=null?String(team.id):null,logo_url:logo,source:"API-Football",updated_at:nowIso()
+        },{onConflict:"team_key"});
+      }
+      if (key && !cache.has(key)) cache.set(key,logo);
+    }
+  }
+  return cache;
+}
+
 async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:any[] = []) {
   const started=Date.now();
   const filtered=rows.filter(isEuropeanMatch);
@@ -702,9 +767,10 @@ async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:
 
   const saved=savedRows||[];
   const providerByExternal=new Map(filtered.map((m:any)=>[String(m.match_id||m.id),m]));
+  const logoCache=await resolveTeamLogos(supabase,saved);
   const existingIds=saved.map((m:any)=>m.id).filter(Boolean);
   const {data:existingOpen,error:existingError}=existingIds.length
-    ? await supabase.from("football_ai_predictions").select("id,match_id").in("match_id",existingIds).eq("status","OPEN")
+    ? await supabase.from("football_ai_predictions").select("id,match_id,confidence,feature_vector,reasoning,model_version").in("match_id",existingIds).eq("status","OPEN")
     : {data:[],error:null};
   if (existingError) throw existingError;
   const existingByMatch=new Map((existingOpen||[]).map((p:any)=>[String(p.match_id),p]));
@@ -734,7 +800,31 @@ async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:
     }
 
     if (new Date(savedMatch.kickoff_at).getTime()<=Date.now()) continue;
-    if (existingByMatch.has(String(savedMatch.id))) continue;
+
+    const existing=existingByMatch.get(String(savedMatch.id));
+    if (existing && externalOdds) {
+      const currentFeatures=existing.feature_vector?.probabilities;
+      if (currentFeatures) {
+        const refreshedOdds=oddsEngine(currentFeatures,{odds:externalOdds.odds});
+        const refreshedChosen=choosePrediction(currentFeatures,refreshedOdds);
+        const refreshedReasoning={
+          ...(existing.reasoning||{}),
+          odds_engine:refreshedOdds,
+          odds_source:`API-Football / ${externalOdds.bookmaker}`
+        };
+        await supabase.from("football_ai_predictions").update({
+          prediction:outcomeLabel(refreshedChosen.outcome,m),
+          selected_outcome:refreshedChosen.outcome,
+          confidence:Math.max(35,Math.min(95,refreshedChosen.probability*100)),
+          implied_probability:externalOdds.odds[refreshedChosen.outcome]?(1/externalOdds.odds[refreshedChosen.outcome])*100:null,
+          odds:externalOdds.odds[refreshedChosen.outcome]||null,
+          value_percent:refreshedOdds[refreshedChosen.outcome]?.value_percent??null,
+          reasoning:refreshedReasoning,
+          feature_vector:{...(existing.feature_vector||{}),odds:externalOdds.odds,odds_engine:refreshedOdds}
+        }).eq("id",existing.id);
+      }
+    }
+    if (existing) continue;
 
     const homeStats=teamCache.get(savedMatch.home_team)||teamStatsFromRows([]);
     const awayStats=teamCache.get(savedMatch.away_team)||teamStatsFromRows([]);
@@ -827,7 +917,7 @@ async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:
     provider:"football-soccer-api + learning-engine",status:"SUCCESS",started_at:nowIso(),finished_at:nowIso()
   });
   return {matchesScanned,oddsStored:oddsRows.length,predictionsCreated,duration_ms:Date.now()-started};
-}async function runPipeline(supabase:any, requestedDate:string|null = null) {
+}async function runPipeline(supabase:any, requestedDate:string|null = null, forceOdds=false) {
   const baseDate=/^\d{4}-\d{2}-\d{2}$/.test(String(requestedDate||""))
     ? String(requestedDate)
     : new Date().toISOString().slice(0,10);
@@ -851,7 +941,11 @@ async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:
   for (const row of resultRows.filter(isEuropeanMatch)) await upsertMatch(supabase,row);
   const evaluatedBefore=await evaluatePredictions(supabase);
   const modelBefore=evaluatedBefore ? await retrainModel(supabase) : await getModel(supabase);
-  const oddsFetch=await fetchApiFootballOddsDates([baseDate,tomorrowDate]);
+  const utcHour=new Date().getUTCHours();
+  const shouldRefreshOdds=forceOdds || utcHour % API_FOOTBALL_ODDS_REFRESH_HOURS === 0;
+  const oddsFetch=shouldRefreshOdds
+    ? await fetchApiFootballOddsDates([baseDate,tomorrowDate])
+    : {rows:[],requests:0,remaining:null,error:null};
   const sync=await syncRows(supabase,fixtureRows,"DAILY_EUROPE_AI_SCAN",oddsFetch.rows);
   const evaluatedAfter=await evaluatePredictions(supabase);
   const modelAfter=evaluatedAfter ? await retrainModel(supabase) : modelBefore;
@@ -961,7 +1055,7 @@ Deno.serve(async (req)=>{
 
     if (action==="sync"||action==="pipeline") {
       const requestedDate=url.searchParams.get("date");
-      return json(await runPipeline(supabase,requestedDate));
+      return json(await runPipeline(supabase,requestedDate,action==="sync"));
     }
     if (action==="evaluate") {
       const evaluated=await evaluatePredictions(supabase);
@@ -1134,11 +1228,14 @@ Deno.serve(async (req)=>{
         .gte("kickoff_at",start.toISOString()).lte("kickoff_at",end.toISOString())
         .order("kickoff_at",{ascending:true}).limit(5000);
       if (matchError) throw matchError;
+      const logoCache=await loadTeamLogoCache(supabase);
       const normalizedMatches=(matches||[]).filter(isEuropeanMatch).map((m:any)=>({
         ...m,
         country:m?.raw?.country_name||"Ukjent",
         region:"Europe",
-        competition_type:classifyCompetition(m?.league||"")
+        competition_type:classifyCompetition(m?.league||""),
+        home_logo:logoCache.get(normalizeTeamName(m?.home_team))||null,
+        away_logo:logoCache.get(normalizeTeamName(m?.away_team))||null
       }));
       const ids=normalizedMatches.map((m:any)=>m.id); let predictions:any[]=[];
       if (ids.length) {
