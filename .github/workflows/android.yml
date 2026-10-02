@@ -31,7 +31,7 @@ jobs:
       - name: Build web app
         run: npm run build
       - name: Add Android platform
-        run: npx cap add android --verbose
+        run: npx cap add android
       - name: Sync web app
         run: npx cap sync android
       - name: Build debug APK
