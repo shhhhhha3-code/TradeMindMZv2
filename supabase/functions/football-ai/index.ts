@@ -944,7 +944,40 @@ async function syncRows(supabase:any,rows:any[],runType:string,externalOddsRows:
     provider:"football-soccer-api + learning-engine",status:"SUCCESS",started_at:nowIso(),finished_at:nowIso()
   });
   return {matchesScanned,oddsStored:oddsRows.length,predictionsCreated,duration_ms:Date.now()-started};
-}async function runPipeline(supabase:any, requestedDate:string|null = null, forceOdds=false) {
+}async function enrichStoredMatches(supabase:any, requestedDate:string|null = null) {
+  const baseDate=/^\d{4}-\d{2}-\d{2}$/.test(String(requestedDate||""))
+    ? String(requestedDate)
+    : new Date().toISOString().slice(0,10);
+  const start=new Date(baseDate+"T00:00:00.000Z");
+  const end=new Date(start.getTime()+2*86400000+86399999);
+  const {data:matches,error}=await supabase.from("football_matches")
+    .select("*").gte("kickoff_at",start.toISOString()).lte("kickoff_at",end.toISOString())
+    .order("kickoff_at",{ascending:true}).limit(5000);
+  if(error) throw error;
+  const european=(matches||[]).filter(isEuropeanMatch);
+  const providerRows=european.map((m:any)=>({
+    ...safeJson(m.raw||{}),
+    match_id:m.external_id||m.id,
+    id:m.external_id||m.id,
+    league_name:m.league||m.raw?.league_name||"Unknown",
+    kickoff_utc:m.kickoff_at,
+    home_team_name:m.home_team,
+    away_team_name:m.away_team,
+    home_team_id:m.home_team_id,
+    away_team_id:m.away_team_id,
+    status:m.status,
+    country_name:m.raw?.country_name||m.raw?.country||null
+  }));
+  const oddsFetch=await fetchApiFootballOddsDates([baseDate,new Date(start.getTime()+86400000).toISOString().slice(0,10)]);
+  const sync=await syncRows(supabase,providerRows,"DB_EXISTING_LIVE_ENRICH",oddsFetch.rows);
+  return {
+    ok:true,mode:"stored-match-enrich",date:baseDate,
+    stored_matches:european.length,sync,
+    odds:{provider:"API-Football",requests:oddsFetch.requests,rows:oddsFetch.rows.length,remaining:oddsFetch.remaining,error:oddsFetch.error}
+  };
+}
+
+async function runPipeline(supabase:any, requestedDate:string|null = null, forceOdds=false) {
   const baseDate=/^\d{4}-\d{2}-\d{2}$/.test(String(requestedDate||""))
     ? String(requestedDate)
     : new Date().toISOString().slice(0,10);
@@ -1080,9 +1113,13 @@ Deno.serve(async (req)=>{
       });
     }
 
-    if (action==="sync"||action==="pipeline") {
+    if (action==="sync") {
       const requestedDate=url.searchParams.get("date");
-      return json(await runPipeline(supabase,requestedDate,action==="sync"));
+      return json(await enrichStoredMatches(supabase,requestedDate));
+    }
+    if (action==="pipeline") {
+      const requestedDate=url.searchParams.get("date");
+      return json(await runPipeline(supabase,requestedDate,false));
     }
     if (action==="evaluate") {
       const evaluated=await evaluatePredictions(supabase);
