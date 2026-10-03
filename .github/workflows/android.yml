@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "src/**"
+      - "supabase/functions/**"
       - "public/**"
       - "index.html"
       - "package.json"
