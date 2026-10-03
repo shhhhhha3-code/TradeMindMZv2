@@ -47,7 +47,6 @@ async function syncFootball(){
       const leagueName=String(f.league?.name||"");
       const row={home_team:home?.name,away_team:away?.name,league:"Europe · "+leagueName,kickoff_at:f.starting_at,status:String(f.state?.short_name||f.state?.developer_name||f.state?.name||"NS"),home_score:homeScore,away_score:awayScore};
       if(!row.home_team||!row.away_team||!row.kickoff_at)continue;
-      if(!european(row))continue;
       const {data:existingRows}=await sb.from("football_matches").select("id,home_team,away_team,kickoff_at").eq("home_team",row.home_team).eq("away_team",row.away_team).gte("kickoff_at",new Date(new Date(row.kickoff_at).getTime()-120000).toISOString()).lte("kickoff_at",new Date(new Date(row.kickoff_at).getTime()+120000).toISOString()).limit(1);
       const existing=existingRows?.[0]; let q:any;
       if(existing?.id)q=await sb.from("football_matches").update(row).eq("id",existing.id);else q=await sb.from("football_matches").insert(row);
@@ -95,7 +94,7 @@ async function syncOdds(){
       const home=participants.find((p:any)=>p.meta?.location==="home"||p.location==="home")||participants[0];
       const away=participants.find((p:any)=>p.meta?.location==="away"||p.location==="away")||participants[1];
       const kickoff=f.starting_at;
-      if(!home?.name||!away?.name||!kickoff||!european({home_team:home.name,away_team:away.name,league:"Europe · "+String(f.league?.name||"")}))continue;
+      if(!home?.name||!away?.name||!kickoff)continue;
       const match=list.find((m:any)=>norm(m.home_team)===norm(home.name)&&norm(m.away_team)===norm(away.name)&&Math.abs(new Date(m.kickoff_at).getTime()-new Date(kickoff).getTime())<4*3600000);
       if(!match)continue;
       fixturesMatched++;
