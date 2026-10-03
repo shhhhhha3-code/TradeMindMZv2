@@ -68,16 +68,105 @@ async function syncFootball(){
   for(const f of fixtures){const row={home_team:f.teams?.home?.name,away_team:f.teams?.away?.name,league:String(f.league?.country||"")+" · "+String(f.league?.name||""),kickoff_at:f.fixture?.date,status:f.fixture?.status?.short,home_score:f.goals?.home,away_score:f.goals?.away};if(!row.home_team||!row.away_team||!european(row))continue;const {data:existingRows}=await sb.from("football_matches").select("id,home_team,away_team,kickoff_at").eq("home_team",row.home_team).eq("away_team",row.away_team).gte("kickoff_at",new Date(new Date(row.kickoff_at).getTime()-120000).toISOString()).lte("kickoff_at",new Date(new Date(row.kickoff_at).getTime()+120000).toISOString()).limit(1);const existing=existingRows?.[0];let q:any;if(existing?.id)q=await sb.from("football_matches").update(row).eq("id",existing.id);else q=await sb.from("football_matches").insert(row);if(q.error)failed++;else synced++}
   const {data:recent}=await sb.from("football_matches").select("home_team,away_team,status,home_score,away_score").gte("kickoff_at",new Date(Date.now()-30*86400000).toISOString()).not("home_score","is",null).limit(3000);const agg=new Map<string,any>();for(const m of recent||[]){const hs=Number(m.home_score),as=Number(m.away_score);for(const side of ["home","away"]){const team=side==="home"?m.home_team:m.away_team;if(!team)continue;const gf=side==="home"?hs:as,ga=side==="home"?as:hs;const x=agg.get(norm(team))||{team_name:team,wins:0,losses:0,draws:0,goals_for:0,goals_against:0,xg_for:0,xg_against:0};x.goals_for+=gf;x.goals_against+=ga;if(gf>ga)x.wins++;else if(gf<ga)x.losses++;else x.draws++;agg.set(norm(team),x)}}let statsSynced=0;for(const x of agg.values()){const {data:old}=await sb.from("football_team_stats").select("id").eq("team_name",x.team_name).limit(1).maybeSingle();const q=old?.id?await sb.from("football_team_stats").update(x).eq("id",old.id):await sb.from("football_team_stats").insert(x);if(!q.error)statsSynced++}return{configured:true,provider:"api-football",synced,stats_synced:statsSynced,failed,total:fixtures.length,from:apiDate(from),to:apiDate(to)};
 }
-async function syncOdds(){const key=env("ODDS_API_KEY"),base=env("ODDS_API_BASE_URL","https://api.the-odds-api.com/v4");if(!key)return{configured:false,synced:0,error:"ODDS_API_KEY missing"};const keys=(env("ODDS_SPORT_KEYS","soccer_uefa_champs_league,soccer_uefa_europa_league,soccer_uefa_europa_conference_league,soccer_epl")).split(",").map(x=>x.trim()).filter(Boolean);const {data:matches}=await sb.from("football_matches").select("id,home_team,away_team,kickoff_at").gte("kickoff_at",new Date().toISOString()).limit(1000);const list=matches||[];let synced=0,failed=0,events=0;for(const sport of keys){let payload:any;try{payload=(await jsonFetch(base+"/sports/"+encodeURIComponent(sport)+"/odds?regions=eu&markets=h2h&oddsFormat=decimal&apiKey="+encodeURIComponent(key))).data}catch{continue}for(const ev of (Array.isArray(payload)?payload:[])){events++;const match=list.find((m:any)=>norm(m.home_team)===norm(ev.home_team)&&norm(m.away_team)===norm(ev.away_team)&&Math.abs(new Date(m.kickoff_at).getTime()-new Date(ev.commence_time).getTime())<4*3600000);if(!match)continue;for(const bm of (ev.bookmakers||[])){for(const market of (bm.markets||[])){for(const o of (market.outcomes||[])){const row={match_id:match.id,market:market.key,selection:o.name,odds:Number(o.price),bookmaker:bm.title||bm.key,captured_at:bm.last_update||new Date().toISOString()};const {data:oldOdds}=await sb.from("football_odds").select("id").eq("match_id",match.id).eq("market",row.market).eq("selection",row.selection).eq("bookmaker",row.bookmaker).limit(1).maybeSingle();const q=oldOdds?.id?await sb.from("football_odds").update(row).eq("id",oldOdds.id):await sb.from("football_odds").insert(row);if(q.error)failed++;else synced++}}}}}return{configured:true,synced,failed,events,sports:keys}} 
+async function syncOdds(){
+  const sportmonks=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");
+  const footballKey=env("FOOTBALL_API_KEY");
+  const now=new Date();
+  const until=new Date(Date.now()+7*86400000);
+  const {data:matches}=await sb.from("football_matches").select("id,home_team,away_team,kickoff_at").gte("kickoff_at",now.toISOString()).lte("kickoff_at",until.toISOString()).limit(1000);
+  const list=matches||[];
+  if(sportmonks){
+    const base=env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football");
+    let fixtures:any[]=[];let page=1;
+    try{
+      for(let i=0;i<20;i++){
+        const j=(await jsonFetch(base+"/fixtures/between/"+apiDate(now)+"/"+apiDate(until)+"?api_token="+encodeURIComponent(sportmonks)+"&include=participants;league;state&per_page=50&page="+page,{headers:{accept:"application/json"}},12000)).data;
+        const rows=Array.isArray(j?.data)?j.data:[];
+        fixtures.push(...rows);
+        if(!j?.pagination?.has_more||!rows.length)break;
+        page++;
+      }
+    }catch(e){
+      return{configured:true,provider:"sportmonks",synced:0,error:e instanceof Error?e.message:String(e)};
+    }
+    let synced=0,failed=0,events=0,fixturesMatched=0;
+    for(const f of fixtures){
+      const participants=Array.isArray(f.participants)?f.participants:[];
+      const home=participants.find((p:any)=>p.meta?.location==="home"||p.location==="home")||participants[0];
+      const away=participants.find((p:any)=>p.meta?.location==="away"||p.location==="away")||participants[1];
+      const kickoff=f.starting_at;
+      if(!home?.name||!away?.name||!kickoff||!european({home_team:home.name,away_team:away.name,league:"Europe · "+String(f.league?.name||"")}))continue;
+      const match=list.find((m:any)=>norm(m.home_team)===norm(home.name)&&norm(m.away_team)===norm(away.name)&&Math.abs(new Date(m.kickoff_at).getTime()-new Date(kickoff).getTime())<4*3600000);
+      if(!match)continue;
+      fixturesMatched++;
+      let payload:any;
+      try{
+        payload=(await jsonFetch(base+"/odds/pre-match/fixtures/"+encodeURIComponent(String(f.id))+"?api_token="+encodeURIComponent(sportmonks)+"&include=bookmaker;market",{headers:{accept:"application/json"}},12000)).data;
+      }catch{continue}
+      for(const o of (Array.isArray(payload?.data)?payload.data:[])){
+        events++;
+        const market=String(o.market_description||o.market?.name||"");
+        const selection=String(o.label||o.name||"");
+        const isResult=/match winner|fulltime result/i.test(market)&&/^(1|x|2|home|draw|away)$/i.test(selection);
+        if(!isResult)continue;
+        const price=Number(o.value);
+        if(!Number.isFinite(price)||price<=1)continue;
+        const bookmaker=String(o.bookmaker?.name||o.bookmaker_id||"Sportmonks");
+        const row={match_id:match.id,market:"h2h",selection:selection==="Home"?"1":selection==="Draw"?"X":selection==="Away"?"2":selection,odds:price,bookmaker,captured_at:o.latest_bookmaker_update||o.updated_at||new Date().toISOString()};
+        const {data:oldOdds}=await sb.from("football_odds").select("id").eq("match_id",match.id).eq("market",row.market).eq("selection",row.selection).eq("bookmaker",row.bookmaker).limit(1).maybeSingle();
+        const q=oldOdds?.id?await sb.from("football_odds").update(row).eq("id",oldOdds.id):await sb.from("football_odds").insert(row);
+        if(q.error)failed++;else synced++;
+      }
+    }
+    return{configured:true,provider:"sportmonks",synced,failed,events,fixtures:fixturesMatched,total_fixtures:fixtures.length,pages:page};
+  }
+  if(footballKey){
+    const base=env("FOOTBALL_API_BASE_URL","https://v3.football.api-sports.io");
+    let fixtures:any[]=[];let from=apiDate(now),to=apiDate(until);
+    try{
+      const payload=(await jsonFetch(base+"/fixtures?from="+from+"&to="+to+"&timezone=UTC",{headers:{"x-apisports-key":footballKey,accept:"application/json"}},12000)).data;
+      fixtures=Array.isArray(payload?.response)?payload.response:[];
+    }catch(e){
+      return{configured:true,provider:"api-football",synced:0,error:e instanceof Error?e.message:String(e)};
+    }
+    let synced=0,failed=0,events=0,fixturesMatched=0;
+    for(const f of fixtures){
+      const home=f.teams?.home?.name,away=f.teams?.away?.name,kickoff=f.fixture?.date;
+      if(!home||!away||!kickoff||!european({home_team:home,away_team:away,league:String(f.league?.country||"")+" · "+String(f.league?.name||"")}))continue;
+      const match=list.find((m:any)=>norm(m.home_team)===norm(home)&&norm(m.away_team)===norm(away)&&Math.abs(new Date(m.kickoff_at).getTime()-new Date(kickoff).getTime())<4*3600000);
+      if(!match)continue;
+      fixturesMatched++;
+      let payload:any;
+      try{payload=(await jsonFetch(base+"/odds?fixture="+encodeURIComponent(String(f.fixture?.id)),{headers:{"x-apisports-key":footballKey,accept:"application/json"}},12000)).data}catch{continue}
+      const bookmakers=Array.isArray(payload?.response?.[0]?.bookmakers)?payload.response[0].bookmakers:[];
+      for(const bm of bookmakers){
+        for(const market of (bm.bets||[])){
+          if(!/match winner|fulltime result/i.test(String(market.name||"")))continue;
+          for(const o of (market.values||[])){
+            const selection=String(o.value||"");if(!/^(Home|Draw|Away|1|X|2)$/i.test(selection))continue;
+            const price=Number(o.odd);if(!Number.isFinite(price)||price<=1)continue;
+            events++;
+            const row={match_id:match.id,market:"h2h",selection:selection==="Home"?"1":selection==="Draw"?"X":selection==="Away"?"2":selection,odds:price,bookmaker:String(bm.name||bm.id||"API-Football"),captured_at:new Date().toISOString()};
+            const {data:oldOdds}=await sb.from("football_odds").select("id").eq("match_id",match.id).eq("market",row.market).eq("selection",row.selection).eq("bookmaker",row.bookmaker).limit(1).maybeSingle();
+            const q=oldOdds?.id?await sb.from("football_odds").update(row).eq("id",oldOdds.id):await sb.from("football_odds").insert(row);
+            if(q.error)failed++;else synced++;
+          }
+        }
+      }
+    }
+    return{configured:true,provider:"api-football",synced,failed,events,fixtures:fixturesMatched,total_fixtures:fixtures.length};
+  }
+  return{configured:false,synced:0,error:"No football provider token configured for odds"};
+}
 const footballConfigured=()=>Boolean(env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY")||env("FOOTBALL_API_KEY"));
-const oddsConfigured=()=>Boolean(env("ODDS_API_KEY"));
+const oddsConfigured=()=>Boolean(env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY")||env("FOOTBALL_API_KEY"));
 async function syncExternalData(force=false){const now=Date.now();const football=force||now-lastFootballSync>10*60*1000?await syncFootball():{configured:footballConfigured(),skipped:true};if(football.configured&&!football.error)lastFootballSync=now;const odds=force||now-lastOddsSync>30*60*1000?await syncOdds():{configured:oddsConfigured(),skipped:true};if(odds.configured&&!odds.error)lastOddsSync=now;const {count:matchCount}=await sb.from("football_matches").select("*",{count:"exact",head:true});const {count:oddsCount}=await sb.from("football_odds").select("*",{count:"exact",head:true});return{football,odds,database:{football_matches:matchCount||0,football_odds:oddsCount||0},synced_at:new Date().toISOString()}}
 async function connectivity(){const {count:matchCount}=await sb.from("football_matches").select("*",{count:"exact",head:true});const {count:oddsCount}=await sb.from("football_odds").select("*",{count:"exact",head:true});const {count:statsCount}=await sb.from("football_team_stats").select("*",{count:"exact",head:true});return{providers:{football_api:footballConfigured(),odds_api:oddsConfigured(),groq:Boolean(env("GROQ_API_KEY")),openai:Boolean(env("OPENAI_API_KEY")),news:true},database:{football_matches:matchCount||0,football_odds:oddsCount||0,football_team_stats:statsCount||0},updated_at:new Date().toISOString()}}
 async function diagnostics(){const checkedAt=new Date().toISOString();const result:any={checked_at:checkedAt,providers:{},database:{},sync:{football_last_ok:lastFootballSync?new Date(lastFootballSync).toISOString():null,odds_last_ok:lastOddsSync?new Date(lastOddsSync).toISOString():null}};
 const db=await sb.from("football_matches").select("*",{count:"exact",head:true});const od=await sb.from("football_odds").select("*",{count:"exact",head:true});const st=await sb.from("football_team_stats").select("*",{count:"exact",head:true});
 result.database={football_matches:db.count||0,football_odds:od.count||0,football_team_stats:st.count||0,status:db.error||od.error||st.error?"DEGRADED":"HEALTHY"};
 const sportmonks=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");if(sportmonks){try{const today=apiDate(new Date());await jsonFetch(env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football")+"/fixtures/between/"+today+"/"+today+"?api_token="+encodeURIComponent(sportmonks)+"&per_page=1",{headers:{accept:"application/json"}},9000);result.providers.football_api={status:"CONNECTED",provider:"Sportmonks",detail:"Fixtures endpoint OK · auth + plan access confirmed"}}catch(e){result.providers.football_api={status:"ERROR",provider:"Sportmonks",detail:e instanceof Error?e.message:String(e)}}}else if(env("FOOTBALL_API_KEY")){try{await jsonFetch(env("FOOTBALL_API_BASE_URL","https://v3.football.api-sports.io")+"/status",{headers:{"x-apisports-key":env("FOOTBALL_API_KEY"),accept:"application/json"}},9000);result.providers.football_api={status:"CONNECTED",provider:"API-Football",detail:"Live API handshake OK"}}catch(e){result.providers.football_api={status:"ERROR",provider:"API-Football",detail:e instanceof Error?e.message:String(e)}}}else result.providers.football_api={status:"OFFLINE",provider:"—",detail:"Ingen football API-secret"};
-if(env("ODDS_API_KEY")){try{await jsonFetch(env("ODDS_API_BASE_URL","https://api.the-odds-api.com/v4")+"/sports?apiKey="+encodeURIComponent(env("ODDS_API_KEY")),{},9000);result.providers.odds_api={status:"CONNECTED",provider:"The Odds API",detail:"Live API handshake OK"}}catch(e){result.providers.odds_api={status:"ERROR",provider:"The Odds API",detail:e instanceof Error?e.message:String(e)}}}else result.providers.odds_api={status:"OFFLINE",provider:"—",detail:"ODDS_API_KEY mangler"};
+if(sportmonks){try{await jsonFetch(env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football")+"/odds/pre-match?api_token="+encodeURIComponent(sportmonks)+"&per_page=1",{headers:{accept:"application/json"}},9000);result.providers.odds_api={status:"CONNECTED",provider:"Sportmonks Odds",detail:"Pre-match odds endpoint OK · Odds add-on access confirmed"}}catch(e){result.providers.odds_api={status:"ERROR",provider:"Sportmonks Odds",detail:e instanceof Error?e.message:String(e)}}}else if(env("FOOTBALL_API_KEY")){try{await jsonFetch(env("FOOTBALL_API_BASE_URL","https://v3.football.api-sports.io")+"/status",{headers:{"x-apisports-key":env("FOOTBALL_API_KEY"),accept:"application/json"}},9000);result.providers.odds_api={status:"CONNECTED",provider:"API-Football Odds",detail:"Football API auth OK · odds provider fallback active"}}catch(e){result.providers.odds_api={status:"ERROR",provider:"API-Football Odds",detail:e instanceof Error?e.message:String(e)}}}else result.providers.odds_api={status:"OFFLINE",provider:"—",detail:"Ingen football provider-secret"};
 if(env("GROQ_API_KEY")){try{await jsonFetch("https://api.groq.com/openai/v1/models",{headers:{authorization:"Bearer "+env("GROQ_API_KEY")},},9000);result.providers.groq={status:"CONNECTED",provider:"Groq",detail:"Auth handshake OK"}}catch(e){result.providers.groq={status:"ERROR",provider:"Groq",detail:e instanceof Error?e.message:String(e)}}}else result.providers.groq={status:"OFFLINE",provider:"—",detail:"GROQ_API_KEY mangler"};
 if(env("OPENAI_API_KEY")){try{await jsonFetch("https://api.openai.com/v1/models",{headers:{authorization:"Bearer "+env("OPENAI_API_KEY")}},9000);result.providers.openai={status:"CONNECTED",provider:"OpenAI",detail:"Auth handshake OK"}}catch(e){result.providers.openai={status:"ERROR",provider:"OpenAI",detail:e instanceof Error?e.message:String(e)}}}else result.providers.openai={status:"OFFLINE",provider:"—",detail:"OPENAI_API_KEY mangler"};
 try{await jsonFetch("https://api.gdeltproject.org/api/v2/doc/doc?query=football&mode=artlist&maxrecords=1&format=json",{},5000);result.providers.news={status:"CONNECTED",provider:"GDELT",detail:"News endpoint reachable"}}catch(e){result.providers.news={status:"ERROR",provider:"GDELT",detail:e instanceof Error?e.message:String(e)}}
