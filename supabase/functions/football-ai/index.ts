@@ -18,7 +18,7 @@ const env=(name:string,fallback="")=>Deno.env.get(name)||fallback;
 async function jsonFetch(url:string,init:RequestInit={},timeout=API_TIMEOUT){const ac=new AbortController();const t=setTimeout(()=>ac.abort(),timeout);try{const r=await fetch(url,{...init,signal:ac.signal});const text=await r.text();let data:any=null;try{data=text?JSON.parse(text):null}catch{}if(!r.ok)throw new Error(data?.message||data?.errors?.[0]?.message||("HTTP "+r.status));return{data,headers:r.headers}}finally{clearTimeout(t)}}
 const apiDate=(d:Date)=>d.toISOString().slice(0,10);
 async function syncFootball(){
-  const sportmonks=env("SPORTMONKS_API_TOKEN");
+  const sportmonks=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");
   const provider=env("FOOTBALL_PROVIDER","auto").toLowerCase();
   if((provider==="sportmonks"||provider==="auto")&&sportmonks){
     const base=env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football");
