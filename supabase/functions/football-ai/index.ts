@@ -26,7 +26,7 @@ async function syncFootball(){
     let page=1,fixtures:any[]=[];
     try{
       for(let i=0;i<20;i++){
-        const j=(await jsonFetch(base+"/fixtures/between/"+from+"/"+to+"?include=participants;scores;league;state&per_page=50&page="+page,{headers:{authorization:sportmonks,accept:"application/json"}},12000)).data;
+        const j=(await jsonFetch(base+"/fixtures/between/"+from+"/"+to+"?api_token="+encodeURIComponent(sportmonks)+"&include=participants;scores;league;state&per_page=50&page="+page,{headers:{accept:"application/json"}},12000)).data;
         const rows=Array.isArray(j?.data)?j.data:[];
         fixtures.push(...rows);
         if(!j?.pagination?.has_more||!rows.length)break;
