@@ -129,3 +129,13 @@
   .brand{left:50%;transform:translateX(-50%);align-items:center}
   .brand-logo{width:188px;height:68px;border-radius:10px}
 }
+
+/* FINAL AI HEADER POLISH */
+@media(min-width:601px){
+  header{height:88px}
+  .brand-logo{width:245px;height:84px;filter:drop-shadow(0 0 9px rgba(25,245,165,.28)) drop-shadow(0 0 22px rgba(25,217,255,.12))}
+}
+@media(max-width:600px){
+  header{height:88px;background:linear-gradient(180deg,#041018f5,#050b0fee);border-bottom-color:#15505a;box-shadow:0 5px 28px #00e5a50a}
+  .brand-logo{width:205px;height:78px;filter:drop-shadow(0 0 10px rgba(25,245,165,.34)) drop-shadow(0 0 24px rgba(25,217,255,.14))}
+}
