@@ -88,6 +88,55 @@ const API_TIMEOUT=9000;
 const env=(name:string,fallback="")=>Deno.env.get(name)||fallback;
 async function jsonFetch(url:string,init:RequestInit={},timeout=API_TIMEOUT){const ac=new AbortController();const t=setTimeout(()=>ac.abort(),timeout);try{const r=await fetch(url,{...init,signal:ac.signal});const text=await r.text();let data:any=null;try{data=text?JSON.parse(text):null}catch{}if(!r.ok)throw new Error(data?.message||data?.errors?.[0]?.message||("HTTP "+r.status));return{data,headers:r.headers}}finally{clearTimeout(t)}}
 const apiDate=(d:Date)=>d.toISOString().slice(0,10);
+async function sportmonksDataProbe(base:string,token:string,from:string){
+  let to=from;
+  for(let i=0;i<6;i++)to=nextOsloDate(to);
+  try{
+    const schedule=(await jsonFetch(base+"/fixtures/between/"+from+"/"+to+"?api_token="+encodeURIComponent(token)+"&include=participants;scores;league;state&timezone=Europe%2FOslo&per_page=20",{headers:{accept:"application/json"}},12000)).data;
+    const fixtures=Array.isArray(schedule?.data)?schedule.data:[];
+    const sample=fixtures[0];
+    if(!sample?.id)return{status:"NO_SAMPLE_FIXTURE",window:{from,to},fixtures:fixtures.length};
+    const detail=(await jsonFetch(base+"/fixtures/"+encodeURIComponent(String(sample.id))+"?api_token="+encodeURIComponent(token)+"&include=participants;scores;events;lineups.player;statistics.type;xgfixture.type;predictions.type;sidelined;expectedLineups&timezone=Europe%2FOslo",{headers:{accept:"application/json"}},12000)).data?.data||{};
+    const xg=Array.isArray(detail.xgfixture)?detail.xgfixture:((Array.isArray(detail.expected)?detail.expected:[]));
+    const xgRows=xg.filter((x:any)=>String(x?.type?.code||x?.type?.name||"").toLowerCase().includes("expected")||Number(x?.type_id)===5304);
+    const statistics=Array.isArray(detail.statistics)?detail.statistics:[];
+    const lineups=Array.isArray(detail.lineups)?detail.lineups:[];
+    const events=Array.isArray(detail.events)?detail.events:[];
+    const sidelined=Array.isArray(detail.sidelined)?detail.sidelined:[];
+    const expectedLineups=Array.isArray(detail.expectedLineups)?detail.expectedLineups:[];
+    const predictions=Array.isArray(detail.predictions)?detail.predictions:[];
+    return{
+      status:"OK",
+      window:{from,to},
+      fixtures_in_window:fixtures.length,
+      sample_fixture_id:sample.id,
+      sample_match:detail.name||sample.name||null,
+      coverage:{
+        participants:Array.isArray(detail.participants)?detail.participants.length:0,
+        scores:Array.isArray(detail.scores)?detail.scores.length:0,
+        events:events.length,
+        lineups:lineups.length,
+        statistics:statistics.length,
+        xg:xgRows.length,
+        predictions:predictions.length,
+        sidelined:sidelined.length,
+        expected_lineups:expectedLineups.length
+      },
+      available:{
+        fixtures:true,
+        statistics:statistics.length>0,
+        xg:xgRows.length>0,
+        lineups:lineups.length>0,
+        injuries_or_sidelined:sidelined.length>0,
+        expected_lineups:expectedLineups.length>0,
+        predictions:predictions.length>0
+      }
+    };
+  }catch(e){
+    return{status:"ERROR",window:{from,to},error:e instanceof Error?e.message:String(e)};
+  }
+}
+
 async function syncFootball(){
   const sportmonks=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");
   const provider=env("FOOTBALL_PROVIDER","auto").toLowerCase();
@@ -127,7 +176,7 @@ async function syncFootball(){
     const agg=new Map<string,any>();
     for(const m of recent||[]){const hs=Number(m.home_score),as=Number(m.away_score);for(const side of ["home","away"]){const team=side==="home"?m.home_team:m.away_team;if(!team)continue;const gf=side==="home"?hs:as,ga=side==="home"?as:hs;const x=agg.get(norm(team))||{team_name:team,wins:0,losses:0,draws:0,goals_for:0,goals_against:0,xg_for:0,xg_against:0};x.goals_for+=gf;x.goals_against+=ga;if(gf>ga)x.wins++;else if(gf<ga)x.losses++;else x.draws++;agg.set(norm(team),x)}}
     let statsSynced=0;for(const x of agg.values()){const {data:old}=await sb.from("football_team_stats").select("id").eq("team_name",x.team_name).limit(1).maybeSingle();const q=old?.id?await sb.from("football_team_stats").update(x).eq("id",old.id):await sb.from("football_team_stats").insert(x);if(!q.error)statsSynced++}
-    return{configured:true,provider:"sportmonks",synced,stats_synced:statsSynced,failed,total:fixtures.length,from,to,pages:page};
+    const data_intake=await sportmonksDataProbe(base,sportmonks,today);return{configured:true,provider:"sportmonks",synced,stats_synced:statsSynced,failed,total:fixtures.length,from,to,pages:page,data_intake};
   }
   const key=env("FOOTBALL_API_KEY"),base=env("FOOTBALL_API_BASE_URL","https://v3.football.api-sports.io");
   if(!key)return{configured:false,synced:0,error:"No football provider token configured"};
@@ -136,7 +185,7 @@ async function syncFootball(){
   if(payload?.errors&&Object.keys(payload.errors).length)return{configured:true,provider:"api-football",synced:0,error:JSON.stringify(payload.errors)};
   const fixtures=Array.isArray(payload?.response)?payload.response:[];let synced=0,failed=0;
   for(const f of fixtures){const row={home_team:f.teams?.home?.name,away_team:f.teams?.away?.name,league:String(f.league?.country||"")+" · "+String(f.league?.name||""),kickoff_at:f.fixture?.date,status:f.fixture?.status?.short,home_score:f.goals?.home,away_score:f.goals?.away};if(!row.home_team||!row.away_team||!european(row))continue;const {data:existingRows}=await sb.from("football_matches").select("id,home_team,away_team,kickoff_at").eq("home_team",row.home_team).eq("away_team",row.away_team).gte("kickoff_at",new Date(new Date(row.kickoff_at).getTime()-120000).toISOString()).lte("kickoff_at",new Date(new Date(row.kickoff_at).getTime()+120000).toISOString()).limit(1);const existing=existingRows?.[0];let q:any;if(existing?.id)q=await sb.from("football_matches").update(row).eq("id",existing.id);else q=await sb.from("football_matches").insert(row);if(q.error)failed++;else synced++}
-  const {data:recent}=await sb.from("football_matches").select("home_team,away_team,status,home_score,away_score").gte("kickoff_at",new Date(Date.now()-30*86400000).toISOString()).not("home_score","is",null).limit(3000);const agg=new Map<string,any>();for(const m of recent||[]){const hs=Number(m.home_score),as=Number(m.away_score);for(const side of ["home","away"]){const team=side==="home"?m.home_team:m.away_team;if(!team)continue;const gf=side==="home"?hs:as,ga=side==="home"?as:hs;const x=agg.get(norm(team))||{team_name:team,wins:0,losses:0,draws:0,goals_for:0,goals_against:0,xg_for:0,xg_against:0};x.goals_for+=gf;x.goals_against+=ga;if(gf>ga)x.wins++;else if(gf<ga)x.losses++;else x.draws++;agg.set(norm(team),x)}}let statsSynced=0;for(const x of agg.values()){const {data:old}=await sb.from("football_team_stats").select("id").eq("team_name",x.team_name).limit(1).maybeSingle();const q=old?.id?await sb.from("football_team_stats").update(x).eq("id",old.id):await sb.from("football_team_stats").insert(x);if(!q.error)statsSynced++}return{configured:true,provider:"api-football",synced,stats_synced:statsSynced,failed,total:fixtures.length,from:apiDate(from),to:apiDate(to)};
+  const {data:recent}=await sb.from("football_matches").select("home_team,away_team,status,home_score,away_score").gte("kickoff_at",new Date(Date.now()-30*86400000).toISOString()).not("home_score","is",null).limit(3000);const agg=new Map<string,any>();for(const m of recent||[]){const hs=Number(m.home_score),as=Number(m.away_score);for(const side of ["home","away"]){const team=side==="home"?m.home_team:m.away_team;if(!team)continue;const gf=side==="home"?hs:as,ga=side==="home"?as:hs;const x=agg.get(norm(team))||{team_name:team,wins:0,losses:0,draws:0,goals_for:0,goals_against:0,xg_for:0,xg_against:0};x.goals_for+=gf;x.goals_against+=ga;if(gf>ga)x.wins++;else if(gf<ga)x.losses++;else x.draws++;agg.set(norm(team),x)}}let statsSynced=0;for(const x of agg.values()){const {data:old}=await sb.from("football_team_stats").select("id").eq("team_name",x.team_name).limit(1).maybeSingle();const q=old?.id?await sb.from("football_team_stats").update(x).eq("id",old.id):await sb.from("football_team_stats").insert(x);if(!q.error)statsSynced++}return{configured:true,provider:"api-football",synced,stats_synced:statsSynced,failed,total:fixtures.length,from:apiDate(from),to:apiDate(to),data_intake:{status:"LEGACY_PROVIDER",note:"Phase 1 probe is implemented for Sportmonks; API-Football remains fallback."}};
 }
 async function syncOdds(){
   const sportmonks=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");
@@ -231,7 +280,7 @@ async function syncOdds(){
 }
 const footballConfigured=()=>Boolean(env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY")||env("FOOTBALL_API_KEY"));
 const oddsConfigured=()=>Boolean(env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY")||env("FOOTBALL_API_KEY"));
-async function syncExternalData(force=false){const now=Date.now();const football=force||now-lastFootballSync>10*60*1000?await syncFootball():{configured:footballConfigured(),skipped:true};if(football.configured&&!football.error)lastFootballSync=now;const odds=force||now-lastOddsSync>30*60*1000?await syncOdds():{configured:oddsConfigured(),skipped:true};if(odds.configured&&!odds.error)lastOddsSync=now;const {count:matchCount}=await sb.from("football_matches").select("*",{count:"exact",head:true});const {count:oddsCount}=await sb.from("football_odds").select("*",{count:"exact",head:true});return{football,odds,database:{football_matches:matchCount||0,football_odds:oddsCount||0},synced_at:new Date().toISOString()}}
+async function syncExternalData(force=false){const now=Date.now();const football=force||now-lastFootballSync>10*60*1000?await syncFootball():{configured:footballConfigured(),skipped:true};if(football.configured&&!football.error)lastFootballSync=now;const odds=force||now-lastOddsSync>30*60*1000?await syncOdds():{configured:oddsConfigured(),skipped:true};if(odds.configured&&!odds.error)lastOddsSync=now;const {count:matchCount}=await sb.from("football_matches").select("*",{count:"exact",head:true});const {count:oddsCount}=await sb.from("football_odds").select("*",{count:"exact",head:true});const {count:statsCount}=await sb.from("football_team_stats").select("*",{count:"exact",head:true});const {date:today,start,end}=todayBounds();const {count:todayMatchCount}=await sb.from("football_matches").select("*",{count:"exact",head:true}).gte("kickoff_at",start.toISOString()).lt("kickoff_at",end.toISOString());const {count:todayOddsCount}=await sb.from("football_odds").select("*",{count:"exact",head:true}).gte("captured_at",start.toISOString()).lt("captured_at",end.toISOString());return{football,odds,database:{football_matches:matchCount||0,football_odds:oddsCount||0,football_team_stats:statsCount||0},data_intake:{date:today,stored_matches:matchCount||0,today_matches:todayMatchCount||0,today_odds:todayOddsCount||0,provider_probe:football?.data_intake||null,ready:{fixtures:Boolean((football as any)?.configured&&!((football as any)?.error)),form_stats:(statsCount||0)>0,odds:(todayOddsCount||0)>0}},synced_at:new Date().toISOString()}}
 async function connectivity(){const {count:matchCount}=await sb.from("football_matches").select("*",{count:"exact",head:true});const {count:oddsCount}=await sb.from("football_odds").select("*",{count:"exact",head:true});const {count:statsCount}=await sb.from("football_team_stats").select("*",{count:"exact",head:true});return{providers:{football_api:footballConfigured(),odds_api:oddsConfigured(),groq:Boolean(env("GROQ_API_KEY")),openai:Boolean(env("OPENAI_API_KEY"))},database:{football_matches:matchCount||0,football_odds:oddsCount||0,football_team_stats:statsCount||0},updated_at:new Date().toISOString()}}
 async function diagnostics(){const checkedAt=new Date().toISOString();const result:any={checked_at:checkedAt,providers:{},database:{},sync:{football_last_ok:lastFootballSync?new Date(lastFootballSync).toISOString():null,odds_last_ok:lastOddsSync?new Date(lastOddsSync).toISOString():null}};
 const db=await sb.from("football_matches").select("*",{count:"exact",head:true});const od=await sb.from("football_odds").select("*",{count:"exact",head:true});const st=await sb.from("football_team_stats").select("*",{count:"exact",head:true});
