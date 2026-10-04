@@ -1,4 +1,4 @@
-import React,{useState,useEffect}from"react";import{createRoot}from"react-dom/client";import{Activity,BarChart3,Brain,CheckCircle,Globe2,Home,Settings as SettingsIcon,Target,Trophy,Zap,Menu,Bell,X,Cpu,Database,RefreshCw,ShieldCheck}from"lucide-react";
+import React,{useState,useEffect}from"react";import{createRoot}from"react-dom/client";import{Activity,BarChart3,Brain,CheckCircle,Globe2,Home,Settings as SettingsIcon,Target,Trophy,Zap,Menu,Bell,X,Cpu,Database,RefreshCw,ShieldCheck,Users}from"lucide-react";
 import{LocalNotifications}from"@capacitor/local-notifications";import"./styles.css";
 const tabs=[["dashboard","Dashboard",Home],["analyse","AI Analyser",Brain],["resultat","AI Resultat",Target],["performance","AI Performance",BarChart3],["settings","Settings",SettingsIcon]];
 
