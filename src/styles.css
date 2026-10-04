@@ -119,3 +119,13 @@
   .dash-pipeline-head h2{font-size:13px}
   .dash-pipeline-flow{margin-top:11px}
 }
+
+/* FUTURISTIC AI CREST LOGO */
+.brand{gap:0}
+.brand-logo{width:225px;height:76px;object-fit:contain;border-radius:12px;filter:drop-shadow(0 0 10px rgba(25,245,165,.28))}
+.brand>div{display:none}
+@media(max-width:600px){
+  header{height:84px}
+  .brand{left:50%;transform:translateX(-50%);align-items:center}
+  .brand-logo{width:188px;height:68px;border-radius:10px}
+}
