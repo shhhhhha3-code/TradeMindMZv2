@@ -40,17 +40,17 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
       - name: Rename APK
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk TradeMindMZ-v3-debug.apk
+        run: cp android/app/build/outputs/apk/debug/app-debug.apk TradeMindMZ-v4-debug.apk
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: TradeMindMZ-APK
-          path: TradeMindMZ-v3-debug.apk
+          path: TradeMindMZ-v4-debug.apk
           retention-days: 30
       - name: Publish APK release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: trademindmz-v3-build-${{ github.run_number }}
-          name: TradeMindMZ v3 APK build ${{ github.run_number }}
+          tag_name: trademindmz-v4-build-${{ github.run_number }}
+          name: TradeMindMZ v4 APK build ${{ github.run_number }}
           prerelease: true
-          files: TradeMindMZ-v3-debug.apk
+          files: TradeMindMZ-v4-debug.apk
