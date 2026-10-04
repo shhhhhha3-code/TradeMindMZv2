@@ -137,5 +137,5 @@
 }
 @media(max-width:600px){
   header{height:88px;background:linear-gradient(180deg,#041018f5,#050b0fee);border-bottom-color:#15505a;box-shadow:0 5px 28px #00e5a50a}
-  .brand-logo{width:205px;height:78px;filter:drop-shadow(0 0 10px rgba(25,245,165,.34)) drop-shadow(0 0 24px rgba(25,217,255,.14))}
+  .brand-logo{width:205px;height:82px;aspect-ratio:2.5/1;object-fit:contain;border-radius:0;filter:drop-shadow(0 0 10px rgba(25,245,165,.34)) drop-shadow(0 0 24px rgba(25,217,255,.14))}
 }
