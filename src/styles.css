@@ -80,3 +80,42 @@
 @media(max-width:600px){
 .dashboard-v2{margin:0 -1px}.dash-hero{min-height:350px;padding:18px 15px;border-radius:17px}.dash-hero-copy{max-width:100%}.dash-hero-copy label{font-size:7px}.dash-hero-copy h1{font-size:29px;max-width:270px;margin:8px 0 11px}.dash-hero-copy p{font-size:9px;max-width:285px;line-height:1.5}.dash-online{margin-top:13px;padding:8px 10px;font-size:7px}.stadium-art{width:100%;height:53%;top:47%;right:0;opacity:.75}.stadium-ball{font-size:90px;right:11%;top:18%}.stadium-light{width:120px}.dash-stat-grid{gap:5px}.dash-stat-grid>div{padding:10px 7px;min-height:82px}.dash-stat-grid span{float:none;width:23px;height:23px;font-size:11px;margin:0 0 5px}.dash-stat-grid small{font-size:5px}.dash-stat-grid b{font-size:19px}.dash-stat-grid em{font-size:5px}.dash-signal{padding:13px;border-radius:14px}.dash-signal h2{font-size:14px}.dash-score b{font-size:27px}.dash-signal-metrics{gap:5px}.dash-signal-metrics span{display:none}.dash-signal-metrics small{font-size:5px}.dash-signal-metrics b{font-size:6px}.dash-section-head{margin:19px 0 9px}.dash-section-head h2{font-size:15px}.dash-section-head button{padding:8px 10px;font-size:7px}.dash-picks{grid-template-columns:1fr}.dash-pick{padding:13px;border-radius:13px}.dash-teams{margin:12px 0 9px}.dash-teams b{font-size:11px}.dash-pick-foot{font-size:6px}.dash-empty{padding:28px 15px;border-radius:15px}.dash-empty h2{font-size:14px}.dash-empty p{font-size:8px}.dash-pipeline{padding:13px;border-radius:14px}.dash-pipeline-flow{gap:2px}.dash-pipeline-flow>span{font-size:9px}.dash-pipeline-flow i{width:23px;height:23px;font-size:7px}.dash-pipeline-flow b{font-size:5px}.dash-pipeline-flow small{font-size:5px}.dash-pipeline-flow>span{display:none}
 }
+
+/* DASHBOARD V2.1 MOBILE POLISH */
+@media(max-width:600px){
+  .dashboard-v2{margin:0}
+  .dash-hero{min-height:295px;padding:16px 14px;border-radius:16px}
+  .dash-hero-copy h1{font-size:27px;line-height:1.04;max-width:265px;margin:7px 0 9px}
+  .dash-hero-copy p{font-size:8.5px;line-height:1.45;max-width:275px}
+  .dash-online{margin-top:10px;padding:7px 9px;font-size:6.5px}
+  .stadium-art{height:50%;top:50%;opacity:.68}
+  .stadium-ball{font-size:78px;right:10%;top:15%}
+  .stadium-light{width:105px;height:16px}
+  .dash-stat-grid{margin-top:8px;gap:5px}
+  .dash-stat-grid>div{min-height:75px;padding:8px 7px}
+  .dash-stat-grid span{width:21px;height:21px;font-size:10px;margin-bottom:4px}
+  .dash-stat-grid small{font-size:4.8px;letter-spacing:.6px}
+  .dash-stat-grid b{font-size:18px;margin-top:3px}
+  .dash-stat-grid em{font-size:4.8px;margin-top:2px}
+  .dash-signal{margin-top:8px;padding:11px 12px;border-radius:13px}
+  .dash-signal h2{font-size:13px;margin-top:3px}
+  .dash-score b{font-size:25px}
+  .dash-signal-metrics{margin-top:10px;padding-top:9px;gap:4px}
+  .dash-signal-metrics small{font-size:4.7px}
+  .dash-signal-metrics b{font-size:5.8px;margin-top:3px}
+  .dash-section-head{margin:15px 0 8px}
+  .dash-section-head h2{font-size:14px}
+  .dash-section-head button{padding:7px 9px;min-height:32px}
+  .dash-pick{padding:12px;border-radius:12px}
+  .dash-teams{margin:10px 0 8px}
+  .dash-teams b{font-size:10.5px}
+  .dash-pick-foot{margin-top:8px;padding-top:7px}
+  .dash-empty{padding:23px 13px;margin-top:8px}
+  .dash-empty-ball{font-size:37px}
+  .dash-empty h2{font-size:13px}
+  .dash-empty p{font-size:7.5px;line-height:1.5}
+  .dash-empty button{margin-top:13px;padding:8px 15px;font-size:8px}
+  .dash-pipeline{margin-top:8px;padding:11px 10px;border-radius:13px}
+  .dash-pipeline-head h2{font-size:13px}
+  .dash-pipeline-flow{margin-top:11px}
+}
