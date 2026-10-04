@@ -91,46 +91,64 @@ const apiDate=(d:Date)=>d.toISOString().slice(0,10);
 async function sportmonksDataProbe(base:string,token:string,from:string){
   let to=from;
   for(let i=0;i<6;i++)to=nextOsloDate(to);
+  const errors:any[]=[];
   try{
     const schedule=(await jsonFetch(base+"/fixtures/between/"+from+"/"+to+"?api_token="+encodeURIComponent(token)+"&include=participants;scores;league;state&timezone=Europe%2FOslo&per_page=20",{headers:{accept:"application/json"}},12000)).data;
     const fixtures=Array.isArray(schedule?.data)?schedule.data:[];
     const sample=fixtures[0];
-    if(!sample?.id)return{status:"NO_SAMPLE_FIXTURE",window:{from,to},fixtures:fixtures.length};
-    const detail=(await jsonFetch(base+"/fixtures/"+encodeURIComponent(String(sample.id))+"?api_token="+encodeURIComponent(token)+"&include=participants;scores;events;lineups.player;statistics.type;xgfixture.type;predictions.type;sidelined;expectedLineups&timezone=Europe%2FOslo",{headers:{accept:"application/json"}},12000)).data?.data||{};
-    const xg=Array.isArray(detail.xgfixture)?detail.xgfixture:((Array.isArray(detail.expected)?detail.expected:[]));
-    const xgRows=xg.filter((x:any)=>String(x?.type?.code||x?.type?.name||"").toLowerCase().includes("expected")||Number(x?.type_id)===5304);
-    const statistics=Array.isArray(detail.statistics)?detail.statistics:[];
-    const lineups=Array.isArray(detail.lineups)?detail.lineups:[];
-    const events=Array.isArray(detail.events)?detail.events:[];
-    const sidelined=Array.isArray(detail.sidelined)?detail.sidelined:[];
-    const expectedLineups=Array.isArray(detail.expectedLineups)?detail.expectedLineups:[];
-    const predictions=Array.isArray(detail.predictions)?detail.predictions:[];
+    if(!sample?.id)return{status:"NO_SAMPLE_FIXTURE",window:{from,to},fixtures_in_window:fixtures.length,available:{fixtures:fixtures.length>0}};
+    const fixtureId=encodeURIComponent(String(sample.id));
+    const requestInclude=async(include:string)=>{
+      try{
+        const data=(await jsonFetch(base+"/fixtures/"+fixtureId+"?api_token="+encodeURIComponent(token)+"&include="+include+"&timezone=Europe%2FOslo",{headers:{accept:"application/json"}},12000)).data?.data||{};
+        return{data};
+      }catch(e){
+        const message=e instanceof Error?e.message:String(e);
+        errors.push({include,error:message});
+        return{data:{},error:message};
+      }
+    };
+    const statsR=await requestInclude("statistics.type");
+    const xgR=await requestInclude("xgfixture.type");
+    const lineupsR=await requestInclude("lineups.player");
+    const sidelinedR=await requestInclude("sidelined");
+    const expectedR=await requestInclude("expectedLineups");
+    const predictionsR=await requestInclude("predictions.type");
+
+    const statistics=Array.isArray(statsR.data.statistics)?statsR.data.statistics:[];
+    const xg=Array.isArray(xgR.data.xgfixture)?xgR.data.xgfixture:[];
+    const lineups=Array.isArray(lineupsR.data.lineups)?lineupsR.data.lineups:[];
+    const sidelined=Array.isArray(sidelinedR.data.sidelined)?sidelinedR.data.sidelined:[];
+    const expectedLineups=Array.isArray(expectedR.data.expectedLineups)?expectedR.data.expectedLineups:[];
+    const predictions=Array.isArray(predictionsR.data.predictions)?predictionsR.data.predictions:[];
+    const xgRows=xg.filter((x:any)=>Number.isFinite(Number(x?.data?.value)));
+    const hasError=(r:any)=>Boolean(r?.error);
     return{
       status:"OK",
       window:{from,to},
       fixtures_in_window:fixtures.length,
       sample_fixture_id:sample.id,
-      sample_match:detail.name||sample.name||null,
+      sample_match:sample.name||null,
       coverage:{
-        participants:Array.isArray(detail.participants)?detail.participants.length:0,
-        scores:Array.isArray(detail.scores)?detail.scores.length:0,
-        events:events.length,
-        lineups:lineups.length,
+        participants:Array.isArray(sample.participants)?sample.participants.length:0,
+        scores:Array.isArray(sample.scores)?sample.scores.length:0,
         statistics:statistics.length,
         xg:xgRows.length,
-        predictions:predictions.length,
+        lineups:lineups.length,
         sidelined:sidelined.length,
-        expected_lineups:expectedLineups.length
+        expected_lineups:expectedLineups.length,
+        predictions:predictions.length
       },
       available:{
         fixtures:true,
-        statistics:statistics.length>0,
-        xg:xgRows.length>0,
-        lineups:lineups.length>0,
-        injuries_or_sidelined:sidelined.length>0,
-        expected_lineups:expectedLineups.length>0,
-        predictions:predictions.length>0
-      }
+        statistics:statistics.length>0&&!hasError(statsR),
+        xg:xgRows.length>0&&!hasError(xgR),
+        lineups:lineups.length>0&&!hasError(lineupsR),
+        injuries_or_sidelined:sidelined.length>0&&!hasError(sidelinedR),
+        expected_lineups:expectedLineups.length>0&&!hasError(expectedR),
+        predictions:predictions.length>0&&!hasError(predictionsR)
+      },
+      endpoint_errors:errors
     };
   }catch(e){
     return{status:"ERROR",window:{from,to},error:e instanceof Error?e.message:String(e)};
