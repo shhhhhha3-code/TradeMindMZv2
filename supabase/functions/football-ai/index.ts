@@ -170,29 +170,41 @@ async function xgMonitor(targetDate="2026-10-09"){
   try{
     const upcoming=(await jsonFetch(base+"/fixtures/between/"+targetDate+"/"+windowEnd+"?api_token="+encodeURIComponent(token)+"&include=participants;league;state&timezone=Europe%2FOslo&per_page=50",{headers:{accept:"application/json"}},15000)).data;
     const fixtures=(Array.isArray(upcoming?.data)?upcoming.data:[]).filter((f:any)=>leagueIds.has(Number(f?.league?.id)));
-    const teams=new Map<number,any>();
-    for(const f of fixtures)for(const p of Array.isArray(f.participants)?f.participants:[]){if(p?.id)teams.set(Number(p.id),{id:Number(p.id),name:p.name,league_id:Number(f.league?.id||0)})}
-    const historyStart=dateShift(targetDate,-60);
-    const histories=new Map<number,any[]>();
+    const teamIds=new Set<number>();
+    for(const f of fixtures)for(const p of Array.isArray(f.participants)?f.participants:[])if(p?.id)teamIds.add(Number(p.id));
+
+    const historyStart=dateShift(targetDate,-90);
+    const historyEnd=dateShift(targetDate,-1);
+    const historyResponse=(await jsonFetch(base+"/fixtures/between/"+historyStart+"/"+historyEnd+"?api_token="+encodeURIComponent(token)+"&include=participants;league;state&timezone=Europe%2FOslo&per_page=100",{headers:{accept:"application/json"}},15000)).data;
+    const historyFixtures=(Array.isArray(historyResponse?.data)?historyResponse.data:[])
+      .filter((f:any)=>leagueIds.has(Number(f?.league?.id))&&!VOID.has(String(f?.state?.developer_name||f?.state?.name||"").toLowerCase()))
+      .filter((f:any)=>(Array.isArray(f.participants)?f.participants:[]).some((p:any)=>teamIds.has(Number(p?.id))));
+    const byTeam=new Map<number,any[]>();
+    for(const teamId of teamIds)byTeam.set(teamId,historyFixtures.filter((f:any)=>(Array.isArray(f.participants)?f.participants:[]).some((p:any)=>Number(p?.id)===teamId)).sort((a:any,b:any)=>new Date(b.starting_at).getTime()-new Date(a.starting_at).getTime()).slice(0,5));
+    const selectedIds=Array.from(new Set(Array.from(byTeam.values()).flat().map((f:any)=>Number(f.id)).filter(Boolean)));
+    const eventFixtures:any[]=[];
     const endpointErrors:any[]=[];
-    for(const team of teams.values()){
+    for(let i=0;i<selectedIds.length;i+=50){
+      const ids=selectedIds.slice(i,i+50).join(",");
       try{
-        const url=base+"/fixtures/between/"+historyStart+"/"+dateShift(targetDate,-1)+"/"+team.id+"?api_token="+encodeURIComponent(token)+"&include=participants;scores;league;state;events.type;events.subType&timezone=Europe%2FOslo&order=desc&per_page=8";
-        const j=(await jsonFetch(url,{headers:{accept:"application/json"}},15000)).data;
-        const rows=(Array.isArray(j?.data)?j.data:[]).filter((f:any)=>leagueIds.has(Number(f?.league?.id))&&!VOID.has(String(f?.state?.developer_name||f?.state?.name||"").toLowerCase()));
-        histories.set(team.id,rows);
-      }catch(e){endpointErrors.push({team:team.name,error:e instanceof Error?e.message:String(e)});histories.set(team.id,[])}
+        const j=(await jsonFetch(base+"/fixtures/multi/"+ids+"?api_token="+encodeURIComponent(token)+"&include=participants;league;state;events.type;events.subType&timezone=Europe%2FOslo",{headers:{accept:"application/json"}},15000)).data;
+        eventFixtures.push(...(Array.isArray(j?.data)?j.data:[]));
+      }catch(e){endpointErrors.push({include:"fixtures/multi/events.subType",error:e instanceof Error?e.message:String(e)});}
     }
+    const fixtureMap=new Map(eventFixtures.map((f:any)=>[Number(f.id),f]));
+    const teams=new Map<number,any>();
+    for(const f of fixtures)for(const p of Array.isArray(f.participants)?f.participants:[])if(p?.id)teams.set(Number(p.id),{id:Number(p.id),name:p.name,league_id:Number(f.league?.id||0)});
     const allShots:any[]=[];
     const rawTeamHistory=new Map<number,any[]>();
-    for(const [teamId,rows] of histories){
-      const usable=rows.filter((f:any)=>Array.isArray(f?.events?.data));
-      const parsed=usable.map((f:any)=>{
-        const participants=Array.isArray(f.participants)?f.participants:[];
+    for(const [teamId,rows] of byTeam){
+      const parsed=rows.map((f:any)=>{
+        const full=fixtureMap.get(Number(f.id))||f;
+        const participants=Array.isArray(full.participants)?full.participants:Array.isArray(f.participants)?f.participants:[];
         const home=participants.find((p:any)=>p.meta?.location==="home"||p.location==="home")||participants[0];
         const away=participants.find((p:any)=>p.meta?.location==="away"||p.location==="away")||participants[1];
-        const shots=(f.events?.data||[]).filter(eventIsShot);
-        return{fixture_id:f.id,starting_at:f.starting_at,home_team:home?.name,away_team:away?.name,home_id:Number(home?.id||0),away_id:Number(away?.id||0),shots};
+        const eventRows=Array.isArray(full?.events)?full.events:(Array.isArray(full?.events?.data)?full.events.data:[]);
+        const shots=eventRows.filter(eventIsShot);
+        return{fixture_id:full.id,starting_at:full.starting_at,home_team:home?.name,away_team:away?.name,home_id:Number(home?.id||0),away_id:Number(away?.id||0),shots,event_count:eventRows.length};
       });
       rawTeamHistory.set(teamId,parsed);
       for(const item of parsed)for(const e of item.shots)allShots.push({...e,category:shotCategory(e)});
@@ -204,7 +216,7 @@ async function xgMonitor(targetDate="2026-10-09"){
     }
     const teamMetrics=new Map<number,any>();
     for(const [teamId,parsed] of rawTeamHistory){
-      const matches=parsed.slice(0,5).map((f:any)=>{
+      const matches=parsed.map((f:any)=>{
         let xgFor=0,xgAgainst=0,shotsFor=0,shotsAgainst=0;
         for(const e of f.shots){const xg=calibration[shotCategory(e)]?.rate??.08;if(Number(e.participant_id)===teamId){xgFor+=xg;shotsFor++}else{xgAgainst+=xg;shotsAgainst++}}
         return{fixture_id:f.fixture_id,date:f.starting_at,opponent:Number(f.home_id)===teamId?f.away_team:f.home_team,shots_for:shotsFor,shots_against:shotsAgainst,xg_for:Number(xgFor.toFixed(3)),xg_against:Number(xgAgainst.toFixed(3))};
@@ -220,7 +232,7 @@ async function xgMonitor(targetDate="2026-10-09"){
       const samples=(hm?.shots||0)+(am?.shots||0);const quality=samples>=30?"GOOD":samples>=15?"BUILDING":"LIMITED";
       return{fixture_id:f.id,league:f.league?.name||"—",kickoff_at:f.starting_at,home_team:home?.name||"—",away_team:away?.name||"—",home:{xg:homeXg,attack_xg:hm?.xg_for??null,defense_xga:hm?.xg_against??null,matches:hm?.matches||0,shots:hm?.shots||0},away:{xg:awayXg,attack_xg:am?.xg_for??null,defense_xga:am?.xg_against??null,matches:am?.matches||0,shots:am?.shots||0},total_xg:homeXg!=null&&awayXg!=null?Number((homeXg+awayXg).toFixed(2)):null,data_quality:quality};
     });
-    return{status:"OK",model:{name:"TradeMindMZ xG Engine",version:"xG-v1.0-event",method:"Empirical shot-type model without provider xG add-on",coordinate_free:true,training_window_days:60,history_matches_per_team:5,features:["shot outcome","shot subtype/body part","penalty","free kick"],note:"Uses Sportmonks event data only. No Sportmonks xG values are used."},target_window:{from:targetDate,to:windowEnd},fixtures_found:monitored.length,fixtures:monitored,calibration,teams:Array.from(teamMetrics.values()),endpoint_errors:endpointErrors,audited_at:new Date().toISOString()};
+    return{status:"OK",model:{name:"TradeMindMZ xG Engine",version:"xG-v1.1-event",method:"Empirical shot-type model without provider xG add-on",coordinate_free:true,training_window_days:90,history_matches_per_team:5,features:["shot outcome","shot subtype/body part","penalty","free kick"],note:"Uses Sportmonks event data only. No Sportmonks xG values are used."},target_window:{from:targetDate,to:windowEnd},fixtures_found:monitored.length,fixtures:monitored,calibration,teams:Array.from(teamMetrics.values()),diagnostics:{history_fixtures:historyFixtures.length,event_fixtures:eventFixtures.length,event_shots:allShots.length,event_errors:endpointErrors.length},endpoint_errors:endpointErrors,audited_at:new Date().toISOString()};
   }catch(e){return{status:"ERROR",target_window:{from:targetDate,to:windowEnd},error:e instanceof Error?e.message:String(e)}}
 }
 
