@@ -194,8 +194,20 @@ async function xgMonitor(targetDate="2026-10-09"){
     const fixtureMap=new Map(eventFixtures.map((f:any)=>[Number(f.id),f]));
     const teams=new Map<number,any>();
     for(const f of fixtures)for(const p of Array.isArray(f.participants)?f.participants:[])if(p?.id)teams.set(Number(p.id),{id:Number(p.id),name:p.name,league_id:Number(f.league?.id||0)});
-    const allShots:any[]=[];
     const rawTeamHistory=new Map<number,any[]>();
+    const uniqueShots=new Map<string,any>();
+    const shotKey=(fixtureId:any,e:any)=>{
+      const eventId=e?.id??e?.event_id;
+      if(eventId!=null)return String(fixtureId)+":event:"+String(eventId);
+      return String(fixtureId)+":fallback:"+[
+        e?.participant_id??"",
+        e?.minute??"",
+        e?.extra_minute??"",
+        entityName(e?.type),
+        entityName(e?.sub_type),
+        String(e?.info||"")
+      ].join("|");
+    };
     for(const [teamId,rows] of byTeam){
       const parsed=rows.map((f:any)=>{
         const full=fixtureMap.get(Number(f.id))||f;
@@ -204,11 +216,12 @@ async function xgMonitor(targetDate="2026-10-09"){
         const away=participants.find((p:any)=>p.meta?.location==="away"||p.location==="away")||participants[1];
         const eventRows=Array.isArray(full?.events)?full.events:(Array.isArray(full?.events?.data)?full.events.data:[]);
         const shots=eventRows.filter(eventIsShot);
+        for(const e of shots)uniqueShots.set(shotKey(full.id,e),{...e,category:shotCategory(e)});
         return{fixture_id:full.id,starting_at:full.starting_at,home_team:home?.name,away_team:away?.name,home_id:Number(home?.id||0),away_id:Number(away?.id||0),shots,event_count:eventRows.length};
       });
       rawTeamHistory.set(teamId,parsed);
-      for(const item of parsed)for(const e of item.shots)allShots.push({...e,category:shotCategory(e)});
     }
+    const allShots=Array.from(uniqueShots.values());
     const calibration:any={};
     for(const c of ["penalty","header","free_kick","foot","other"]){
       const rows=allShots.filter(x=>x.category===c);const goals=rows.filter(x=>shotIsGoal(x)).length;
