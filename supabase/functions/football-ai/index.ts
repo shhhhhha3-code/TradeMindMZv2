@@ -167,7 +167,7 @@ async function xgMonitor(targetDate=""){
   const base=env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football");
   const leagueIds=new Set([271,1659,501,513]);
   let resolvedTarget=String(targetDate||"").trim();
-  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(resolvedTarget)){
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(resolvedTarget)){
     const today=osloDate(new Date());
     const horizon=dateShift(today,14);
     try{
@@ -187,8 +187,8 @@ async function xgMonitor(targetDate=""){
     const teamIds=new Set<number>();
     for(const f of fixtures)for(const p of Array.isArray(f.participants)?f.participants:[])if(p?.id)teamIds.add(Number(p.id));
 
-    const historyStart=dateShift(targetDate,-90);
-    const historyEnd=dateShift(targetDate,-1);
+    const historyStart=dateShift(resolvedTarget,-90);
+    const historyEnd=dateShift(resolvedTarget,-1);
     const historyResponse=(await jsonFetch(base+"/fixtures/between/"+historyStart+"/"+historyEnd+"?api_token="+encodeURIComponent(token)+"&include=participants;league;state&timezone=Europe%2FOslo&per_page=100",{headers:{accept:"application/json"}},15000)).data;
     const historyFixtures=(Array.isArray(historyResponse?.data)?historyResponse.data:[])
       .filter((f:any)=>leagueIds.has(Number(f?.league?.id))&&!VOID.has(String(f?.state?.developer_name||f?.state?.name||"").toLowerCase()))
