@@ -161,14 +161,28 @@ function eventIsShot(e:any){const t=entityName(e?.type);return /GOAL|MISSED_SHOT
 function shotCategory(e:any){const text=(entityName(e?.sub_type)+" "+String(e?.info||"")).toLowerCase();if(text.includes("penalty"))return"penalty";if(text.includes("header"))return"header";if(text.includes("free kick")||text.includes("free-kick"))return"free_kick";if(text.includes("left foot")||text.includes("right foot")||text.includes("foot"))return"foot";return"other"}
 function shotIsGoal(e:any){return entityName(e?.type)==="GOAL"}
 function betaRate(category:string,shots:number,goals:number){const prior:{[k:string]:[number,number]}={penalty:[.79,12],header:[.08,24],free_kick:[.05,16],foot:[.10,36],other:[.08,24]};const [mean,strength]=prior[category]||prior.other;return (goals+mean*strength)/(shots+strength)}
-async function xgMonitor(targetDate="2026-10-09"){
+async function xgMonitor(targetDate=""){
   const token=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");
   if(!token)return{status:"ERROR",error:"SPORTMONKS_API_TOKEN mangler"};
   const base=env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football");
-  const windowEnd=dateShift(targetDate,1);
   const leagueIds=new Set([271,1659,501,513]);
+  let resolvedTarget=String(targetDate||"").trim();
+  if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(resolvedTarget)){
+    const today=osloDate(new Date());
+    const horizon=dateShift(today,14);
+    try{
+      const upcoming=(await jsonFetch(base+"/fixtures/between/"+today+"/"+horizon+"?api_token="+encodeURIComponent(token)+"&include=participants;league;state&timezone=Europe%2FOslo&per_page=100",{headers:{accept:"application/json"}},15000)).data;
+      const candidates=(Array.isArray(upcoming?.data)?upcoming.data:[])
+        .filter((f:any)=>leagueIds.has(Number(f?.league?.id))&&!VOID.has(String(f?.state?.developer_name||f?.state?.name||"").toLowerCase()))
+        .sort((a:any,b:any)=>new Date(a.starting_at).getTime()-new Date(b.starting_at).getTime());
+      resolvedTarget=candidates[0]?.starting_at?osloDate(new Date(candidates[0].starting_at)):today;
+    }catch{
+      resolvedTarget=today;
+    }
+  }
+  const windowEnd=dateShift(resolvedTarget,1);
   try{
-    const upcoming=(await jsonFetch(base+"/fixtures/between/"+targetDate+"/"+windowEnd+"?api_token="+encodeURIComponent(token)+"&include=participants;league;state&timezone=Europe%2FOslo&per_page=50",{headers:{accept:"application/json"}},15000)).data;
+    const upcoming=(await jsonFetch(base+"/fixtures/between/"+resolvedTarget+"/"+windowEnd+"?api_token="+encodeURIComponent(token)+"&include=participants;league;state&timezone=Europe%2FOslo&per_page=50",{headers:{accept:"application/json"}},15000)).data;
     const fixtures=(Array.isArray(upcoming?.data)?upcoming.data:[]).filter((f:any)=>leagueIds.has(Number(f?.league?.id)));
     const teamIds=new Set<number>();
     for(const f of fixtures)for(const p of Array.isArray(f.participants)?f.participants:[])if(p?.id)teamIds.add(Number(p.id));
@@ -245,7 +259,7 @@ async function xgMonitor(targetDate="2026-10-09"){
       const samples=(hm?.shots||0)+(am?.shots||0);const quality=samples>=30?"GOOD":samples>=15?"BUILDING":"LIMITED";
       return{fixture_id:f.id,league:f.league?.name||"—",kickoff_at:f.starting_at,home_team:home?.name||"—",away_team:away?.name||"—",home:{xg:homeXg,attack_xg:hm?.xg_for??null,defense_xga:hm?.xg_against??null,matches:hm?.matches||0,shots:hm?.shots||0},away:{xg:awayXg,attack_xg:am?.xg_for??null,defense_xga:am?.xg_against??null,matches:am?.matches||0,shots:am?.shots||0},total_xg:homeXg!=null&&awayXg!=null?Number((homeXg+awayXg).toFixed(2)):null,data_quality:quality};
     });
-    return{status:"OK",model:{name:"TradeMindMZ xG Engine",version:"xG-v1.1-event",method:"Empirical shot-type model without provider xG add-on",coordinate_free:true,training_window_days:90,history_matches_per_team:5,features:["shot outcome","shot subtype/body part","penalty","free kick"],note:"Uses Sportmonks event data only. No Sportmonks xG values are used."},target_window:{from:targetDate,to:windowEnd},fixtures_found:monitored.length,fixtures:monitored,calibration,teams:Array.from(teamMetrics.values()),diagnostics:{history_fixtures:historyFixtures.length,event_fixtures:eventFixtures.length,event_shots:allShots.length,event_errors:endpointErrors.length},endpoint_errors:endpointErrors,audited_at:new Date().toISOString()};
+    return{status:"OK",model:{name:"TradeMindMZ xG Engine",version:"xG-v1.1-event",method:"Empirical shot-type model without provider xG add-on",coordinate_free:true,training_window_days:90,history_matches_per_team:5,features:["shot outcome","shot subtype/body part","penalty","free kick"],note:"Uses Sportmonks event data only. No Sportmonks xG values are used."},target_window:{from:resolvedTarget,to:windowEnd},fixtures_found:monitored.length,fixtures:monitored,calibration,teams:Array.from(teamMetrics.values()),diagnostics:{history_fixtures:historyFixtures.length,event_fixtures:eventFixtures.length,event_shots:allShots.length,event_errors:endpointErrors.length},endpoint_errors:endpointErrors,audited_at:new Date().toISOString()};
   }catch(e){return{status:"ERROR",target_window:{from:targetDate,to:windowEnd},error:e instanceof Error?e.message:String(e)}}
 }
 
