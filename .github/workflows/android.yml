@@ -48,9 +48,9 @@ jobs:
           path: TradeMindMZ-v4-debug.apk
           retention-days: 30
       - name: Publish APK release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: trademindmz-v4-build-${{ github.run_number }}
-          name: TradeMindMZ v4 APK build ${{ github.run_number }}
-          prerelease: true
-          files: TradeMindMZ-v4-debug.apk
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="trademindmz-v4-build-${GITHUB_RUN_NUMBER}"
+          TITLE="TradeMindMZ v4 APK build ${GITHUB_RUN_NUMBER}"
+          gh release create "$TAG" TradeMindMZ-v4-debug.apk --repo "$GITHUB_REPOSITORY" --prerelease --title "$TITLE" --target "$GITHUB_SHA"
