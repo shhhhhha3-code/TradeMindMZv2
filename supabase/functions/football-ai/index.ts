@@ -41,14 +41,40 @@ function marketFairProbability(oddsRows:any[],market:string,selection:string){
   const fairValues:number[]=[],margins:number[]=[];
   for(const group of groups.values()){if(!required.every((x:string)=>group.has(x)))continue;const implied=required.map((x:string)=>1/Number(group.get(x)));const total=implied.reduce((a,b)=>a+b,0);if(!Number.isFinite(total)||total<=0)continue;const idx=required.indexOf(String(selection).toUpperCase());if(idx<0)continue;fairValues.push(implied[idx]/total);margins.push((total-1)*100)}
   if(!fairValues.length)return null;
-  return{probability:median(fairValues),overround_percent:median(margins),bookmakers_count:fairValues.length,method:"median_no_vig"};
+  const spread=fairValues.length>1?Math.max(...fairValues)-Math.min(...fairValues):0;
+  return{probability:median(fairValues),overround_percent:median(margins),bookmakers_count:fairValues.length,agreement_spread:Number((spread*100).toFixed(1)),method:"median_no_vig"};
 }
 function marketRule(market:string,overround:any){const margin=Math.max(0,Number(overround)||0);const base=market==="double_chance"?{lean:2.5,value:6}:{lean:3,value:7};return{leanEdge:Math.max(base.lean,margin*.9),valueEdge:Math.max(base.value,margin*1.35),leanEv:1,valueEv:3}}
+function smartDecision(prob:any,confidence:any,edge:any,ev:any,overround:any,bookmakers:any,agreementSpread:any,signal:string){
+  const p=Number(prob),conf=Number(confidence),e=Number(edge),v=Number(ev),margin=Number(overround),books=Number(bookmakers),spread=Number(agreementSpread);
+  const reasons:string[]=[];
+  if(signal==="NO MARKET") reasons.push("NO MARKET");
+  if(!Number.isFinite(p)||p<=0||p>=1) reasons.push("MODEL PROBABILITY UNSTABLE");
+  if(Number.isFinite(conf)&&conf<58) reasons.push("LOW MODEL CONFIDENCE");
+  if(!Number.isFinite(e)||e<3) reasons.push("EDGE TOO LOW");
+  if(!Number.isFinite(v)||v<1) reasons.push("EV TOO LOW");
+  if(Number.isFinite(margin)&&margin>10) reasons.push("BOOKMAKER MARGIN HIGH");
+  if(Number.isFinite(spread)&&spread>8) reasons.push("MARKET DISAGREEMENT");
+  if(Number.isFinite(e)&&e>22) reasons.push("EDGE OUTLIER");
+  const hard=signal==="NO MARKET"||reasons.some(x=>["MODEL PROBABILITY UNSTABLE","LOW MODEL CONFIDENCE","EDGE TOO LOW","EV TOO LOW","BOOKMAKER MARGIN HIGH","MARKET DISAGREEMENT","EDGE OUTLIER"].includes(x));
+  let decision=signal;
+  if(hard) decision="NO BET";
+  else if(signal==="VALUE"&&conf<68) decision="LEAN";
+  const quality=Math.max(0,Math.min(100,
+    (Number.isFinite(conf)?conf:50)*.35+
+    (Number.isFinite(e)?Math.min(15,Math.max(0,e))*2.2:0)*.25+
+    (Number.isFinite(v)?Math.min(10,Math.max(0,v))*3:0)*.2+
+    (books>=2?100:65)*.1+
+    (Number.isFinite(spread)?Math.max(0,100-spread*6):70)*.1
+  ));
+  return{decision,quality_score:Math.round(quality),reasons,recommended:Boolean(decision==="VALUE"||decision==="LEAN"),market_agreement:spread==null?"UNKNOWN":spread<=4?"STRONG":spread<=8?"MODERATE":"WEAK",bookmaker_consensus:books>=2?"MULTI_BOOK":"SINGLE_BOOK"};
+}
 function marketEdge(prob:any,odds:any,oddsRows:any[]=[],market:string="",selection:string=""){
   const p=Number(prob),o=Number(odds);if(!Number.isFinite(p)||!Number.isFinite(o)||o<=1)return{implied:null,fair_probability:null,fair_odds:null,overround_percent:null,bookmakers_count:0,edge:null,ev:null,signal:"NO MARKET"};
   const implied=1/o,fair=marketFairProbability(oddsRows,market,selection),fairProbability=fair?.probability??implied,overround=fair?.overround_percent??null,edge=(p-fairProbability)*100,ev=(p*o-1)*100,rule=marketRule(market,overround);
   const signal=edge>=rule.valueEdge&&ev>=rule.valueEv?"VALUE":edge>=rule.leanEdge&&ev>=rule.leanEv?"LEAN":"NO BET";
-  return{implied:Number(implied.toFixed(4)),fair_probability:Number(fairProbability.toFixed(4)),fair_odds:Number((1/fairProbability).toFixed(2)),overround_percent:overround==null?null:Number(overround.toFixed(1)),bookmakers_count:fair?.bookmakers_count||0,edge:Number(edge.toFixed(1)),ev:Number(ev.toFixed(1)),thresholds:{lean_edge:Number(rule.leanEdge.toFixed(1)),value_edge:Number(rule.valueEdge.toFixed(1)),lean_ev:rule.leanEv,value_ev:rule.valueEv},fair_method:fair?.method||"raw_implied_fallback",signal};
+  const gate=smartDecision(p,null,edge,ev,overround,fair?.bookmakers_count||0,fair?.agreement_spread??null,signal);
+  return{implied:Number(implied.toFixed(4)),fair_probability:Number(fairProbability.toFixed(4)),fair_odds:Number((1/fairProbability).toFixed(2)),overround_percent:overround==null?null:Number(overround.toFixed(1)),bookmakers_count:fair?.bookmakers_count||0,agreement_spread:fair?.agreement_spread??null,market_agreement:gate.market_agreement,bookmaker_consensus:gate.bookmaker_consensus,edge:Number(edge.toFixed(1)),ev:Number(ev.toFixed(1)),thresholds:{lean_edge:Number(rule.leanEdge.toFixed(1)),value_edge:Number(rule.valueEdge.toFixed(1)),lean_ev:rule.leanEv,value_ev:rule.valueEv},fair_method:fair?.method||"raw_implied_fallback",signal,smart_decision:gate.decision,quality_score:gate.quality_score,decision_reasons:gate.reasons,recommended:gate.recommended};
 }
 function preScore(m:any,stats:any[],w:any){const h=stats.find(x=>norm(x.team_name)===norm(m.home_team)),a=stats.find(x=>norm(x.team_name)===norm(m.away_team));const hf=Number(h?.wins||0)-Number(h?.losses||0),af=Number(a?.wins||0)-Number(a?.losses||0),hg=Number(h?.goals_for||0)-Number(h?.goals_against||0),ag=Number(a?.goals_for||0)-Number(a?.goals_against||0),hx=Number(h?.xg_for||0)-Number(h?.xg_against||0),ax=Number(a?.xg_for||0)-Number(a?.xg_against||0);const edge=.35*(hf-af)+.08*(hg-ag)+.12*(hx-ax)+.35;const ww=w&&typeof w.home==="number"&&typeof w.draw==="number"&&typeof w.away==="number"?w:{home:1,draw:.1,away:-1};const p=softmax([edge*ww.home,Math.abs(edge)*Math.max(0,ww.draw),(-edge)*Math.abs(ww.away)]);const selected=p[0]>=p[2]&&p[0]>=p[1]?"1":p[2]>=p[1]?"2":"X";const confidence=Math.max(...p);const engineScore=Math.max(0,Math.min(100,50+Math.abs(edge)*18+Math.max(...p)*35));return {p,selected,confidence,score:engineScore,engineScore,features:{hf,af,hg,ag,hx,ax},weights:ww}}
 
@@ -511,7 +537,19 @@ const primaryFairProbability=primaryMarket?.fair_probability??implied;
 const primaryOverround=primaryMarket?.overround_percent??null;
 const primarySignal=primaryMarket?.signal??valueSignal;
 const primaryNoBet=primarySignal==="NO BET";
-const {data:existing}=await sb.from("football_ai_predictions").select("id,reasoning").eq("match_id",m.id).eq("status","OPEN").limit(1).maybeSingle();const aiConfidence=Math.max(0,Math.min(100,Number(ai.confidence||0)));const engineScore=Math.round(Number(m.model.engineScore||0));const valueComponent=primaryEdge==null?50:Math.max(0,Math.min(100,50+Number(primaryEdge)*2));const xgComponent=xgAvailable?Math.max(0,Math.min(100,50+(Number(xgHome)-Number(xgAway))*15)):50;const finalScore=Math.round(Math.max(0,Math.min(100,engineScore*.40+aiConfidence*.30+valueComponent*.20+xgComponent*.10)));const pred={match_id:m.id,prediction:ai.prediction||m.model.selected,selected_outcome:ai.prediction||m.model.selected,confidence:aiConfidence,implied_probability:Number(ai.probabilities?.home||0),odds:od?.[0]?.odds||null,value_percent:ai.value_percent,model_score:finalScore,reasoning:{reasoning:ai.reasoning,engine_score:engineScore,engine_prediction:m.model.selected,engine_confidence:Math.round(m.model.confidence*100),markets:marketAnalysis,actionable_markets:actionableMarkets,final_score:finalScore,market_odds:marketOdds,best_bookmaker:market?.bookmaker||null,implied_probability:implied,fair_probability:primaryFairProbability,overround_percent:primaryOverround,edge_percent:primaryEdge,expected_value_percent:primaryEv,value_signal:primarySignal,no_bet:primaryNoBet,xg_home:xgHome,xg_away:xgAway,xg_available:xgAvailable,batch_id:(existing?.reasoning?.batch_id||batchId),batch_created_at:(existing?.reasoning?.batch_created_at||new Date().toISOString())},provider:ai.provider,model:ai.model,status:"OPEN",feature_vector:{...m.model.features,xg_home:xgHome,xg_away:xgAway,edge_percent:primaryEdge,expected_value_percent:primaryEv,market_fair_probability:primaryFairProbability,market_overround_percent:primaryOverround},feature_version:"v5.1-value-devig",model_version:state?.model_version||"v4.0"};let saved:any=null;if(existing?.id){const {data:u}=await sb.from("football_ai_predictions").update(pred).eq("id",existing.id).select().single();saved=u}else{const {data:i}=await sb.from("football_ai_predictions").insert(pred).select().single();saved=i}if(saved)result.push({...m,ai,prediction:saved});}return{matches_scanned:ms.length,top6:result,cached:false,batch_id:batchId,scan:{...scan,ranked_matches:ranked.length,value_engine:"ACTIVE",xg_engine:xgContext?"ACTIVE":"WAITING"}}}async function valueMonitor(refresh=false){
+const primaryGate=smartDecision(
+  primaryMarket?.probability??null,
+  aiConfidence,
+  primaryEdge,
+  primaryEv,
+  primaryOverround,
+  primaryMarket?.bookmakers_count??0,
+  primaryMarket?.agreement_spread??null,
+  primarySignal
+);
+const smartSignal=primaryGate.decision;
+const smartNoBet=smartSignal==="NO BET";
+const {data:existing}=await sb.from("football_ai_predictions").select("id,reasoning").eq("match_id",m.id).eq("status","OPEN").limit(1).maybeSingle();const aiConfidence=Math.max(0,Math.min(100,Number(ai.confidence||0)));const engineScore=Math.round(Number(m.model.engineScore||0));const valueComponent=primaryEdge==null?50:Math.max(0,Math.min(100,50+Number(primaryEdge)*2));const xgComponent=xgAvailable?Math.max(0,Math.min(100,50+(Number(xgHome)-Number(xgAway))*15)):50;const finalScore=Math.round(Math.max(0,Math.min(100,engineScore*.40+aiConfidence*.30+valueComponent*.20+xgComponent*.10)));const pred={match_id:m.id,prediction:ai.prediction||m.model.selected,selected_outcome:ai.prediction||m.model.selected,confidence:aiConfidence,implied_probability:Number(ai.probabilities?.home||0),odds:od?.[0]?.odds||null,value_percent:ai.value_percent,model_score:finalScore,reasoning:{reasoning:ai.reasoning,engine_score:engineScore,engine_prediction:m.model.selected,engine_confidence:Math.round(m.model.confidence*100),markets:marketAnalysis,actionable_markets:actionableMarkets,final_score:finalScore,market_odds:marketOdds,best_bookmaker:market?.bookmaker||null,implied_probability:implied,fair_probability:primaryFairProbability,overround_percent:primaryOverround,edge_percent:primaryEdge,expected_value_percent:primaryEv,value_signal:smartSignal,no_bet:smartNoBet,smart_decision:smartSignal,quality_score:primaryGate.quality_score,decision_reasons:primaryGate.reasons,market_agreement:primaryGate.market_agreement,bookmaker_consensus:primaryGate.bookmaker_consensus,xg_home:xgHome,xg_away:xgAway,xg_available:xgAvailable,batch_id:(existing?.reasoning?.batch_id||batchId),batch_created_at:(existing?.reasoning?.batch_created_at||new Date().toISOString())},provider:ai.provider,model:ai.model,status:"OPEN",feature_vector:{...m.model.features,xg_home:xgHome,xg_away:xgAway,edge_percent:primaryEdge,expected_value_percent:primaryEv,market_fair_probability:primaryFairProbability,market_overround_percent:primaryOverround,smart_decision:smartSignal,decision_quality:primaryGate.quality_score},feature_version:"v5.2-smart-nobet",model_version:state?.model_version||"v4.0"};let saved:any=null;if(existing?.id){const {data:u}=await sb.from("football_ai_predictions").update(pred).eq("id",existing.id).select().single();saved=u}else{const {data:i}=await sb.from("football_ai_predictions").insert(pred).select().single();saved=i}if(saved)result.push({...m,ai,prediction:saved});}return{matches_scanned:ms.length,top6:result,cached:false,batch_id:batchId,scan:{...scan,ranked_matches:ranked.length,value_engine:"ACTIVE",xg_engine:xgContext?"ACTIVE":"WAITING"}}}async function valueMonitor(refresh=false){
   const {date:today,start,end}=todayBounds();
   let {data:ps}=await sb.from("football_ai_predictions").select("id,match_id,prediction,confidence,odds,value_percent,reasoning,provider,model,status,created_at").eq("reasoning->>batch_id","day-"+today).order("created_at",{ascending:false}).limit(20);
   if(!ps?.length&&refresh){
@@ -528,7 +566,7 @@ const {data:existing}=await sb.from("football_ai_predictions").select("id,reason
   const matches=new Map((ms||[]).map((m:any)=>[m.id,m]));
   const rows=(ps||[]).map((p:any)=>{
     const r=p.reasoning||{},m=matches.get(p.match_id);
-    return {id:p.id,match_id:p.match_id,home_team:m?.home_team||"—",away_team:m?.away_team||"—",league:m?.league||"—",kickoff_at:m?.kickoff_at||null,prediction:p.prediction,confidence:Number(p.confidence||0),market_odds:r.market_odds??p.odds??null,best_bookmaker:r.best_bookmaker||null,implied_probability:r.implied_probability??null,fair_probability:r.fair_probability??null,overround_percent:r.overround_percent??null,edge_percent:r.edge_percent??null,expected_value_percent:r.expected_value_percent??null,value_signal:r.value_signal||"NO MARKET",no_bet:Boolean(r.no_bet),markets:Array.isArray(r.markets)?r.markets:[],xg_home:r.xg_home??null,xg_away:r.xg_away??null,xg_available:Boolean(r.xg_available),engine_score:r.engine_score??null,final_score:r.final_score??p.model_score??null,status:p.status||"OPEN"};
+    return {id:p.id,match_id:p.match_id,home_team:m?.home_team||"—",away_team:m?.away_team||"—",league:m?.league||"—",kickoff_at:m?.kickoff_at||null,prediction:p.prediction,confidence:Number(p.confidence||0),market_odds:r.market_odds??p.odds??null,best_bookmaker:r.best_bookmaker||null,implied_probability:r.implied_probability??null,fair_probability:r.fair_probability??null,overround_percent:r.overround_percent??null,edge_percent:r.edge_percent??null,expected_value_percent:r.expected_value_percent??null,value_signal:r.value_signal||"NO MARKET",smart_decision:r.smart_decision||r.value_signal||"NO MARKET",no_bet:Boolean(r.no_bet),quality_score:r.quality_score??null,decision_reasons:Array.isArray(r.decision_reasons)?r.decision_reasons:[],market_agreement:r.market_agreement||null,bookmaker_consensus:r.bookmaker_consensus||null,markets:Array.isArray(r.markets)?r.markets:[],xg_home:r.xg_home??null,xg_away:r.xg_away??null,xg_available:Boolean(r.xg_available),engine_score:r.engine_score??null,final_score:r.final_score??p.model_score??null,status:p.status||"OPEN"};
   });
   const nums=(key:string)=>rows.map((x:any)=>Number(x[key])).filter(Number.isFinite);
   const edges=nums("edge_percent"),evs=nums("expected_value_percent"),margins=nums("overround_percent");
