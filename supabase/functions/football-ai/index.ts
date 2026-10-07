@@ -358,18 +358,35 @@ async function xgMonitor(targetDate=""){
   }catch(e){return{status:"ERROR",target_window:{from:targetDate,to:windowEnd},error:e instanceof Error?e.message:String(e)}}
 }
 
-function liveMarketValue(probabilities:any,odds:any){
+function liveRiskGate(value:any,minute:any,redCards:any,shots:any){
+  const min=Math.max(0,Number(minute)||0),reds=Math.max(0,Number(redCards)||0),shotCount=Math.max(0,Number(shots)||0);
+  const reasons:string[]=[];
+  if(min>=85)reasons.push("LATE_MATCH");
+  if(reds>0)reasons.push("RED_CARD_VOLATILITY");
+  if(value?.best?.edge_percent!=null&&Number(value.best.edge_percent)>18)reasons.push("EDGE_OUTLIER");
+  if(value?.best?.expected_value_percent!=null&&Number(value.best.expected_value_percent)<1)reasons.push("EV_TOO_LOW");
+  if(value?.best?.model_probability!=null&&Number(value.best.model_probability)<.58)reasons.push("LOW_MODEL_PROBABILITY");
+  if(shotCount===0)reasons.push("LOW_EVENT_SAMPLE");
+  const riskScore=Math.min(100,(min>=85?35:0)+(reds>0?30:0)+(Number(value?.best?.edge_percent)>18?20:0)+(shotCount===0?15:0));
+  const risk=riskScore>=60?"HIGH":riskScore>=30?"MEDIUM":"LOW";
+  const blocked=reasons.includes("LATE_MATCH")||reasons.includes("RED_CARD_VOLATILITY")||reasons.includes("EV_TOO_LOW")||reasons.includes("LOW_MODEL_PROBABILITY");
+  const decision=blocked?"NO BET":value?.smart_decision||"NO BET";
+  return{risk,risk_score:riskScore,blocked,reasons,decision};
+}
+function liveMarketValue(probabilities:any,odds:any,context:any={}){
   const p={home:Number(probabilities?.home),draw:Number(probabilities?.draw),away:Number(probabilities?.away)};
   const o={home:Number(odds?.home),draw:Number(odds?.draw),away:Number(odds?.away)};
   const keys=["home","draw","away"].filter(k=>Number.isFinite(p[k])&&Number.isFinite(o[k])&&o[k]>1);
-  if(keys.length<2)return{status:"NO_MARKET",reason:"Insufficient live 1X2 odds"};
+  if(keys.length<2)return{status:"NO_MARKET",reason:"Insufficient live 1X2 odds",value_signal:"NO MARKET",smart_decision:"NO BET",risk:liveRiskGate(null,context.minute,context.red_cards,context.shots)};
   const raw=keys.map(k=>1/o[k]);const sum=raw.reduce((a,b)=>a+b,0);
   const fair:any={};for(const k of keys)fair[k]=raw[keys.indexOf(k)]/sum;
   const rows=keys.map(k=>({selection:k==="home"?"1":k==="draw"?"X":"2",odds:o[k],model_probability:p[k],fair_probability:fair[k],edge_percent:(p[k]-fair[k])*100,expected_value_percent:(p[k]*o[k]-1)*100}));
   rows.sort((a,b)=>b.edge_percent-a.edge_percent);
   const best=rows[0];
   const signal=best.expected_value_percent>=3&&best.edge_percent>=3?"VALUE":best.expected_value_percent>=1&&best.edge_percent>=1?"LEAN":"NO BET";
-  return{status:"OK",best,rows,overround_percent:(sum-1)*100,value_signal:signal,smart_decision:signal==="VALUE"?"BET":signal==="LEAN"?"LEAN":"NO BET"};
+  const base={status:"OK",best,rows,overround_percent:(sum-1)*100,value_signal:signal,smart_decision:signal==="VALUE"?"BET":signal==="LEAN"?"LEAN":"NO BET"};
+  const risk=liveRiskGate(base,context.minute,context.red_cards,context.shots);
+  return{...base,risk,smart_decision:risk.decision,value_signal:risk.blocked?"NO BET":signal};
 }
 function liveOutcomeProbabilities(homeScore:number,awayScore:number,minute:number,homeXg:any,awayXg:any,pre:any){
   const hs=Math.max(0,Math.floor(Number(homeScore)||0)),as=Math.max(0,Math.floor(Number(awayScore)||0));
@@ -437,8 +454,8 @@ async function liveMatchEngine(){
     const reds=events.filter((e:any)=>/RED/i.test(String(e.type?.name||e.type?.developer_name||e.type||""))).length;
     const shots=events.filter((e:any)=>/SHOT/i.test(String(e.type?.name||e.type?.developer_name||e.type||""))).length;
     const liveProb=liveOutcomeProbabilities(Number(homeScore)||0,Number(awayScore)||0,minute,liveXgH,liveXgA,preProb);
-    const liveValue=liveMarketValue(liveProb.probabilities,liveOdds);
-    outRows.push({match_id:m.id,home_team:m.home_team,away_team:m.away_team,league:m.league,kickoff_at:m.kickoff_at,status:provider?.state?.developer_name||m.status,minute,score:{home:Number(homeScore)||0,away:Number(awayScore)||0},events:{goals,red_cards:reds,shots},statistics:stats.length,provider_ok:Boolean(provider),provider_error:providerError,live_probability:liveProb,live_odds:liveOdds,live_value:liveValue,pre_match_prediction:openPrediction?.prediction||null});
+    const liveValue=liveMarketValue(liveProb.probabilities,liveOdds,{minute,red_cards:reds,shots});
+    outRows.push({match_id:m.id,home_team:m.home_team,away_team:m.away_team,league:m.league,kickoff_at:m.kickoff_at,status:provider?.state?.developer_name||m.status,minute,score:{home:Number(homeScore)||0,away:Number(awayScore)||0},events:{goals,red_cards:reds,shots},statistics:stats.length,provider_ok:Boolean(provider),provider_error:providerError,live_probability:liveProb,live_odds:liveOdds,live_value:liveValue,live_risk:liveValue?.risk||null,pre_match_prediction:openPrediction?.prediction||null});
   }
   return{status:"OK",live_matches:outRows.length,updated_at:new Date().toISOString(),matches:outRows};
 }
