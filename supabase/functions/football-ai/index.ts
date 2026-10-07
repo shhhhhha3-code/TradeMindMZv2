@@ -358,6 +358,27 @@ async function xgMonitor(targetDate=""){
   }catch(e){return{status:"ERROR",target_window:{from:targetDate,to:windowEnd},error:e instanceof Error?e.message:String(e)}}
 }
 
+function liveOutcomeProbabilities(homeScore:number,awayScore:number,minute:number,homeXg:any,awayXg:any,pre:any){
+  const hs=Math.max(0,Math.floor(Number(homeScore)||0)),as=Math.max(0,Math.floor(Number(awayScore)||0));
+  const min=Math.max(0,Math.min(120,Number(minute)||0));
+  const baseH=Number(homeXg),baseA=Number(awayXg);
+  const p=normalize3(pre)||[1/3,1/3,1/3];
+  const totalXg=Number.isFinite(baseH)&&Number.isFinite(baseA)&&baseH>=0&&baseA>=0?baseH+baseA:2.5;
+  const share=Number.isFinite(baseH)&&Number.isFinite(baseA)&&baseH+baseA>0?baseH/(baseH+baseA):Math.max(.2,Math.min(.8,p[0]+p[2]*.15));
+  const elapsed=Math.min(1,min/90);
+  const remaining=Math.max(0,1-elapsed);
+  const rh=Math.max(.05,totalXg*share*remaining);
+  const ra=Math.max(.05,totalXg*(1-share)*remaining);
+  const ph=(k:number)=>poisson(rh,k),pa=(k:number)=>poisson(ra,k);
+  let home=0,draw=0,away=0;
+  for(let i=0;i<=10;i++)for(let j=0;j<=10;j++){
+    const prob=ph(i)*pa(j),fh=hs+i,fa=as+j;
+    if(fh>fa)home+=prob;else if(fh===fa)draw+=prob;else away+=prob;
+  }
+  const probs=normalize3({home,draw,away})||p;
+  const prediction=probs[0]>=probs[1]&&probs[0]>=probs[2]?"1":probs[2]>=probs[1]?"2":"X";
+  return{probabilities:{home:Number(probs[0].toFixed(4)),draw:Number(probs[1].toFixed(4)),away:Number(probs[2].toFixed(4))},prediction,confidence:Math.round(Math.max(...probs)*100),remaining_xg:{home:Number(rh.toFixed(2)),away:Number(ra.toFixed(2))},method:"live_score_state_poisson_v1"};
+}
 async function liveMatchEngine(){
   const {start,end}=todayBounds();
   const {data:matches}=await sb.from("football_matches").select("id,home_team,away_team,league,kickoff_at,status,home_score,away_score").gte("kickoff_at",new Date(Date.now()-4*3600000).toISOString()).lt("kickoff_at",end.toISOString()).order("kickoff_at",{ascending:true}).limit(100);
@@ -375,6 +396,10 @@ async function liveMatchEngine(){
         provider=(Array.isArray(q?.data)?q.data:[]).find((f:any)=>String(f.id)===String(m.id)||String(f?.participants?.[0]?.name||"").toLowerCase()===String(m.home_team).toLowerCase()&&String(f?.participants?.[1]?.name||"").toLowerCase()===String(m.away_team).toLowerCase());
       }catch(e){providerError=e instanceof Error?e.message:String(e)}
     }
+    const {data:openPrediction}=await sb.from("football_ai_predictions").select("prediction,confidence,reasoning").eq("match_id",m.id).eq("status","OPEN").order("created_at",{ascending:false}).limit(1).maybeSingle();
+    const reasoning=openPrediction?.reasoning||{};
+    const preProb=reasoning.ensemble_probabilities||null;
+    const liveXgH=reasoning.xg_home,liveXgA=reasoning.xg_away;
     const scores=Array.isArray(provider?.scores)?provider.scores:[];const current=scores.find((s:any)=>String(s.description||s.type?.code||"").toUpperCase()==="CURRENT")||scores[0];
     const homeScore=current?.score?.goals??m.home_score??0;const awayScore=scores.find((s:any)=>s.participant_id===provider?.participants?.find((p:any)=>p.meta?.location==="away")?.id)?.score?.goals??m.away_score??0;
     const events=Array.isArray(provider?.events)?provider.events:[];const stats=Array.isArray(provider?.statistics)?provider.statistics:[];
@@ -382,7 +407,8 @@ async function liveMatchEngine(){
     const goals=events.filter((e:any)=>/GOAL/i.test(String(e.type?.name||e.type?.developer_name||e.type||""))).length;
     const reds=events.filter((e:any)=>/RED/i.test(String(e.type?.name||e.type?.developer_name||e.type||""))).length;
     const shots=events.filter((e:any)=>/SHOT/i.test(String(e.type?.name||e.type?.developer_name||e.type||""))).length;
-    outRows.push({match_id:m.id,home_team:m.home_team,away_team:m.away_team,league:m.league,kickoff_at:m.kickoff_at,status:provider?.state?.developer_name||m.status,minute,score:{home:Number(homeScore)||0,away:Number(awayScore)||0},events:{goals,red_cards:reds,shots},statistics:stats.length,provider_ok:Boolean(provider),provider_error:providerError});
+    const liveProb=liveOutcomeProbabilities(Number(homeScore)||0,Number(awayScore)||0,minute,liveXgH,liveXgA,preProb);
+    outRows.push({match_id:m.id,home_team:m.home_team,away_team:m.away_team,league:m.league,kickoff_at:m.kickoff_at,status:provider?.state?.developer_name||m.status,minute,score:{home:Number(homeScore)||0,away:Number(awayScore)||0},events:{goals,red_cards:reds,shots},statistics:stats.length,provider_ok:Boolean(provider),provider_error:providerError,live_probability:liveProb,pre_match_prediction:openPrediction?.prediction||null});
   }
   return{status:"OK",live_matches:outRows.length,updated_at:new Date().toISOString(),matches:outRows};
 }
