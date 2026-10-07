@@ -50,7 +50,7 @@ function smartDecision(prob:any,confidence:any,edge:any,ev:any,overround:any,boo
   const reasons:string[]=[];
   if(signal==="NO MARKET") reasons.push("NO MARKET");
   if(!Number.isFinite(p)||p<=0||p>=1) reasons.push("MODEL PROBABILITY UNSTABLE");
-  if(Number.isFinite(conf)&&conf<58) reasons.push("LOW MODEL CONFIDENCE");
+  if(Number.isFinite(conf)&&conf>0&&conf<58) reasons.push("LOW MODEL CONFIDENCE");
   if(!Number.isFinite(e)||e<3) reasons.push("EDGE TOO LOW");
   if(!Number.isFinite(v)||v<1) reasons.push("EV TOO LOW");
   if(Number.isFinite(margin)&&margin>10) reasons.push("BOOKMAKER MARGIN HIGH");
