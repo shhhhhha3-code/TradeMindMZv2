@@ -92,7 +92,7 @@ async function confidenceCalibration(){
   for(const x of usable){const conf=Math.max(0,Math.min(100,Number(x.p.confidence)));const b=bins[calibrationBin(conf)];if(b.accuracy==null)b.accuracy=0;b.accuracy+=x.e.correct?1:0}
   for(const b of bins)if(b.samples){b.accuracy=Number((b.accuracy/b.samples*100).toFixed(1));b.calibrated_confidence=Number(((b.accuracy*b.samples+50*20)/(b.samples+20)).toFixed(1))}
   const n=usable.length;let ece=0,brier=0;
-  for(const x of usable){const conf=Math.max(0,Math.min(100,Number(x.p.confidence)))/100;const b=bins[calibrationBin(conf*100)];if(b.samples)ece+=Math.abs(conf-(Number(b.accuracy)/100))*(b.samples/n);const pred=String(x.p.prediction||"");brier+=Math.pow((pred===String(x.e.actual_result)?1:0)-conf,2)}
+  for(const x of usable){const conf=Math.max(0,Math.min(100,Number(x.p.confidence)))/100;const b=bins[calibrationBin(conf*100)];if(b.samples)ece+=Math.abs(conf-(Number(b.accuracy)/100))*(b.samples/n);const probs=x.p.reasoning?.ensemble_probabilities||{};const actual=String(x.e.actual_result||"");const actualIdx=actual==="1"?"home":actual==="X"?"draw":"away";const hp=Number(probs.home),dp=Number(probs.draw),ap=Number(probs.away);if([hp,dp,ap].every(Number.isFinite)){brier+=Math.pow(hp-(actualIdx==="home"?1:0),2)+Math.pow(dp-(actualIdx==="draw"?1:0),2)+Math.pow(ap-(actualIdx==="away"?1:0),2)}else brier+=Math.pow((String(x.p.prediction)===actual?1:0)-conf,2)}
   const status=n<30?"COLLECTING":n<100?"LEARNING":"CALIBRATED";
   const recent=usable.slice(0,100);const recentAcc=recent.length?recent.filter(x=>x.e.correct).length/recent.length:null;
   const recentConf=recent.length?recent.reduce((a,x)=>a+Number(x.p.confidence||0),0)/recent.length:null;
