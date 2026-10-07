@@ -313,12 +313,25 @@ async function syncFootball(){
   for(const f of fixtures){const row={home_team:f.teams?.home?.name,away_team:f.teams?.away?.name,league:String(f.league?.country||"")+" · "+String(f.league?.name||""),kickoff_at:f.fixture?.date,status:f.fixture?.status?.short,home_score:f.goals?.home,away_score:f.goals?.away};if(!row.home_team||!row.away_team||!european(row))continue;const {data:existingRows}=await sb.from("football_matches").select("id,home_team,away_team,kickoff_at").eq("home_team",row.home_team).eq("away_team",row.away_team).gte("kickoff_at",new Date(new Date(row.kickoff_at).getTime()-120000).toISOString()).lte("kickoff_at",new Date(new Date(row.kickoff_at).getTime()+120000).toISOString()).limit(1);const existing=existingRows?.[0];let q:any;if(existing?.id)q=await sb.from("football_matches").update(row).eq("id",existing.id);else q=await sb.from("football_matches").insert(row);if(q.error)failed++;else synced++}
   const {data:recent}=await sb.from("football_matches").select("home_team,away_team,status,home_score,away_score").gte("kickoff_at",new Date(Date.now()-30*86400000).toISOString()).not("home_score","is",null).limit(3000);const agg=new Map<string,any>();for(const m of recent||[]){const hs=Number(m.home_score),as=Number(m.away_score);for(const side of ["home","away"]){const team=side==="home"?m.home_team:m.away_team;if(!team)continue;const gf=side==="home"?hs:as,ga=side==="home"?as:hs;const x=agg.get(norm(team))||{team_name:team,wins:0,losses:0,draws:0,goals_for:0,goals_against:0,xg_for:0,xg_against:0};x.goals_for+=gf;x.goals_against+=ga;if(gf>ga)x.wins++;else if(gf<ga)x.losses++;else x.draws++;agg.set(norm(team),x)}}let statsSynced=0;for(const x of agg.values()){const {data:old}=await sb.from("football_team_stats").select("id").eq("team_name",x.team_name).limit(1).maybeSingle();const q=old?.id?await sb.from("football_team_stats").update(x).eq("id",old.id):await sb.from("football_team_stats").insert(x);if(!q.error)statsSynced++}return{configured:true,provider:"api-football",synced,stats_synced:statsSynced,failed,total:fixtures.length,from:apiDate(from),to:apiDate(to),data_intake:{status:"LEGACY_PROVIDER",note:"Phase 1 probe is implemented for Sportmonks; API-Football remains fallback."}};
 }
+function normalizeOddsMarket(market:string,selection:string,total:any){
+  const m=String(market||"").toLowerCase(),s=String(selection||"").trim().toLowerCase(),t=Number(total);
+  if(/fulltime result|match winner/.test(m)&&/^(1|x|2|home|draw|away)$/.test(s))return{market:"h2h",selection:s==="home"?"1":s==="draw"?"X":s==="away"?"2":s};
+  if(/double chance/.test(m)&&/^(1x|x2|12)$/.test(s))return{market:"double_chance",selection:s.toUpperCase()};
+  if(/both teams to score|btts/.test(m)&&/^(yes|no)$/.test(s))return{market:"btts",selection:s.toUpperCase()};
+  if(/goals over\/under|over\/under|match goals/.test(m)){
+    const line=Number.isFinite(t)?t:Number((s.match(/(?:over|under)\s*([0-9.]+)/i)||[])[1]);
+    if(Math.abs(line-2.5)<0.01&&/^(over|under)/.test(s))return{market:"ou_2_5",selection:s.startsWith("over")?"OVER 2.5":"UNDER 2.5"};
+  }
+  return null;
+}
+async function persistOdd(row:any){
+  const {data:oldOdds}=await sb.from("football_odds").select("id").eq("match_id",row.match_id).eq("market",row.market).eq("selection",row.selection).eq("bookmaker",row.bookmaker).limit(1).maybeSingle();
+  return oldOdds?.id?await sb.from("football_odds").update(row).eq("id",oldOdds.id):await sb.from("football_odds").insert(row);
+}
 async function syncOdds(){
   const sportmonks=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");
   const footballKey=env("FOOTBALL_API_KEY");
   const {date:today,start,end}=todayBounds();
-  const now=start;
-  const until=end;
   const {data:matches}=await sb.from("football_matches").select("id,home_team,away_team,kickoff_at").gte("kickoff_at",start.toISOString()).lt("kickoff_at",end.toISOString()).limit(1000);
   const list=matches||[];
   if(sportmonks){
@@ -332,10 +345,8 @@ async function syncOdds(){
         if(!j?.pagination?.has_more||!rows.length)break;
         page++;
       }
-    }catch(e){
-      return{configured:true,provider:"sportmonks",synced:0,error:e instanceof Error?e.message:String(e)};
-    }
-    let synced=0,failed=0,events=0,fixturesMatched=0;
+    }catch(e){return{configured:true,provider:"sportmonks",synced:0,error:e instanceof Error?e.message:String(e)}}
+    let synced=0,failed=0,events=0,fixturesMatched=0,markets={h2h:0,double_chance:0,btts:0,ou_2_5:0};
     for(const f of fixtures){
       const participants=Array.isArray(f.participants)?f.participants:[];
       const home=participants.find((p:any)=>p.meta?.location==="home"||p.location==="home")||participants[0];
@@ -346,36 +357,27 @@ async function syncOdds(){
       if(!match)continue;
       fixturesMatched++;
       let payload:any;
-      try{
-        payload=(await jsonFetch(base+"/odds/pre-match/fixtures/"+encodeURIComponent(String(f.id))+"?api_token="+encodeURIComponent(sportmonks)+"&include=bookmaker;market",{headers:{accept:"application/json"}},12000)).data;
-      }catch{continue}
+      try{payload=(await jsonFetch(base+"/odds/pre-match/fixtures/"+encodeURIComponent(String(f.id))+"?api_token="+encodeURIComponent(sportmonks)+"&include=bookmaker;market",{headers:{accept:"application/json"}},12000)).data}catch{continue}
       for(const o of (Array.isArray(payload?.data)?payload.data:[])){
         events++;
-        const market=String(o.market_description||o.market?.name||"");
-        const selection=String(o.label||o.name||"");
-        const isResult=/match winner|fulltime result/i.test(market)&&/^(1|x|2|home|draw|away)$/i.test(selection);
-        if(!isResult)continue;
-        const price=Number(o.value);
-        if(!Number.isFinite(price)||price<=1)continue;
-        const bookmaker=String(o.bookmaker?.name||o.bookmaker_id||"Sportmonks");
-        const row={match_id:match.id,market:"h2h",selection:selection==="Home"?"1":selection==="Draw"?"X":selection==="Away"?"2":selection,odds:price,bookmaker,captured_at:o.latest_bookmaker_update||o.updated_at||new Date().toISOString()};
-        const {data:oldOdds}=await sb.from("football_odds").select("id").eq("match_id",match.id).eq("market",row.market).eq("selection",row.selection).eq("bookmaker",row.bookmaker).limit(1).maybeSingle();
-        const q=oldOdds?.id?await sb.from("football_odds").update(row).eq("id",oldOdds.id):await sb.from("football_odds").insert(row);
-        if(q.error)failed++;else synced++;
+        const normalized=normalizeOddsMarket(String(o.market_description||o.market?.name||""),String(o.label||o.name||""),o.total);
+        if(!normalized)continue;
+        const price=Number(o.value);if(!Number.isFinite(price)||price<=1)continue;
+        const row={match_id:match.id,market:normalized.market,selection:normalized.selection,odds:price,bookmaker:String(o.bookmaker?.name||o.bookmaker_id||"Sportmonks"),captured_at:o.latest_bookmaker_update||o.updated_at||new Date().toISOString()};
+        const q=await persistOdd(row);
+        if(q.error)failed++;else{synced++;markets[normalized.market as keyof typeof markets]++}
       }
     }
-    return{configured:true,provider:"sportmonks",synced,failed,events,fixtures:fixturesMatched,total_fixtures:fixtures.length,pages:page};
+    return{configured:true,provider:"sportmonks",synced,failed,events,fixtures:fixturesMatched,total_fixtures:fixtures.length,pages:page,markets};
   }
   if(footballKey){
     const base=env("FOOTBALL_API_BASE_URL","https://v3.football.api-sports.io");
-    let fixtures:any[]=[];let from=today,to=today;
+    let fixtures:any[]=[];
     try{
-      const payload=(await jsonFetch(base+"/fixtures?from="+from+"&to="+to+"&timezone=UTC",{headers:{"x-apisports-key":footballKey,accept:"application/json"}},12000)).data;
+      const payload=(await jsonFetch(base+"/fixtures?from="+today+"&to="+today+"&timezone=UTC",{headers:{"x-apisports-key":footballKey,accept:"application/json"}},12000)).data;
       fixtures=Array.isArray(payload?.response)?payload.response:[];
-    }catch(e){
-      return{configured:true,provider:"api-football",synced:0,error:e instanceof Error?e.message:String(e)};
-    }
-    let synced=0,failed=0,events=0,fixturesMatched=0;
+    }catch(e){return{configured:true,provider:"api-football",synced:0,error:e instanceof Error?e.message:String(e)}}
+    let synced=0,failed=0,events=0,fixturesMatched=0,markets={h2h:0,double_chance:0,btts:0,ou_2_5:0};
     for(const f of fixtures){
       const home=f.teams?.home?.name,away=f.teams?.away?.name,kickoff=f.fixture?.date;
       if(!home||!away||!kickoff||!european({home_team:home,away_team:away,league:String(f.league?.country||"")+" · "+String(f.league?.name||"")}))continue;
@@ -385,22 +387,19 @@ async function syncOdds(){
       let payload:any;
       try{payload=(await jsonFetch(base+"/odds?fixture="+encodeURIComponent(String(f.fixture?.id)),{headers:{"x-apisports-key":footballKey,accept:"application/json"}},12000)).data}catch{continue}
       const bookmakers=Array.isArray(payload?.response?.[0]?.bookmakers)?payload.response[0].bookmakers:[];
-      for(const bm of bookmakers){
-        for(const market of (bm.bets||[])){
-          if(!/match winner|fulltime result/i.test(String(market.name||"")))continue;
-          for(const o of (market.values||[])){
-            const selection=String(o.value||"");if(!/^(Home|Draw|Away|1|X|2)$/i.test(selection))continue;
-            const price=Number(o.odd);if(!Number.isFinite(price)||price<=1)continue;
-            events++;
-            const row={match_id:match.id,market:"h2h",selection:selection==="Home"?"1":selection==="Draw"?"X":selection==="Away"?"2":selection,odds:price,bookmaker:String(bm.name||bm.id||"API-Football"),captured_at:new Date().toISOString()};
-            const {data:oldOdds}=await sb.from("football_odds").select("id").eq("match_id",match.id).eq("market",row.market).eq("selection",row.selection).eq("bookmaker",row.bookmaker).limit(1).maybeSingle();
-            const q=oldOdds?.id?await sb.from("football_odds").update(row).eq("id",oldOdds.id):await sb.from("football_odds").insert(row);
-            if(q.error)failed++;else synced++;
-          }
+      for(const bm of bookmakers)for(const market of (bm.bets||[])){
+        for(const o of (market.values||[])){
+          const normalized=normalizeOddsMarket(String(market.name||""),String(o.value||""),null);
+          if(!normalized)continue;
+          const price=Number(o.odd);if(!Number.isFinite(price)||price<=1)continue;
+          events++;
+          const row={match_id:match.id,market:normalized.market,selection:normalized.selection,odds:price,bookmaker:String(bm.name||bm.id||"API-Football"),captured_at:new Date().toISOString()};
+          const q=await persistOdd(row);
+          if(q.error)failed++;else{synced++;markets[normalized.market as keyof typeof markets]++}
         }
       }
     }
-    return{configured:true,provider:"api-football",synced,failed,events,fixtures:fixturesMatched,total_fixtures:fixtures.length};
+    return{configured:true,provider:"api-football",synced,failed,events,fixtures:fixturesMatched,total_fixtures:fixtures.length,markets};
   }
   return{configured:false,synced:0,error:"No football provider token configured for odds"};
 }
