@@ -358,6 +358,19 @@ async function xgMonitor(targetDate=""){
   }catch(e){return{status:"ERROR",target_window:{from:targetDate,to:windowEnd},error:e instanceof Error?e.message:String(e)}}
 }
 
+function liveMarketValue(probabilities:any,odds:any){
+  const p={home:Number(probabilities?.home),draw:Number(probabilities?.draw),away:Number(probabilities?.away)};
+  const o={home:Number(odds?.home),draw:Number(odds?.draw),away:Number(odds?.away)};
+  const keys=["home","draw","away"].filter(k=>Number.isFinite(p[k])&&Number.isFinite(o[k])&&o[k]>1);
+  if(keys.length<2)return{status:"NO_MARKET",reason:"Insufficient live 1X2 odds"};
+  const raw=keys.map(k=>1/o[k]);const sum=raw.reduce((a,b)=>a+b,0);
+  const fair:any={};for(const k of keys)fair[k]=raw[keys.indexOf(k)]/sum;
+  const rows=keys.map(k=>({selection:k==="home"?"1":k==="draw"?"X":"2",odds:o[k],model_probability:p[k],fair_probability:fair[k],edge_percent:(p[k]-fair[k])*100,expected_value_percent:(p[k]*o[k]-1)*100}));
+  rows.sort((a,b)=>b.edge_percent-a.edge_percent);
+  const best=rows[0];
+  const signal=best.expected_value_percent>=3&&best.edge_percent>=3?"VALUE":best.expected_value_percent>=1&&best.edge_percent>=1?"LEAN":"NO BET";
+  return{status:"OK",best,rows,overround_percent:(sum-1)*100,value_signal:signal,smart_decision:signal==="VALUE"?"BET":signal==="LEAN"?"LEAN":"NO BET"};
+}
 function liveOutcomeProbabilities(homeScore:number,awayScore:number,minute:number,homeXg:any,awayXg:any,pre:any){
   const hs=Math.max(0,Math.floor(Number(homeScore)||0)),as=Math.max(0,Math.floor(Number(awayScore)||0));
   const min=Math.max(0,Math.min(120,Number(minute)||0));
@@ -397,6 +410,22 @@ async function liveMatchEngine(){
       }catch(e){providerError=e instanceof Error?e.message:String(e)}
     }
     const {data:openPrediction}=await sb.from("football_ai_predictions").select("prediction,confidence,reasoning").eq("match_id",m.id).eq("status","OPEN").order("created_at",{ascending:false}).limit(1).maybeSingle();
+    let liveOdds:any=null;
+    if(token){
+      try{
+        const oq=(await jsonFetch(base+"/odds/live/fixtures/"+encodeURIComponent(String(m.id))+"?api_token="+encodeURIComponent(token)+"&include=bookmaker;market",{headers:{accept:"application/json"}},10000)).data;
+        const liveRows=Array.isArray(oq?.data)?oq.data:[];
+        const prices:any={};
+        for(const o of liveRows){
+          const desc=String(o.market_description||o.market?.name||"").toLowerCase(),label=String(o.label||o.name||"").trim().toLowerCase();
+          if(!/fulltime result|match winner|1x2/.test(desc))continue;
+          const price=Number(o.value);if(!Number.isFinite(price)||price<=1)continue;
+          const k=label==="1"||label==="home"?"home":label==="x"||label==="draw"?"draw":label==="2"||label==="away"?"away":null;
+          if(k&&!prices[k])prices[k]=price;
+        }
+        if(Object.keys(prices).length>=2)liveOdds=prices;
+      }catch(e){providerError=providerError||("Live odds: "+(e instanceof Error?e.message:String(e)))}
+    }
     const reasoning=openPrediction?.reasoning||{};
     const preProb=reasoning.ensemble_probabilities||null;
     const liveXgH=reasoning.xg_home,liveXgA=reasoning.xg_away;
@@ -408,7 +437,8 @@ async function liveMatchEngine(){
     const reds=events.filter((e:any)=>/RED/i.test(String(e.type?.name||e.type?.developer_name||e.type||""))).length;
     const shots=events.filter((e:any)=>/SHOT/i.test(String(e.type?.name||e.type?.developer_name||e.type||""))).length;
     const liveProb=liveOutcomeProbabilities(Number(homeScore)||0,Number(awayScore)||0,minute,liveXgH,liveXgA,preProb);
-    outRows.push({match_id:m.id,home_team:m.home_team,away_team:m.away_team,league:m.league,kickoff_at:m.kickoff_at,status:provider?.state?.developer_name||m.status,minute,score:{home:Number(homeScore)||0,away:Number(awayScore)||0},events:{goals,red_cards:reds,shots},statistics:stats.length,provider_ok:Boolean(provider),provider_error:providerError,live_probability:liveProb,pre_match_prediction:openPrediction?.prediction||null});
+    const liveValue=liveMarketValue(liveProb.probabilities,liveOdds);
+    outRows.push({match_id:m.id,home_team:m.home_team,away_team:m.away_team,league:m.league,kickoff_at:m.kickoff_at,status:provider?.state?.developer_name||m.status,minute,score:{home:Number(homeScore)||0,away:Number(awayScore)||0},events:{goals,red_cards:reds,shots},statistics:stats.length,provider_ok:Boolean(provider),provider_error:providerError,live_probability:liveProb,live_odds:liveOdds,live_value:liveValue,pre_match_prediction:openPrediction?.prediction||null});
   }
   return{status:"OK",live_matches:outRows.length,updated_at:new Date().toISOString(),matches:outRows};
 }
