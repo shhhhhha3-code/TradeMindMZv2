@@ -463,6 +463,8 @@ async function trackLiveSignal(prediction:any,ctx:any){
     regime:ctx.live_intelligence?.regime||null,
     edge:ctx.live_value?.best?.edge_percent??null,
     ev:ctx.live_value?.best?.expected_value_percent??null,
+    odds:ctx.live_value?.best?.odds??null,
+    selection:ctx.live_value?.best?.selection??null,
     value_signal:ctx.live_value?.value_signal||"NO MARKET",
     risk:ctx.live_risk?.risk||null,
     risk_score:ctx.live_risk?.risk_score??null,
@@ -504,7 +506,7 @@ async function liveAlertEngine(ctx:any){
   return{status:"SIGNAL_INVALIDATED",active:false,level:"BLOCKED",title:"SIGNAL INVALIDATED",score:Math.round(score),reasons};
 }
 async function liveSettlement(){
-  const {data:preds}=await sb.from("football_ai_predictions").select("id,match_id,prediction,reasoning,status,created_at").eq("status","OPEN").limit(500);
+  const {data:preds}=await sb.from("football_ai_predictions").select("id,match_id,prediction,reasoning,status,created_at").limit(500);
   if(!preds?.length)return{checked:0,settled:0};
   const ids=preds.map((x:any)=>x.match_id).filter(Boolean);
   const {data:matches}=await sb.from("football_matches").select("id,status,home_score,away_score").in("id",ids);
@@ -516,7 +518,9 @@ async function liveSettlement(){
     const tracking=Array.isArray(p.reasoning?.live_tracking)?p.reasoning.live_tracking:[];
     if(!tracking.length)continue;
     const updates=tracking.map((s:any)=>({...s,actual_result:actual,settled_at:new Date().toISOString(),outcome:s.live_prediction===actual?"WON":"LOST"}));
-    const reasoning={...p.reasoning,live_tracking:updates,live_settled_result:actual,live_settled_at:new Date().toISOString(),live_tracking_version:"v5.9"};
+    const settledAt=new Date().toISOString();
+    const settledUpdates=updates.map((s:any)=>{const actionable=s.decision==="BET"||s.decision==="LEAN";const won=s.live_prediction===actual;const odds=Number(s.odds);return{...s,actual_result:actual,settled_at:settledAt,outcome:won?"WON":"LOST",actionable,pnl:actionable&&Number.isFinite(odds)&&odds>1?(won?odds-1:-1):0}});
+    const reasoning={...p.reasoning,live_tracking:settledUpdates,live_settled_result:actual,live_settled_at:settledAt,live_tracking_version:"v5.9"};
     await sb.from("football_ai_predictions").update({reasoning}).eq("id",p.id);
     settled++;
   }
@@ -527,7 +531,7 @@ async function liveLearning(){
   const {data:preds,error}=await sb.from("football_ai_predictions").select("reasoning,status").not("reasoning->live_tracking","is",null).order("created_at",{ascending:false}).limit(500);
   if(error)return{status:"WAITING_FOR_LIVE_DATA",samples:0,error:error.message};
   const snapshots:any[]=[];
-  for(const p of preds||[])for(const s of (Array.isArray(p.reasoning?.live_tracking)?p.reasoning.live_tracking:[]))if(s.outcome) snapshots.push(s);
+  for(const p of preds||[])for(const s of (Array.isArray(p.reasoning?.live_tracking)?p.reasoning.live_tracking:[]))if(s.outcome&&s.actionable) snapshots.push(s);
   const settled=snapshots;
   const calc=(xs:any[])=>{const n=xs.length,w=xs.filter(x=>x.outcome==="WON").length,pnl=xs.reduce((a,x)=>a+Number(x.pnl||0),0);return{samples:n,wins:w,losses:n-w,accuracy:n?Math.round(w/n*100):null,roi:n?Math.round(pnl/n*1000)/10:0,pnl:Math.round(pnl*100)/100}};
   const avg=(k:string)=>{const v=settled.map((x:any)=>Number(x[k])).filter(Number.isFinite);return v.length?Math.round(v.reduce((a:number,b:number)=>a+b,0)/v.length*10)/10:null};
