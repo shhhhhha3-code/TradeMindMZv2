@@ -358,6 +358,23 @@ async function xgMonitor(targetDate=""){
   }catch(e){return{status:"ERROR",target_window:{from:targetDate,to:windowEnd},error:e instanceof Error?e.message:String(e)}}
 }
 
+function liveSignalIntelligence(ctx:any){
+  const minute=Math.max(0,Number(ctx?.minute)||0),shots=Math.max(0,Number(ctx?.shots)||0),goals=Math.max(0,Number(ctx?.goals)||0),reds=Math.max(0,Number(ctx?.red_cards)||0);
+  const pre=ctx?.pre_prob||null, live=ctx?.live_prob||null;
+  const lp=live?normalize3(live):null, pp=pre?normalize3(pre):null;
+  const agreement=lp&&pp?1-(Math.abs(lp[0]-pp[0])+Math.abs(lp[1]-pp[1])+Math.abs(lp[2]-pp[2]))/2:null;
+  const momentum=lp&&pp?((lp[0]-pp[0])-(lp[2]-pp[2]))*100:null;
+  const activity=Math.min(100,shots*4+goals*15+reds*20);
+  const lateFactor=minute>=75?1.15:minute>=60?1.05:1;
+  const confidence=lp?Math.max(...lp)*100:33;
+  const intelligenceScore=Math.max(0,Math.min(100,confidence*.45+(agreement==null?50:agreement*100)*.25+Math.min(100,activity)*.15+Math.min(100,Math.abs(momentum??0)*2)*.15));
+  let regime="STABLE";
+  if(reds>0)regime="VOLATILE";
+  else if(Math.abs(momentum??0)>=12)regime="SHIFTING";
+  else if(activity>=45)regime="ACTIVE";
+  const direction=momentum==null?"NEUTRAL":momentum>=6?"HOME":momentum<=-6?"AWAY":"NEUTRAL";
+  return{score:Math.round(intelligenceScore),regime,direction,momentum:momentum==null?null:Number(momentum.toFixed(1)),agreement:agreement==null?null:Number((agreement*100).toFixed(1)),activity:Math.round(activity*lateFactor),confidence:Math.round(confidence),signals:{score_state:true,pre_match_comparison:Boolean(pp),event_activity:shots>0||goals>0,red_card_alert:reds>0}};
+}
 function liveRiskGate(value:any,minute:any,redCards:any,shots:any){
   const min=Math.max(0,Number(minute)||0),reds=Math.max(0,Number(redCards)||0),shotCount=Math.max(0,Number(shots)||0);
   const reasons:string[]=[];
@@ -454,8 +471,8 @@ async function liveMatchEngine(){
     const reds=events.filter((e:any)=>/RED/i.test(String(e.type?.name||e.type?.developer_name||e.type||""))).length;
     const shots=events.filter((e:any)=>/SHOT/i.test(String(e.type?.name||e.type?.developer_name||e.type||""))).length;
     const liveProb=liveOutcomeProbabilities(Number(homeScore)||0,Number(awayScore)||0,minute,liveXgH,liveXgA,preProb);
-    const liveValue=liveMarketValue(liveProb.probabilities,liveOdds,{minute,red_cards:reds,shots});
-    outRows.push({match_id:m.id,home_team:m.home_team,away_team:m.away_team,league:m.league,kickoff_at:m.kickoff_at,status:provider?.state?.developer_name||m.status,minute,score:{home:Number(homeScore)||0,away:Number(awayScore)||0},events:{goals,red_cards:reds,shots},statistics:stats.length,provider_ok:Boolean(provider),provider_error:providerError,live_probability:liveProb,live_odds:liveOdds,live_value:liveValue,live_risk:liveValue?.risk||null,pre_match_prediction:openPrediction?.prediction||null});
+    const liveIntelligence=liveSignalIntelligence({minute,shots,goals,red_cards:reds,pre_prob:preProb,live_prob:liveProb.probabilities});\n    const liveValue=liveMarketValue(liveProb.probabilities,liveOdds,{minute,red_cards:reds,shots});
+    outRows.push({match_id:m.id,home_team:m.home_team,away_team:m.away_team,league:m.league,kickoff_at:m.kickoff_at,status:provider?.state?.developer_name||m.status,minute,score:{home:Number(homeScore)||0,away:Number(awayScore)||0},events:{goals,red_cards:reds,shots},statistics:stats.length,provider_ok:Boolean(provider),provider_error:providerError,live_probability:liveProb,live_intelligence:liveIntelligence,live_odds:liveOdds,live_value:liveValue,live_risk:liveValue?.risk||null,pre_match_prediction:openPrediction?.prediction||null});
   }
   return{status:"OK",live_matches:outRows.length,updated_at:new Date().toISOString(),matches:outRows};
 }
