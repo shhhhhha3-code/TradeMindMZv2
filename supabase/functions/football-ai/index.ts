@@ -447,7 +447,7 @@ async function liveMatchEngine(){
     let liveOdds:any=null;
     if(token){
       try{
-        const oq=(await jsonFetch(base+"/odds/live/fixtures/"+encodeURIComponent(String(m.id))+"?api_token="+encodeURIComponent(token)+"&include=bookmaker;market",{headers:{accept:"application/json"}},10000)).data;
+        const oq=(await jsonFetch(base+"/odds/live/fixtures/"+encodeURIComponent(String(provider?.id||m.id))+"?api_token="+encodeURIComponent(token)+"&include=bookmaker;market",{headers:{accept:"application/json"}},10000)).data;
         const liveRows=Array.isArray(oq?.data)?oq.data:[];
         const prices:any={};
         for(const o of liveRows){
@@ -471,7 +471,8 @@ async function liveMatchEngine(){
     const reds=events.filter((e:any)=>/RED/i.test(String(e.type?.name||e.type?.developer_name||e.type||""))).length;
     const shots=events.filter((e:any)=>/SHOT/i.test(String(e.type?.name||e.type?.developer_name||e.type||""))).length;
     const liveProb=liveOutcomeProbabilities(Number(homeScore)||0,Number(awayScore)||0,minute,liveXgH,liveXgA,preProb);
-    const liveIntelligence=liveSignalIntelligence({minute,shots,goals,red_cards:reds,pre_prob:preProb,live_prob:liveProb.probabilities});\n    const liveValue=liveMarketValue(liveProb.probabilities,liveOdds,{minute,red_cards:reds,shots});
+    const liveIntelligence=liveSignalIntelligence({minute,shots,goals,red_cards:reds,pre_prob:preProb,live_prob:liveProb.probabilities});
+    const liveValue=liveMarketValue(liveProb.probabilities,liveOdds,{minute,red_cards:reds,shots});
     outRows.push({match_id:m.id,home_team:m.home_team,away_team:m.away_team,league:m.league,kickoff_at:m.kickoff_at,status:provider?.state?.developer_name||m.status,minute,score:{home:Number(homeScore)||0,away:Number(awayScore)||0},events:{goals,red_cards:reds,shots},statistics:stats.length,provider_ok:Boolean(provider),provider_error:providerError,live_probability:liveProb,live_intelligence:liveIntelligence,live_odds:liveOdds,live_value:liveValue,live_risk:liveValue?.risk||null,pre_match_prediction:openPrediction?.prediction||null});
   }
   return{status:"OK",live_matches:outRows.length,updated_at:new Date().toISOString(),matches:outRows};
