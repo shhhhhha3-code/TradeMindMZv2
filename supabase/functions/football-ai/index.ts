@@ -447,6 +447,36 @@ function liveOutcomeProbabilities(homeScore:number,awayScore:number,minute:numbe
   const prediction=probs[0]>=probs[1]&&probs[0]>=probs[2]?"1":probs[2]>=probs[1]?"2":"X";
   return{probabilities:{home:Number(probs[0].toFixed(4)),draw:Number(probs[1].toFixed(4)),away:Number(probs[2].toFixed(4))},prediction,confidence:Math.round(Math.max(...probs)*100),remaining_xg:{home:Number(rh.toFixed(2)),away:Number(ra.toFixed(2))},method:"live_score_state_poisson_v1"};
 }
+async function trackLiveSignal(prediction:any,ctx:any){
+  if(!prediction?.id)return{tracked:false,reason:"NO_OPEN_PREDICTION"};
+  const previous=prediction.reasoning&&typeof prediction.reasoning==="object"?prediction.reasoning:{};
+  const history=Array.isArray(previous.live_tracking)?previous.live_tracking:[];
+  const snap={
+    captured_at:new Date().toISOString(),
+    minute:Number(ctx.minute)||0,
+    score:ctx.score,
+    live_probability:ctx.live_probability?.probabilities||null,
+    live_prediction:ctx.live_probability?.prediction||null,
+    live_confidence:ctx.live_probability?.confidence??null,
+    intelligence_score:ctx.live_intelligence?.score??null,
+    momentum:ctx.live_intelligence?.momentum??null,
+    regime:ctx.live_intelligence?.regime||null,
+    edge:ctx.live_value?.best?.edge_percent??null,
+    ev:ctx.live_value?.best?.expected_value_percent??null,
+    value_signal:ctx.live_value?.value_signal||"NO MARKET",
+    risk:ctx.live_risk?.risk||null,
+    risk_score:ctx.live_risk?.risk_score??null,
+    decision:ctx.live_decision?.decision||"NO BET",
+    decision_score:ctx.live_decision?.score??null
+  };
+  const last=history[history.length-1];
+  if(last&&last.minute===snap.minute&&last.score?.home===snap.score?.home&&last.score?.away===snap.score?.away&&last.decision===snap.decision)return{tracked:true,duplicate:true,samples:history.length};
+  const next=[...history,snap].slice(-180);
+  const reasoning={...previous,live_tracking:next,live_tracking_version:"v5.7"};
+  const q=await sb.from("football_ai_predictions").update({reasoning}).eq("id",prediction.id);
+  if(q.error)return{tracked:false,error:q.error.message,samples:history.length};
+  return{tracked:true,duplicate:false,samples:next.length};
+}
 async function liveMatchEngine(){
   const {start,end}=todayBounds();
   const {data:matches}=await sb.from("football_matches").select("id,home_team,away_team,league,kickoff_at,status,home_score,away_score").gte("kickoff_at",new Date(Date.now()-4*3600000).toISOString()).lt("kickoff_at",end.toISOString()).order("kickoff_at",{ascending:true}).limit(100);
@@ -495,7 +525,8 @@ async function liveMatchEngine(){
     const liveIntelligence=liveSignalIntelligence({minute,shots,goals,red_cards:reds,pre_prob:preProb,live_prob:liveProb.probabilities});
     const liveValue=liveMarketValue(liveProb.probabilities,liveOdds,{minute,red_cards:reds,shots});
     const liveDecision=liveDecisionEngine({intelligence:liveIntelligence,risk:liveValue?.risk,value:liveValue,live_probability:liveProb});
-    outRows.push({match_id:m.id,home_team:m.home_team,away_team:m.away_team,league:m.league,kickoff_at:m.kickoff_at,status:provider?.state?.developer_name||m.status,minute,score:{home:Number(homeScore)||0,away:Number(awayScore)||0},events:{goals,red_cards:reds,shots},statistics:stats.length,provider_ok:Boolean(provider),provider_error:providerError,live_probability:liveProb,live_intelligence:liveIntelligence,live_odds:liveOdds,live_value:liveValue,live_risk:liveValue?.risk||null,live_decision:liveDecision,pre_match_prediction:openPrediction?.prediction||null});
+    const liveTracking=await trackLiveSignal(openPrediction,{minute,score:{home:Number(homeScore)||0,away:Number(awayScore)||0},live_probability:liveProb,live_intelligence:liveIntelligence,live_value:liveValue,live_risk:liveValue?.risk,live_decision:liveDecision});
+    outRows.push({match_id:m.id,home_team:m.home_team,away_team:m.away_team,league:m.league,kickoff_at:m.kickoff_at,status:provider?.state?.developer_name||m.status,minute,score:{home:Number(homeScore)||0,away:Number(awayScore)||0},events:{goals,red_cards:reds,shots},statistics:stats.length,provider_ok:Boolean(provider),provider_error:providerError,live_probability:liveProb,live_intelligence:liveIntelligence,live_odds:liveOdds,live_value:liveValue,live_risk:liveValue?.risk||null,live_decision:liveDecision,live_tracking:liveTracking,pre_match_prediction:openPrediction?.prediction||null});
   }
   return{status:"OK",live_matches:outRows.length,updated_at:new Date().toISOString(),matches:outRows};
 }
