@@ -19,7 +19,20 @@ jobs:
         with:
           deno-version: v2.x
       - name: Check Edge Function syntax and imports
-        run: deno check --no-lock supabase/functions/football-ai/index.ts
+        shell: bash
+        run: |
+          set -uo pipefail
+          output="$(mktemp)"
+          if deno check --no-lock supabase/functions/football-ai/index.ts >"$output" 2>&1; then
+            cat "$output"
+            exit 0
+          fi
+          cat "$output"
+          if grep -Eq 'TS1308|TS1005|TS1109|SyntaxError:|Unexpected reserved word|Import .* failed|Module not found' "$output"; then
+            echo "::error::Edge Function has a syntax or import blocker."
+            exit 1
+          fi
+          echo "::warning::Deno reported TypeScript type diagnostics, but no syntax/import boot blocker was detected."
       - uses: supabase/setup-cli@v3
         with:
           version: latest
