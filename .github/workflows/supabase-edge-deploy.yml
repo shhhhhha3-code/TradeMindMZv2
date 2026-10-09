@@ -21,3 +21,16 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: supabase functions deploy football-ai --project-ref "imnnpilqjzfhvijhipzu" --use-api
+      - name: Smoke test football-ai endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://imnnpilqjzfhvijhipzu.supabase.co/functions/v1/football-ai"
+          options_code="$(curl -sS -o /tmp/options.txt -w '%{http_code}' -X OPTIONS "$url" -H 'Origin: https://localhost' -H 'Access-Control-Request-Method: POST' -H 'Access-Control-Request-Headers: content-type')"
+          echo "CORS preflight HTTP: $options_code"
+          cat /tmp/options.txt
+          test "$options_code" = "204"
+          post_code="$(curl -sS -o /tmp/diagnostics.json -w '%{http_code}' -X POST "$url" -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"diagnostics"}')"
+          echo "Diagnostics HTTP: $post_code"
+          cat /tmp/diagnostics.json
+          test "$post_code" = "200"
