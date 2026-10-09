@@ -872,19 +872,6 @@ async function liveSettlement(){
   }
   return{checked:preds.length,settled};
 }
-async function liveLearning(){
-  await liveSettlement();
-  const {data:preds,error}=await sb.from("football_ai_predictions").select("reasoning,status").not("reasoning->live_tracking","is",null).order("created_at",{ascending:false}).limit(500);
-  if(error)return{status:"WAITING_FOR_LIVE_DATA",samples:0,error:error.message};
-  const snapshots:any[]=[];
-  for(const p of preds||[])for(const s of (Array.isArray(p.reasoning?.live_tracking)?p.reasoning.live_tracking:[]))if(s.outcome&&s.actionable) snapshots.push(s);
-  const settled=snapshots;
-  const calc=(xs:any[])=>{const n=xs.length,w=xs.filter(x=>x.outcome==="WON").length,pnl=xs.reduce((a,x)=>a+Number(x.pnl||0),0);return{samples:n,wins:w,losses:n-w,accuracy:n?Math.round(w/n*100):null,roi:n?Math.round(pnl/n*1000)/10:0,pnl:Math.round(pnl*100)/100}};
-  const avg=(k:string)=>{const v=settled.map((x:any)=>Number(x[k])).filter(Number.isFinite);return v.length?Math.round(v.reduce((a:number,b:number)=>a+b,0)/v.length*10)/10:null};
-  const scoreBins=Array.from({length:5},(_,i)=>{const lo=i*20,hi=lo+19;const xs=settled.filter((x:any)=>Number(x.decision_score)>=lo&&Number(x.decision_score)<=hi);return{range:lo+"-"+hi,samples:xs.length,accuracy:calc(xs).accuracy}});
-  const status=settled.length>=100?"LEARNING":settled.length>=30?"CALIBRATING":"COLLECTING";
-  return{status,samples:snapshots.length,settled:settled.length,accuracy:calc(settled).accuracy,roi:calc(settled).roi,pnl:calc(settled).pnl,avg_edge:avg("edge"),avg_ev:avg("ev"),score_bins:scoreBins,by_decision:{BET:calc(settled.filter((x:any)=>x.decision==="BET")),LEAN:calc(settled.filter((x:any)=>x.decision==="LEAN"))}};
-}
 async function liveMatchEngine(){
   const {start,end}=todayBounds();
   const {data:matches}=await sb.from("football_matches").select("id,home_team,away_team,league,kickoff_at,status,home_score,away_score").gte("kickoff_at",new Date(Date.now()-4*3600000).toISOString()).lt("kickoff_at",end.toISOString()).order("kickoff_at",{ascending:true}).limit(100);
