@@ -53,6 +53,11 @@ jobs:
           echo "Diagnostics HTTP: $post_code"
           cat /tmp/diagnostics.json
           test "$post_code" = "200"
+          results_code="$(curl -sS --max-time 20 -o /tmp/results.json -w '%{http_code}' -X POST "$url" -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"results"}')"
+          echo "Results HTTP: $results_code"
+          cat /tmp/results.json
+          test "$results_code" = "200"
+          grep -Eq '"status":"(READY|SCANNING)"' /tmp/results.json
 
       - name: Fetch Supabase boot error logs
         if: failure()
