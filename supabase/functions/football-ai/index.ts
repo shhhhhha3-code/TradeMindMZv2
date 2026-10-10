@@ -955,13 +955,14 @@ async function syncFootball(){
       const away=participants.find((p:any)=>p.meta?.location==="away"||p.location==="away")||participants[1];
       const scores=Array.isArray(f.scores)?f.scores:[];
       const scoreCode=(s:any)=>String(s.description||s.type?.code||s.type?.name||"").toUpperCase().replace(/[^A-Z0-9]+/g,"_");
-      const scoreFor=(participantId:any)=>{const own=scores.filter((s:any)=>s.participant_id===participantId);const final=own.find((s:any)=>["CURRENT","FULLTIME","FULL_TIME","FT","2ND_HALF"].includes(scoreCode(s)));const selected=final||own.find((s:any)=>["CURRENT","FULLTIME","FULL_TIME","FT"].includes(scoreCode(s)))||own[0];return selected?.score?.goals??null};
-      const homeScore=scoreFor(home?.id),awayScore=scoreFor(away?.id);
+      const scoreFor=(participant:any,side:"home"|"away")=>{const own=scores.filter((s:any)=>String(s.participant_id??"")===String(participant?.id??"")||String(s.score?.participant||"").toLowerCase()===side);const preferred=own.find((s:any)=>["CURRENT","FULLTIME","FULL_TIME","FT","FULL_TIME_SCORE"].includes(scoreCode(s)));const selected=preferred||own[0];const value=selected?.score?.goals;return value===null||value===undefined||value===""?null:Number.isFinite(Number(value))?Number(value):null};
+      const homeScore=scoreFor(home,"home"),awayScore=scoreFor(away,"away");
       const stateRaw=String(f.state?.short_name||f.state?.developer_name||f.state?.name||"NS").trim();
       const stateUpper=stateRaw.toUpperCase().replace(/[^A-Z0-9]+/g," ").trim();
-      const stateId=Number(f.state?.id);
-      const finalState=new Set(["FT","AET","PEN","FT PEN","FT AET","FINISHED","MATCH FINISHED","FULL TIME","AFTER EXTRA TIME","AFTER PENALTIES","FINISHED AFTER EXTRA TIME","FINISHED AFTER PENALTIES"]).has(stateUpper)||stateUpper.includes("FINISHED")||stateId===5||stateId===9;
-      const canonicalStatus=finalState?(stateId===9||stateUpper.includes("PEN")?"FT_PEN":stateUpper==="AET"||stateUpper.includes("EXTRA")?"AET":"FT"):stateRaw;
+      // Sportmonks fixture responses expose state_id at the fixture level; the nested state include may be absent.
+      const stateId=Number(f.state_id??f.state?.id??f.state?.state_id);
+      const finalState=new Set(["FT","AET","PEN","FT PEN","FT AET","FINISHED","MATCH FINISHED","FULL TIME","AFTER EXTRA TIME","AFTER PENALTIES","FINISHED AFTER EXTRA TIME","FINISHED AFTER PENALTIES"]).has(stateUpper)||stateUpper.includes("FINISHED")||[5,7,8].includes(stateId);
+      const canonicalStatus=finalState?(stateId===8||stateUpper.includes("PEN")?"FT_PEN":stateId===7||stateUpper==="AET"||stateUpper.includes("EXTRA")?"AET":"FT"):stateRaw;
       const leagueName=String(f.league?.name||"");
       const row={home_team:home?.name,away_team:away?.name,league:"Europe · "+leagueName,kickoff_at:f.starting_at,status:canonicalStatus,home_score:homeScore,away_score:awayScore};
       if(!row.home_team||!row.away_team||!row.kickoff_at)continue;
