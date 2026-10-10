@@ -935,7 +935,7 @@ async function syncFootball(){
   const provider=env("FOOTBALL_PROVIDER","auto").toLowerCase();
   if((provider==="sportmonks"||provider==="auto")&&sportmonks){
     const base=env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football");
-    const {date:today}=todayBounds();const from=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d-1,12,0,0)))})();const to=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d+7,12,0,0)))})();
+    const {date:today}=todayBounds();const from=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d-14,12,0,0)))})();const to=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d+7,12,0,0)))})();
     let page=1,fixtures:any[]=[];
     try{
       for(let i=0;i<20;i++){
