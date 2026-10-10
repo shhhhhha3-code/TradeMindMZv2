@@ -873,11 +873,15 @@ async function liveSettlement(){
   return{checked:preds.length,settled};
 }
 async function liveMatchEngine(){
-  const {start,end}=todayBounds();
-  const {data:matches}=await sb.from("football_matches").select("id,home_team,away_team,league,kickoff_at,status,home_score,away_score").gte("kickoff_at",new Date(Date.now()-4*3600000).toISOString()).lt("kickoff_at",end.toISOString()).order("kickoff_at",{ascending:true}).limit(100);
-  const liveStates=new Set(["LIVE","1H","HT","2H","ET","P","BREAK","INPLAY"]);
-  const live=(matches||[]).filter((m:any)=>liveStates.has(String(m.status||"").toUpperCase()));
-  if(!live.length)return{status:"NO_LIVE_MATCHES",checked:(matches||[]).length,updated_at:new Date().toISOString(),matches:[]};
+  const {end}=todayBounds();
+  const from=new Date(Date.now()-6*3600000).toISOString();
+  const readRecent=async()=>{const {data,error}=await sb.from("football_matches").select("id,home_team,away_team,league,kickoff_at,status,home_score,away_score").gte("kickoff_at",from).lt("kickoff_at",end.toISOString()).order("kickoff_at",{ascending:true}).limit(200);if(error)throw error;return data||[]};
+  const isLiveStatus=(value:any)=>{const s=String(value||"").trim().toUpperCase().replace(/[^A-Z0-9]+/g," ").trim();if(!s||/NOT STARTED|NOT START|NS|SCHEDULED|CANCELLED|POSTPONED|FINISHED|FULL TIME|AFTER EXTRA|AFTER PENALTIES/.test(s))return false;return new Set(["LIVE","1H","HT","2H","ET","P","BREAK","INPLAY","IN PLAY","PLAYING","FIRST HALF","1ST HALF","HALF TIME","HALFTIME","SECOND HALF","2ND HALF","EXTRA TIME","PENALTIES","LIVE 1ST HALF","LIVE 2ND HALF"]).has(s)||s.includes("LIVE")||s.includes("IN PLAY")||s.includes("FIRST HALF")||s.includes("SECOND HALF")||s.includes("HALF TIME")};
+  let matches=await readRecent();
+  let live=matches.filter((m:any)=>isLiveStatus(m.status));
+  // If the database has no live-state rows, refresh provider fixtures once before declaring the feed empty.
+  if(!live.length&&footballConfigured()){try{await syncExternalData(false);matches=await readRecent();live=matches.filter((m:any)=>isLiveStatus(m.status))}catch(e){console.error("Live fixture refresh failed",e)}}
+  if(!live.length)return{status:"NO_LIVE_MATCHES",checked:matches.length,updated_at:new Date().toISOString(),matches:[]};
   const token=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");
   const base=env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football");
   const outRows:any[]=[];
