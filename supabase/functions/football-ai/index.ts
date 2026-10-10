@@ -1181,7 +1181,48 @@ const finalScore=Math.round(Math.max(0,Math.min(100,engineScore*.35+ensembleScor
   const edges=nums("edge_percent"),evs=nums("expected_value_percent"),margins=nums("overround_percent");
   return {date:today,status:"OK",matches_scanned:rows.length,value_bets:rows.filter((x:any)=>x.value_signal==="VALUE").length,leans:rows.filter((x:any)=>x.value_signal==="LEAN").length,no_bets:rows.filter((x:any)=>x.value_signal==="NO BET").length,no_market:rows.filter((x:any)=>x.value_signal==="NO MARKET").length,best_edge:edges.length?Math.max(...edges):null,average_edge:edges.length?Number((edges.reduce((a:number,b:number)=>a+b,0)/edges.length).toFixed(1)):null,average_ev:evs.length?Number((evs.reduce((a:number,b:number)=>a+b,0)/evs.length).toFixed(1)):null,average_overround:margins.length?Number((margins.reduce((a:number,b:number)=>a+b,0)/margins.length).toFixed(1)):null,rows};
 }
-async function evaluate(){const {data:ps}=await sb.from("football_ai_predictions").select("id,match_id,prediction,odds,reasoning").eq("status","OPEN").limit(500);if(!ps?.length)return{evaluated:0};const {data:ms}=await sb.from("football_matches").select("id,status,home_score,away_score").in("id",ps.map(x=>x.match_id));const isFinished=(value:any)=>{const s=String(value||"").trim().toUpperCase().replace(/[^A-Z0-9]+/g," ").trim();if(VOID.has(String(value||"").toLowerCase()))return false;return new Set(["FT","AET","PEN","FINISHED","ENDED","FULL TIME","FULL_TIME","AFTER EXTRA TIME","AFTER PENALTIES","MATCH FINISHED","FT PEN","FINISHED AET","FINISHED PENALTIES","AFTER EXTRA TIME FINISHED"]).has(s)||s.endsWith(" FINISHED")||s.startsWith("FINISHED ")};let n=0;for(const p of ps){const m=ms?.find(x=>x.id===p.match_id);if(!m||!isFinished(m.status)||m.home_score==null||m.away_score==null)continue;const result=m.home_score>m.away_score?"1":m.home_score<m.away_score?"2":"X";const correct=String(p.prediction).trim().toUpperCase()===result;const rawOdds=p.reasoning?.market_odds??p.odds;const marketOdds=rawOdds==null?NaN:Number(rawOdds);const pnl=Number.isFinite(marketOdds)&&marketOdds>1?(correct?marketOdds-1:-1):null;const evaluatedAt=new Date().toISOString();const {data:claimed,error:claimError}=await sb.from("football_ai_predictions").update({status:correct?"WON":"LOST",settled_result:result,pnl,evaluated_at:evaluatedAt}).eq("id",p.id).eq("status","OPEN").select("id").maybeSingle();if(claimError){console.error("Prediction settlement update failed",p.id,claimError.message);continue}if(!claimed?.id)continue;const {error:evaluationError}=await sb.from("football_ai_evaluations").upsert({prediction_id:p.id,match_id:p.match_id,actual_result:result,predicted_result:p.prediction,correct,stake:1,pnl,evaluated_at:evaluatedAt},{onConflict:"prediction_id"});if(evaluationError){console.error("Prediction evaluation write failed; reopening prediction",p.id,evaluationError.message);await sb.from("football_ai_predictions").update({status:"OPEN",settled_result:null,pnl:null,evaluated_at:null}).eq("id",p.id).eq("status",correct?"WON":"LOST");continue}n++}let learningResult:any=null;let learningError=null;if(n>0){try{learningResult=await learning()}catch(e){learningError=e instanceof Error?e.message:String(e)}}return{evaluated:n,learning:learningResult,learning_error:learningError}}
+async function evaluate(){
+  const {data:ps,error:predictionError}=await sb.from("football_ai_predictions").select("id,match_id,prediction,odds,reasoning").eq("status","OPEN").limit(500);
+  if(predictionError)throw predictionError;
+  if(!ps?.length)return{evaluated:0};
+  const linkedIds=ps.map((p:any)=>p.match_id).filter(Boolean);
+  const fromDate=(()=>{const {date}=todayBounds();const [y,m,d]=date.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d-7,12,0,0)))})();
+  const toDate=(()=>{const {date}=todayBounds();const [y,m,d]=date.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d+2,12,0,0)))})();
+  const {data:allMatches,error:matchError}=await sb.from("football_matches").select("id,home_team,away_team,league,kickoff_at,status,home_score,away_score").gte("kickoff_at",osloMidnight(fromDate).toISOString()).lt("kickoff_at",osloMidnight(toDate).toISOString()).limit(2000);
+  if(matchError)throw matchError;
+  const matches=allMatches||[];
+  const {data:linkedMatches}=linkedIds.length?await sb.from("football_matches").select("id,home_team,away_team,league,kickoff_at,status,home_score,away_score").in("id",linkedIds):{data:[]};
+  const byId=new Map((linkedMatches||[]).map((m:any)=>[m.id,m]));
+  const isFinished=(value:any)=>{const raw=String(value||"").trim().toUpperCase();const s=raw.replace(/[^A-Z0-9]+/g," ").trim();if(VOID.has(raw.toLowerCase()))return false;return new Set(["FT","AET","PEN","FINISHED","ENDED","FULL TIME","AFTER EXTRA TIME","AFTER PENALTIES","MATCH FINISHED","FT PEN","FINISHED AET","FINISHED PENALTIES","AFTER EXTRA TIME FINISHED","FINISHED AFTER EXTRA TIME","FINISHED AFTER PENALTIES"]).has(s)||s.endsWith(" FINISHED")||s.startsWith("FINISHED ")};
+  const key=(m:any)=>[norm(m?.home_team),norm(m?.away_team),m?.kickoff_at?osloDate(new Date(m.kickoff_at)):""].join("|");
+  const finals=new Map<string,any>();
+  for(const m of matches){if(isFinished(m.status)&&m.home_score!=null&&m.away_score!=null){const k=key(m),prev=finals.get(k);if(!prev||new Date(m.kickoff_at).getTime()>new Date(prev.kickoff_at).getTime())finals.set(k,m)}}
+  let n=0,reconciledDuplicates=0;
+  for(const p of ps){
+    let m=byId.get(p.match_id) as any;
+    if(!m)continue;
+    if(!isFinished(m.status)||m.home_score==null||m.away_score==null){
+      const sibling=finals.get(key(m));
+      if(sibling){m=sibling;reconciledDuplicates++}
+      else continue;
+    }
+    const result=Number(m.home_score)>Number(m.away_score)?"1":Number(m.home_score)<Number(m.away_score)?"2":"X";
+    const correct=String(p.prediction).trim().toUpperCase()===result;
+    const rawOdds=p.reasoning?.market_odds??p.odds;
+    const marketOdds=rawOdds==null?NaN:Number(rawOdds);
+    const pnl=Number.isFinite(marketOdds)&&marketOdds>1?(correct?marketOdds-1:-1):null;
+    const evaluatedAt=new Date().toISOString();
+    const {data:claimed,error:claimError}=await sb.from("football_ai_predictions").update({status:correct?"WON":"LOST",settled_result:result,pnl,evaluated_at:evaluatedAt}).eq("id",p.id).eq("status","OPEN").select("id").maybeSingle();
+    if(claimError){console.error("Prediction settlement update failed",p.id,claimError.message);continue}
+    if(!claimed?.id)continue;
+    const {error:evaluationError}=await sb.from("football_ai_evaluations").upsert({prediction_id:p.id,match_id:m.id,actual_result:result,predicted_result:p.prediction,correct,stake:1,pnl,evaluated_at:evaluatedAt},{onConflict:"prediction_id"});
+    if(evaluationError){console.error("Prediction evaluation write failed; reopening prediction",p.id,evaluationError.message);await sb.from("football_ai_predictions").update({status:"OPEN",settled_result:null,pnl:null,evaluated_at:null}).eq("id",p.id).eq("status",correct?"WON":"LOST");continue}
+    n++;
+  }
+  let learningResult:any=null,learningError=null;
+  if(n>0){try{learningResult=await learning()}catch(e){learningError=e instanceof Error?e.message:String(e)}}
+  return{evaluated:n,reconciled_duplicate_fixtures:reconciledDuplicates,learning:learningResult,learning_error:learningError}
+}
 async function liveLearning(){
   const {data:rows,error}=await sb.from("football_live_signals").select("prediction,decision,signal_score,confidence,edge_percent,expected_value_percent,status,actual_result,pnl,created_at,reasoning").order("created_at",{ascending:false}).limit(1000);
   if(error)return{status:"WAITING_FOR_LIVE_DATA",samples:0,error:error.message};
