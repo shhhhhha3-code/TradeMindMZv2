@@ -246,3 +246,32 @@
 .mind-limit-panel p{max-width:900px;color:#88a5b2;line-height:1.7}.mind-limit-panel .diag-header>span,.mind-error-panel .diag-header>span{color:var(--mind-cyan);font:700 8px "Space Grotesk",sans-serif;letter-spacing:1px}
 .mind-error-panel{border-color:#6a3542!important}.mind-error-panel .diag-header label{color:#ff8196}
 @media(max-width:650px){.mind-hero{min-height:258px;padding:22px 16px;border-radius:15px;align-items:flex-start}.mind-hero-content{max-width:100%;padding-right:8px}.mind-eyebrow{font-size:7px;letter-spacing:1.1px}.mind-hero-content h1{font-size:42px;margin-top:12px}.mind-hero-content>p{max-width:230px;font-size:7px;line-height:1.6;letter-spacing:.7px}.mind-hero-meta{max-width:230px;margin-top:16px;gap:5px}.mind-hero-meta span{font-size:6px;padding:6px}.mind-core{right:12px;top:auto;bottom:16px;transform:none;gap:5px}.mind-core-ring{width:76px;height:76px}.mind-core-inner{width:62px;height:62px;gap:3px}.mind-core-inner svg{width:18px;height:18px}.mind-core-inner b{font-size:7px;letter-spacing:1px}.mind-core-label{font-size:5px;letter-spacing:.8px}.mind-toolbar{align-items:flex-start;flex-direction:column;padding:12px}.mind-toolbar b{font-size:14px}.mind-toolbar small{font-size:9px;line-height:1.5}.mind-scan-button{width:100%;justify-content:center}.mind-mz-page .diag-grid{grid-template-columns:1fr;gap:8px}.mind-mz-page .diag-card{padding:12px}.mind-status-banner{padding:13px}.mind-status-banner strong{font-size:8px!important}}
+
+/* Dashboard market probability cards + subtle live motion */
+.dashboard-v2 .dash-pick{position:relative;overflow:hidden;transition:transform .22s ease,border-color .22s ease,box-shadow .22s ease}
+.dashboard-v2 .dash-pick:before{content:"";position:absolute;top:0;left:-110%;width:70%;height:1px;background:linear-gradient(90deg,transparent,#48f5d1,transparent);box-shadow:0 0 14px #31f5c8;animation:dashCardScan 7s ease-in-out infinite;pointer-events:none}
+.dashboard-v2 .dash-pick:hover{transform:translateY(-2px);border-color:#287f82;box-shadow:0 8px 24px #00e5c51a}
+@keyframes dashCardScan{0%,35%{left:-110%}75%,100%{left:130%}}
+.dashboard-v2 .dash-market-probs{margin:12px 0 10px;padding:11px 10px 9px;border:1px solid #153f49;border-radius:10px;background:linear-gradient(120deg,#061720d9,#081a20d9);animation:dashProbIn .4s ease-out both}
+@keyframes dashProbIn{from{opacity:.65;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+.dashboard-v2 .dash-market-probs-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;color:#70a4af;font-size:9px;letter-spacing:1.4px}
+.dashboard-v2 .dash-market-probs-head span{color:#42efc0;font-size:8px}
+.dashboard-v2 .dash-prob-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}
+.dashboard-v2 .dash-prob{min-width:0;padding:7px;border-radius:7px;background:#0a2028;border:1px solid #163943}
+.dashboard-v2 .dash-prob>span{display:inline-grid;place-items:center;width:21px;height:21px;margin-bottom:5px;border:1px solid #2a6470;border-radius:6px;color:#a5f6f0;font-size:10px;font-weight:800}
+.dashboard-v2 .dash-prob>div{display:flex;align-items:center;gap:6px}
+.dashboard-v2 .dash-prob>div i{display:block;flex:1;height:4px;overflow:hidden;border-radius:9px;background:#17313a}
+.dashboard-v2 .dash-prob>div i em{display:block;height:100%;border-radius:9px;background:linear-gradient(90deg,#1fd8ff,#39f4b7);box-shadow:0 0 8px #31f4c655;transition:width .7s cubic-bezier(.2,.8,.2,1)}
+.dashboard-v2 .dash-prob>div b{min-width:31px;text-align:right;color:#f0ffff;font-size:12px;font-variant-numeric:tabular-nums}
+.dashboard-v2 .dash-prob small{display:block;margin-top:5px;color:#72939c;font-size:9px}
+.dashboard-v2 .dash-extra-markets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:8px}
+.dashboard-v2 .dash-extra-markets span{display:flex;flex-direction:column;gap:5px;padding:8px 7px;border:1px solid #183740;border-radius:7px;background:#07151c}
+.dashboard-v2 .dash-extra-markets small{color:#72949e;font-size:8px;letter-spacing:.7px}
+.dashboard-v2 .dash-extra-markets b{color:#51edc2;font-size:12px}
+.dashboard-v2 .dash-pick-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.dashboard-v2 .dash-hero .stadium-ball{animation:dashBallFloat 4s ease-in-out infinite, dashBallGlow 3s ease-in-out infinite}
+@keyframes dashBallFloat{0%,100%{transform:translateY(0) rotate(-5deg)}50%{transform:translateY(-9px) rotate(7deg)}}
+@keyframes dashBallGlow{0%,100%{filter:drop-shadow(0 0 8px #32efc833)}50%{filter:drop-shadow(0 0 22px #32efc877)}}
+.dashboard-v2 .dash-signal{animation:dashSignalPulse 5s ease-in-out infinite}
+@keyframes dashSignalPulse{0%,100%{box-shadow:0 0 0 #24f0cb00}50%{box-shadow:0 0 22px #24f0cb0c}}
+@media(max-width:480px){.dashboard-v2 .dash-market-probs{padding:8px 7px}.dashboard-v2 .dash-prob-row{gap:5px}.dashboard-v2 .dash-prob{padding:6px 5px}.dashboard-v2 .dash-prob>div{gap:3px}.dashboard-v2 .dash-prob>div b{font-size:11px;min-width:28px}.dashboard-v2 .dash-extra-markets{gap:4px}.dashboard-v2 .dash-extra-markets span{padding:7px 5px}.dashboard-v2 .dash-extra-markets b{font-size:10px}}
