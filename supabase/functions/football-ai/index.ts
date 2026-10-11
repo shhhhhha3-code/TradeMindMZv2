@@ -6,7 +6,7 @@ const EUROPE=new Set(["Albania","Andorra","Armenia","Austria","Azerbaijan","Bela
 const VOID=new Set(["cancelled","canceled","postponed","abandoned","suspended"]);
 const out=(status:number,data:any,requestId=crypto.randomUUID())=>new Response(JSON.stringify(data),{status,headers:{"content-type":"application/json; charset=utf-8","cache-control":"no-store","x-content-type-options":"nosniff","access-control-allow-origin":"*","access-control-allow-headers":"authorization,apikey,content-type,x-client-info","access-control-allow-methods":"POST,OPTIONS","x-request-id":requestId}});
 const norm=(s:any)=>String(s||"").toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9 ]/g," ").replace(/\\s+/g," ").trim();
-const european=(m:any)=>{const c=String(m.raw?.country||m.country||"");const league=String(m.league||"");const lc=league.split(" · ")[0];const text=league+" "+String(m.type||m.raw?.type||"");const uefa=/uefa\s+(champions league|europa league|conference league|europa conference league|nations league|super cup)/i.test(league);const sportmonksEurope=lc==="Europe";return(EUROPE.has(c)||EUROPE.has(lc)||sportmonksEurope||uefa)&&!/friendly|test match/i.test(text)};
+const european=(m:any)=>{const c=String(m.raw?.country||m.country||"");const league=String(m.league||"");const lc=league.split(" · ")[0];const text=league+" "+String(m.type||m.raw?.type||"");const uefa=/uefa\s+(champions league|europa league|conference league|europa conference league|nations league|super cup)/i.test(league);const providerEurope=lc==="Europe";return(EUROPE.has(c)||EUROPE.has(lc)||providerEurope||uefa)&&!/friendly|test match/i.test(text)};
 const softmax=(a:number[])=>{const mx=Math.max(...a),e=a.map(x=>Math.exp(x-mx)),s=e.reduce((a,b)=>a+b,0);return e.map(x=>x/s)};
 async function getSettings(){try{const {data}=await sb.from("football_ai_settings").select("*").eq("id",true).maybeSingle();if(data)return data}catch{}return{football_api_enabled:true,odds_api_enabled:true,groq_enabled:true,openai_enabled:true}}
 const osloDate=(d:Date)=>new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Oslo",year:"numeric",month:"2-digit",day:"2-digit"}).format(d);const nextOsloDate=(date:string)=>{const [y,m,day]=date.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,day+1,12,0,0)))};const osloMidnight=(date:string)=>{const [y,m,day]=date.split("-").map(Number);const guess=Date.UTC(y,m-1,day);const parts=new Intl.DateTimeFormat("en-US",{timeZone:"Europe/Oslo",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit",hourCycle:"h23"}).formatToParts(new Date(guess));const p=(type:string)=>Number(parts.find(x=>x.type===type)?.value||0);const wall=Date.UTC(p("year"),p("month")-1,p("day"),p("hour"),p("minute"),p("second"));return new Date(guess-(wall-guess))};const todayBounds=()=>{const date=osloDate(new Date());const start=osloMidnight(date);const tomorrow=nextOsloDate(date);return{date,start,end:osloMidnight(tomorrow)}};async function getMatches(){const {start,end}=todayBounds();const {data,error}=await sb.from("football_matches").select("*").gte("kickoff_at",start.toISOString()).lt("kickoff_at",end.toISOString()).order("kickoff_at").limit(1000);if(error)throw error;return data||[]}
@@ -232,74 +232,8 @@ function advancedMomentum(teamName:string,stats:any[],matches:any[]){
   const direction=results.slice(0,5).filter(x=>x==="W").length-results.slice(0,5).filter(x=>x==="L").length;
   return{score:Math.round(momentum),points_rate:Math.round(pointsRate),goal_diff:Number(avg(gd).toFixed(2)),xg_diff:xgW?Number((xgd/xgW).toFixed(2)):null,recent_results:results.slice(0,5),direction,sample_size:rows.length,recency_method:"exp_decay_21d"};
 }
-async function lineupIntelligence(m:any){
-  const token=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");
-  if(!token)return{status:"NO_PROVIDER",method:"sportmonks_lineup_v1"};
-  const base=env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football");
-  try{
-    const day=apiDate(new Date(m.kickoff_at));
-    const q=(await jsonFetch(base+"/fixtures/between/"+day+"/"+day+"?api_token="+encodeURIComponent(token)+"&include=participants;state;lineups.player;sidelined;expectedLineups&timezone=Europe%2FOslo&per_page=100",{headers:{accept:"application/json"}},12000)).data;
-    const fixtures=Array.isArray(q?.data)?q.data:[];
-    const key=(s:any)=>norm(s);
-    const fixture=fixtures.find((f:any)=>{
-      const ps=Array.isArray(f.participants)?f.participants:[];
-      const home=ps.find((p:any)=>p?.meta?.location==="home"||p?.location==="home")?.name;
-      const away=ps.find((p:any)=>p?.meta?.location==="away"||p?.location==="away")?.name;
-      return key(home)===key(m.home_team)&&key(away)===key(m.away_team);
-    });
-    if(!fixture)return{status:"NO_FIXTURE",method:"sportmonks_lineup_v1"};
-    const participants=Array.isArray(fixture.participants)?fixture.participants:[];
-    const teamIdByName=new Map(participants.map((p:any)=>[key(p?.name),Number(p?.id)]));
-    const lineups=Array.isArray(fixture.lineups)?fixture.lineups:[];
-    const sidelined=Array.isArray(fixture.sidelined)?fixture.sidelined:[];
-    const expected=Array.isArray(fixture.expectedLineups)?fixture.expectedLineups:[];
-    const rating=(p:any)=>{
-      const values=[p?.rating,p?.average_rating,p?.season_rating,p?.player_rating,p?.statistics?.rating,p?.stats?.rating,p?.data?.rating].map(Number).filter(Number.isFinite);
-      return values.length?Math.max(0,Math.min(10,values[0])):null;
-    };
-    const build=(teamName:string)=>{
-      const tid=teamIdByName.get(key(teamName));
-      const confirmed=lineups.filter((x:any)=>Number(x?.team_id??x?.participant_id??x?.team?.id)===tid);
-      const exp=expected.filter((x:any)=>Number(x?.team_id??x?.participant_id??x?.team?.id)===tid);
-      const unavailable=sidelined.filter((x:any)=>Number(x?.team_id??x?.participant_id??x?.team?.id)===tid);
-      const starters=confirmed.filter((x:any)=>Boolean(x?.starter??x?.starting_xi??x?.meta?.starter));
-      const players=confirmed.length?confirmed:exp;
-      const ratings=players.map(rating).filter((x:any)=>x!=null) as number[];
-      const unavailableRatings=unavailable.map(rating).filter((x:any)=>x!=null) as number[];
-      const avg=ratings.length?ratings.reduce((a,b)=>a+b,0)/ratings.length:null;
-      const missingImpact=unavailableRatings.length?unavailableRatings.reduce((a,b)=>a+(b/10),0):0;
-      return{
-        confirmed_lineup:confirmed.length>0,
-        expected_lineup:exp.length>0,
-        players_count:players.length,
-        starters_count:starters.length,
-        unavailable_count:unavailable.length,
-        rated_players:ratings.length,
-        average_rating:avg==null?null:Number(avg.toFixed(2)),
-        unavailable_rating_impact:unavailableRatings.length?Number(missingImpact.toFixed(2)):null,
-        lineup_strength:avg==null?50:Math.round(Math.max(0,Math.min(100,avg*10))),
-        availability_score:Math.round(Math.max(0,Math.min(100,100-missingImpact*18))),
-        confidence:confirmed.length>=11?100:exp.length>=11?72:players.length?45:20
-      };
-    };
-    const home=build(m.home_team),away=build(m.away_team);
-    const hAvail=Number(home.availability_score),aAvail=Number(away.availability_score);
-    const hStrength=Number(home.lineup_strength),aStrength=Number(away.lineup_strength);
-    const edge=(Number.isFinite(hStrength)&&Number.isFinite(aStrength)?(hStrength-aStrength)*.018:0)+(Number.isFinite(hAvail)&&Number.isFinite(aAvail)?(hAvail-aAvail)*.012:0);
-    return{
-      status:"OK",
-      fixture_id:fixture.id,
-      confirmed:Boolean(lineups.length),
-      expected:Boolean(expected.length),
-      sidelined:Boolean(sidelined.length),
-      home,away,
-      lineup_edge:Number(edge.toFixed(3)),
-      method:"sportmonks_lineup_v1"
-    };
-  }catch(e){
-    return{status:"ERROR",error:e instanceof Error?e.message:String(e),method:"sportmonks_lineup_v1"};
-  }
-}
+async function lineupIntelligence(_m:any){return{status:"UNAVAILABLE",confirmed:false,home:{players:[],average_rating:null,missing_impact:0},away:{players:[],average_rating:null,missing_impact:0},lineup_edge:0,confidence:0,method:"football_data_no_lineup_feed",note:"football-data.org does not provide the detailed lineups required by this module."}}
+
 function tacticalIntelligence(m:any,lineup:any){
   const home=lineup?.home||{},away=lineup?.away||{};
   const formation=(x:any)=>String(x?.formation||x?.tactical_formation||x?.meta?.formation||x?.formation_name||"").trim();
@@ -331,120 +265,14 @@ function tacticalIntelligence(m:any,lineup:any){
     readiness_edge:Number(readiness.toFixed(3)),
     tactical_score:Math.round(score),
     confidence:Math.round(certainty),
-    method:"sportmonks_tactical_shape_v1"
+    method:"local_tactical_shape_v1"
   };
 }
-async function managerTacticalMatchup(m:any,lineup:any,tactical:any=null){
-  const token=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");
-  const base=env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football");
-  const fallback=(status:string,extra:any={})=>({
-    status,
-    home:{manager:null,manager_id:null,experience:50,style:null},
-    away:{manager:null,manager_id:null,experience:50,style:null},
-    manager_edge:0,
-    style_matchup_edge:0,
-    tactical_matchup_edge:0,
-    confidence:20,
-    method:"sportmonks_manager_matchup_v1",
-    ...extra
-  });
-  if(!token)return fallback("NO_PROVIDER");
-  const fixtureId=lineup?.fixture_id;
-  if(!fixtureId)return fallback("NO_FIXTURE");
-  try{
-    const data=(await jsonFetch(base+"/fixtures/"+encodeURIComponent(String(fixtureId))+"?api_token="+encodeURIComponent(token)+"&include=participants;coaches;lineups.player&timezone=Europe%2FOslo",{headers:{accept:"application/json"}},12000)).data?.data||{};
-    const participants=Array.isArray(data.participants)?data.participants:[];
-    const coaches=Array.isArray(data.coaches)?data.coaches:[];
-    const teamId=(name:string)=>Number(participants.find((p:any)=>norm(p?.name)===norm(name))?.id||0);
-    const pickCoach=(name:string)=>{
-      const tid=teamId(name);
-      const rows=coaches.filter((x:any)=>Number(x?.team_id??x?.participant_id??x?.team?.id)===tid);
-      const x=rows[0]||coaches.find((x:any)=>norm(x?.team?.name)===norm(name));
-      if(!x)return null;
-      const coach=x.coach||x.manager||x;
-      const stats=x.statistics||coach.statistics||{};
-      const matches=Number(stats.matches??stats.appearances??x.matches??0);
-      const wins=Number(stats.wins??x.wins??0);
-      const losses=Number(stats.losses??x.losses??0);
-      const experience=Math.max(25,Math.min(100,50+Math.min(25,matches/8)+Math.max(-20,Math.min(20,(wins-losses)*1.5))));
-      const nameValue=String(coach?.name||x?.name||"").trim()||null;
-      return{id:Number(coach?.id??x?.coach_id??x?.id)||null,name:nameValue,matches,wins,losses,experience:Math.round(experience)};
-    };
-    const home=pickCoach(m.home_team),away=pickCoach(m.away_team);
-    const hFormation=String(tactical?.home?.formation||"");
-    const aFormation=String(tactical?.away?.formation||"");
-    const formationFamily=(f:string)=>{
-      const p=f.match(/(\d+)[-–](\d+)(?:[-–](\d+))?/);
-      if(!p)return "UNKNOWN";
-      const mid=Number(p[2]),att=Number(p[3]||0);
-      return mid>=4?"MIDFIELD_HEAVY":att>=3?"ATTACKING":"BALANCED";
-    };
-    const hf=formationFamily(hFormation),af=formationFamily(aFormation);
-    const familyScore=(x:string)=>x==="ATTACKING"?1:x==="MIDFIELD_HEAVY"?0.5:x==="BALANCED"?0.2:0;
-    const styleMatchupEdge=(hf!=="UNKNOWN"&&af!=="UNKNOWN")?(familyScore(hf)-familyScore(af))*.025:0;
-    const hExp=Number(home?.experience),aExp=Number(away?.experience);
-    const managerEdge=Number.isFinite(hExp)&&Number.isFinite(aExp)?(hExp-aExp)*.002:0;
-    const tacticalMatchupEdge=(Number(tactical?.formation_edge)||0)+styleMatchupEdge+managerEdge;
-    const available=(home?1:0)+(away?1:0);
-    return{
-      status:available===2?"OK":available===1?"PARTIAL":"NO_MANAGER_DATA",
-      home:{manager:home?.name||null,manager_id:home?.id||null,experience:home?.experience??50,style:hf,record:{matches:home?.matches||0,wins:home?.wins||0,losses:home?.losses||0}},
-      away:{manager:away?.name||null,manager_id:away?.id||null,experience:away?.experience??50,style:af,record:{matches:away?.matches||0,wins:away?.wins||0,losses:away?.losses||0}},
-      manager_edge:Number(managerEdge.toFixed(3)),
-      style_matchup_edge:Number(styleMatchupEdge.toFixed(3)),
-      tactical_matchup_edge:Number(tacticalMatchupEdge.toFixed(3)),
-      confidence:available===2?75:available===1?45:20,
-      method:"sportmonks_manager_matchup_v1"
-    };
-  }catch(e){
-    return fallback("ERROR",{error:e instanceof Error?e.message:String(e)});
-  }
-}
-async function refereeEnvironmentIntelligence(m:any){
-  const token=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");
-  const base=env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football");
-  const fallback=(status:string,extra:any={})=>({status,referee:null,referee_id:null,cards_per_match:50,penalties_per_match:20,home_bias:50,discipline_edge:0,penalty_edge:0,environment_edge:0,confidence:15,method:"sportmonks_referee_environment_v1",...extra});
-  if(!token)return fallback("NO_PROVIDER");
-  if(!m?.id)return fallback("NO_MATCH");
-  try{
-    const payload=(await jsonFetch(base+"/fixtures/"+encodeURIComponent(String(m.provider_fixture_id||m.fixture_id||m.id))+"?api_token="+encodeURIComponent(token)+"&include=referee&timezone=Europe%2FOslo",{headers:{accept:"application/json"}},12000)).data?.data||{};
-    const r=payload.referee||payload.official||payload.referees?.[0]||null;
-    if(!r)return fallback("NO_REFEREE_DATA");
-    const stats=r.statistics||r.stats||{};
-    const cards=Number(stats.cards_per_match??stats.average_cards??r.cards_per_match??r.average_cards);
-    const penalties=Number(stats.penalties_per_match??stats.average_penalties??r.penalties_per_match??r.average_penalties);
-    const homeBias=Number(stats.home_bias??r.home_bias);
-    const disciplineEdge=Number.isFinite(cards)?Math.max(-.08,Math.min(.08,(cards-50)*.002)):0;
-    const penaltyEdge=Number.isFinite(penalties)?Math.max(-.05,Math.min(.05,(penalties-20)*.0015)):0;
-    const environmentEdge=(Number.isFinite(homeBias)?(homeBias-50)*.0025:0)+disciplineEdge*.15+penaltyEdge*.15;
-    return{status:"OK",referee:String(r.name||r.display_name||"").trim()||null,referee_id:Number(r.id)||null,cards_per_match:Number.isFinite(cards)?cards:null,penalties_per_match:Number.isFinite(penalties)?penalties:null,home_bias:Number.isFinite(homeBias)?homeBias:null,discipline_edge:Number(disciplineEdge.toFixed(3)),penalty_edge:Number(penaltyEdge.toFixed(3)),environment_edge:Number(environmentEdge.toFixed(3)),confidence:Number.isFinite(cards)||Number.isFinite(penalties)||Number.isFinite(homeBias)?60:35,method:"sportmonks_referee_environment_v1"};
-  }catch(e){return fallback("ERROR",{error:e instanceof Error?e.message:String(e)})}
-}
+async function managerTacticalMatchup(_m:any,_lineup:any,_tactical:any=null){return{status:"UNAVAILABLE",home:{manager:null,manager_id:null,experience:50,style:null},away:{manager:null,manager_id:null,experience:50,style:null},manager_edge:0,style_matchup_edge:0,tactical_matchup_edge:0,confidence:0,method:"local_no_manager_feed",note:"No manager feed is configured."}}
 
+async function refereeEnvironmentIntelligence(_m:any){return{status:"UNAVAILABLE",referee:null,referee_id:null,cards_per_match:null,penalties_per_match:null,home_bias:null,discipline_edge:0,penalty_edge:0,environment_edge:0,confidence:0,method:"local_no_referee_feed"}}
 
-async function leagueCompetitionIntelligence(m:any,stats:any[]){
-  const league=String(m?.league||m?.raw?.league?.name||m?.competition||m?.raw?.competition?.name||"").trim();
-  const type=String(m?.type||m?.raw?.type||m?.raw?.fixture_type||"").trim();
-  const text=(league+" "+type).toLowerCase();
-  const token=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");
-  const base=env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football");
-  const tier=/champions league|europa league|conference league|nations league|world cup|premier league|la liga|serie a|bundesliga|ligue 1|eredivisie|primeira liga/i.test(text)?88:/championship|segunda|serie b|2\. bundesliga|ligue 2|eliteserien|superliga|allsvenskan|ekstraklasa/i.test(text)?68:/friendly|test match/i.test(text)?35:55;
-  const competitionLevel=/cup|trophy|super cup|playoff|play-off|final|semi-final|quarter-final/i.test(text)?82:tier;
-  const importance=/final|semi-final|quarter-final|playoff|play-off|relegation|promotion/i.test(text)?92:/derby|rival/i.test(text)?78:Math.max(45,competitionLevel*.72);
-  const h=stats.find((x:any)=>norm(x.team_name)===norm(m.home_team)),a=stats.find((x:any)=>norm(x.team_name)===norm(m.away_team));
-  const formPressure=(s:any)=>{if(!s)return 50;const games=Number(s.wins||0)+Number(s.losses||0)+Number(s.draws||0);if(!games)return 50;const rate=(Number(s.wins||0)*3+Number(s.draws||0))/Math.max(1,games*3);return Math.max(0,Math.min(100,50+(rate-.5)*55))};
-  const homePressure=formPressure(h),awayPressure=formPressure(a);
-  const pressureEdge=(homePressure-awayPressure)*.004;
-  const fallback={status:token?"PARTIAL":"LOCAL_ONLY",league:league||null,competition_type:type||null,league_strength:Math.round(tier),competition_level:Math.round(competitionLevel),match_importance:Math.round(importance),table_pressure:{home:Math.round(homePressure),away:Math.round(awayPressure),available:false},pressure_edge:Number(pressureEdge.toFixed(3)),competition_edge:Number(((competitionLevel-50)*.001+pressureEdge).toFixed(3)),confidence:token?48:38,method:"league_competition_context_v1"};
-  if(!token||!m?.id)return fallback;
-  try{
-    const id=m.provider_fixture_id||m.fixture_id||m.id;
-    const payload=(await jsonFetch(base+"/fixtures/"+encodeURIComponent(String(id))+"?api_token="+encodeURIComponent(token)+"&include=league;season&timezone=Europe%2FOslo",{headers:{accept:"application/json"}},12000)).data?.data||{};
-    const pl=String(payload.league?.name||payload.league?.short_code||league).trim();
-    const season=payload.season?.name||payload.season?.id||m.season||m.raw?.season?.name||null;
-    return {...fallback,league:pl||fallback.league,season,league_id:Number(payload.league?.id)||null,season_id:Number(payload.season?.id)||null,status:"OK",confidence:60};
-  }catch(e){return {...fallback,status:"PARTIAL",error:e instanceof Error?e.message:String(e)}}
-}
+async function leagueCompetitionIntelligence(m:any,stats:any[]){const league=String(m?.league||m?.competition||"").trim();const text=league.toLowerCase();const tier=/champions league|premier league|la liga|serie a|bundesliga|ligue 1|eredivisie|primeira liga/i.test(text)?88:/championship|segunda|serie b|2\. bundesliga|ligue 2/i.test(text)?68:55;const competitionLevel=/cup|trophy|playoff|final|semi-final|quarter-final/i.test(text)?82:tier;const importance=/final|semi-final|quarter-final|playoff|relegation|promotion/i.test(text)?92:Math.max(45,competitionLevel*.72);const h=stats.find((x:any)=>norm(x.team_name)===norm(m.home_team)),a=stats.find((x:any)=>norm(x.team_name)===norm(m.away_team));const pressure=(s:any)=>{if(!s)return 50;const n=Number(s.wins||0)+Number(s.losses||0)+Number(s.draws||0);return n?Math.max(0,Math.min(100,50+((Number(s.wins||0)*3+Number(s.draws||0))/(n*3)-.5)*55)):50};const hp=pressure(h),ap=pressure(a),edge=(hp-ap)*.004;return{status:"LOCAL_ONLY",league,competition_type:null,league_strength:tier,competition_level:competitionLevel,match_importance:importance,table_pressure:{home:Math.round(hp),away:Math.round(ap),available:Boolean(h&&a)},pressure_edge:Number(edge.toFixed(3)),competition_edge:Number(((competitionLevel-50)*.001+edge).toFixed(3)),confidence:h&&a?55:35,method:"local_competition_context_v1"}}
 
 function preScore(m:any,stats:any[],w:any,advanced:any=null,homeAway:any=null,gameState:any=null,momentum:any=null,lineup:any=null,manager:any=null,leagueCompetition:any=null,referee:any=null){const h=stats.find(x=>norm(x.team_name)===norm(m.home_team)),a=stats.find(x=>norm(x.team_name)===norm(m.away_team));const hf=Number(h?.wins||0)-Number(h?.losses||0),af=Number(a?.wins||0)-Number(a?.losses||0),hg=Number(h?.goals_for||0)-Number(h?.goals_against||0),ag=Number(a?.goals_for||0)-Number(a?.goals_against||0),hx=Number(h?.xg_for||0)-Number(h?.xg_against||0),ax=Number(a?.xg_for||0)-Number(a?.xg_against||0);const advHome=Number(advanced?.home?.score),advAway=Number(advanced?.away?.score);const strengthEdge=Number.isFinite(advHome)&&Number.isFinite(advAway)?(advHome-advAway)*.035:0;const haHome=Number(homeAway?.home?.score),haAway=Number(homeAway?.away?.score);const homeAwayEdge=Number.isFinite(haHome)&&Number.isFinite(haAway)?(haHome-haAway)*.025:0;const gameStateEdge=Number(gameState?.state_edge)||0;const momHome=Number(momentum?.home?.score),momAway=Number(momentum?.away?.score);const momentumEdge=Number.isFinite(momHome)&&Number.isFinite(momAway)?(momHome-momAway)*.02:0;const lineupEdge=Number(lineup?.lineup_edge)||0;const managerEdge=Number(manager?.tactical_matchup_edge)||0;const competitionEdge=Number(leagueCompetition?.competition_edge)||0;const refereeEdge=Number(referee?.environment_edge)||0;const edge=.35*(hf-af)+.08*(hg-ag)+.12*(hx-ax)+strengthEdge+homeAwayEdge+gameStateEdge+momentumEdge+lineupEdge+managerEdge+competitionEdge+refereeEdge+.35;const ww=w&&typeof w.home==="number"&&typeof w.draw==="number"&&typeof w.away==="number"?w:{home:1,draw:.1,away:-1};const p=softmax([edge*ww.home,Math.abs(edge)*Math.max(0,ww.draw),(-edge)*Math.abs(ww.away)]);const selected=p[0]>=p[2]&&p[0]>=p[1]?"1":p[2]>=p[1]?"2":"X";const confidence=Math.max(...p);const engineScore=Math.max(0,Math.min(100,50+Math.abs(edge)*18+Math.max(...p)*35));return {p,selected,confidence,score:engineScore,engineScore,features:{hf,af,hg,ag,hx,ax},weights:ww,home_away_edge:homeAwayEdge,game_state_edge:gameStateEdge,momentum_edge:momentumEdge,lineup_edge:lineupEdge,manager_tactical_edge:managerEdge,competition_edge:competitionEdge,referee_environment_edge:refereeEdge}}
 
@@ -529,407 +357,8 @@ const API_TIMEOUT=9000;
 const env=(name:string,fallback="")=>Deno.env.get(name)||fallback;
 async function jsonFetch(url:string,init:RequestInit={},timeout=API_TIMEOUT){const ac=new AbortController();const t=setTimeout(()=>ac.abort(),timeout);try{const r=await fetch(url,{...init,signal:ac.signal});const text=await r.text();let data:any=null;try{data=text?JSON.parse(text):null}catch{}if(!r.ok)throw new Error(data?.message||data?.errors?.[0]?.message||("HTTP "+r.status));return{data,headers:r.headers}}finally{clearTimeout(t)}}
 const apiDate=(d:Date)=>d.toISOString().slice(0,10);
-async function sportmonksDataProbe(base:string,token:string,from:string){
-  let to=from;
-  for(let i=0;i<6;i++)to=nextOsloDate(to);
-  const errors:any[]=[];
-  try{
-    const schedule=(await jsonFetch(base+"/fixtures/between/"+from+"/"+to+"?api_token="+encodeURIComponent(token)+"&include=participants;scores;league;state&timezone=Europe%2FOslo&per_page=20",{headers:{accept:"application/json"}},12000)).data;
-    const fixtures=Array.isArray(schedule?.data)?schedule.data:[];
-    const sample=fixtures[0];
-    if(!sample?.id)return{status:"NO_SAMPLE_FIXTURE",window:{from,to},fixtures_in_window:fixtures.length,available:{fixtures:fixtures.length>0}};
-    const fixtureId=encodeURIComponent(String(sample.id));
-    const requestInclude=async(include:string)=>{
-      try{
-        const data=(await jsonFetch(base+"/fixtures/"+fixtureId+"?api_token="+encodeURIComponent(token)+"&include="+include+"&timezone=Europe%2FOslo",{headers:{accept:"application/json"}},12000)).data?.data||{};
-        return{data};
-      }catch(e){
-        const message=e instanceof Error?e.message:String(e);
-        errors.push({include,error:message});
-        return{data:{},error:message};
-      }
-    };
-    const statsR=await requestInclude("statistics.type");
-    const xgR=await requestInclude("xgfixture.type");
-    const lineupsR=await requestInclude("lineups.player");
-    const sidelinedR=await requestInclude("sidelined");
-    const expectedR=await requestInclude("expectedLineups");
-    const predictionsR=await requestInclude("predictions.type");
+async function xgMonitor(targetDate=""){const target=/^\d{4}-\d{2}-\d{2}$/.test(String(targetDate))?String(targetDate):osloDate(new Date());return{status:"NO_SHOT_EVENT_SOURCE",model:{name:"TradeMindMZ xG Engine",version:"xG-v1.1-event",method:"Proprietary empirical shot-type model; no provider xG is consumed",coordinate_free:true,training_window_days:90,history_matches_per_team:5,features:["shot outcome","shot subtype/body part","penalty","free kick"],note:"The model logic is retained, but football-data.org does not expose the shot-level events needed to calculate this model. xG is intentionally not fabricated."},target_window:{from:target,to:dateShift(target,1)},fixtures_found:0,fixtures:[],calibration:{},teams:[],diagnostics:{history_fixtures:0,event_fixtures:0,event_shots:0,event_errors:0},endpoint_errors:[],audited_at:new Date().toISOString()}}
 
-    const statistics=Array.isArray(statsR.data.statistics)?statsR.data.statistics:[];
-    const xg=Array.isArray(xgR.data.xgfixture)?xgR.data.xgfixture:[];
-    const lineups=Array.isArray(lineupsR.data.lineups)?lineupsR.data.lineups:[];
-    const sidelined=Array.isArray(sidelinedR.data.sidelined)?sidelinedR.data.sidelined:[];
-    const expectedLineups=Array.isArray(expectedR.data.expectedLineups)?expectedR.data.expectedLineups:[];
-    const predictions=Array.isArray(predictionsR.data.predictions)?predictionsR.data.predictions:[];
-    const xgRows=xg.filter((x:any)=>Number.isFinite(Number(x?.data?.value)));
-    const hasError=(r:any)=>Boolean(r?.error);
-    return{
-      status:"OK",
-      window:{from,to},
-      fixtures_in_window:fixtures.length,
-      sample_fixture_id:sample.id,
-      sample_match:sample.name||null,
-      coverage:{
-        participants:Array.isArray(sample.participants)?sample.participants.length:0,
-        scores:Array.isArray(sample.scores)?sample.scores.length:0,
-        statistics:statistics.length,
-        xg:xgRows.length,
-        lineups:lineups.length,
-        sidelined:sidelined.length,
-        expected_lineups:expectedLineups.length,
-        predictions:predictions.length
-      },
-      available:{
-        fixtures:true,
-        statistics:statistics.length>0&&!hasError(statsR),
-        xg:xgRows.length>0&&!hasError(xgR),
-        lineups:lineups.length>0&&!hasError(lineupsR),
-        injuries_or_sidelined:sidelined.length>0&&!hasError(sidelinedR),
-        expected_lineups:expectedLineups.length>0&&!hasError(expectedR),
-        predictions:predictions.length>0&&!hasError(predictionsR)
-      },
-      endpoint_errors:errors
-    };
-  }catch(e){
-    return{status:"ERROR",window:{from,to},error:e instanceof Error?e.message:String(e)};
-  }
-}
-
-function dateShift(date:string,days:number){const d=new Date(date+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+days);return apiDate(d)}
-function entityName(v:any){return String(v?.developer_name||v?.name||v?.code||"").toUpperCase()}
-function eventIsShot(e:any){const t=entityName(e?.type);return /GOAL|MISSED_SHOT|SAVED_SHOT|BLOCKED_SHOT/.test(t)&&!/OWN_GOAL/.test(t)}
-function shotCategory(e:any){const text=(entityName(e?.sub_type)+" "+String(e?.info||"")).toLowerCase();if(text.includes("penalty"))return"penalty";if(text.includes("header"))return"header";if(text.includes("free kick")||text.includes("free-kick"))return"free_kick";if(text.includes("left foot")||text.includes("right foot")||text.includes("foot"))return"foot";return"other"}
-function shotIsGoal(e:any){return entityName(e?.type)==="GOAL"}
-function betaRate(category:string,shots:number,goals:number){const prior:{[k:string]:[number,number]}={penalty:[.79,12],header:[.08,24],free_kick:[.05,16],foot:[.10,36],other:[.08,24]};const [mean,strength]=prior[category]||prior.other;return (goals+mean*strength)/(shots+strength)}
-async function xgMonitor(targetDate=""){
-  const token=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");
-  if(!token)return{status:"ERROR",error:"SPORTMONKS_API_TOKEN mangler"};
-  const base=env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football");
-  const leagueIds=new Set([271,1659,501,513]);
-  let resolvedTarget=String(targetDate||"").trim();
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(resolvedTarget)){
-    const today=osloDate(new Date());
-    const horizon=dateShift(today,14);
-    try{
-      const upcoming=(await jsonFetch(base+"/fixtures/between/"+today+"/"+horizon+"?api_token="+encodeURIComponent(token)+"&include=participants;league;state&timezone=Europe%2FOslo&per_page=100",{headers:{accept:"application/json"}},15000)).data;
-      const candidates=(Array.isArray(upcoming?.data)?upcoming.data:[])
-        .filter((f:any)=>leagueIds.has(Number(f?.league?.id))&&!VOID.has(String(f?.state?.developer_name||f?.state?.name||"").toLowerCase()))
-        .sort((a:any,b:any)=>new Date(a.starting_at).getTime()-new Date(b.starting_at).getTime());
-      resolvedTarget=candidates[0]?.starting_at?osloDate(new Date(candidates[0].starting_at)):today;
-    }catch{
-      resolvedTarget=today;
-    }
-  }
-  const windowEnd=dateShift(resolvedTarget,1);
-  try{
-    const upcoming=(await jsonFetch(base+"/fixtures/between/"+resolvedTarget+"/"+windowEnd+"?api_token="+encodeURIComponent(token)+"&include=participants;league;state&timezone=Europe%2FOslo&per_page=50",{headers:{accept:"application/json"}},15000)).data;
-    const fixtures=(Array.isArray(upcoming?.data)?upcoming.data:[]).filter((f:any)=>leagueIds.has(Number(f?.league?.id)));
-    const teamIds=new Set<number>();
-    for(const f of fixtures)for(const p of Array.isArray(f.participants)?f.participants:[])if(p?.id)teamIds.add(Number(p.id));
-
-    const historyStart=dateShift(resolvedTarget,-90);
-    const historyEnd=dateShift(resolvedTarget,-1);
-    const historyResponse=(await jsonFetch(base+"/fixtures/between/"+historyStart+"/"+historyEnd+"?api_token="+encodeURIComponent(token)+"&include=participants;league;state&timezone=Europe%2FOslo&per_page=100",{headers:{accept:"application/json"}},15000)).data;
-    const historyFixtures=(Array.isArray(historyResponse?.data)?historyResponse.data:[])
-      .filter((f:any)=>leagueIds.has(Number(f?.league?.id))&&!VOID.has(String(f?.state?.developer_name||f?.state?.name||"").toLowerCase()))
-      .filter((f:any)=>(Array.isArray(f.participants)?f.participants:[]).some((p:any)=>teamIds.has(Number(p?.id))));
-    const byTeam=new Map<number,any[]>();
-    for(const teamId of teamIds)byTeam.set(teamId,historyFixtures.filter((f:any)=>(Array.isArray(f.participants)?f.participants:[]).some((p:any)=>Number(p?.id)===teamId)).sort((a:any,b:any)=>new Date(b.starting_at).getTime()-new Date(a.starting_at).getTime()).slice(0,5));
-    const selectedIds=Array.from(new Set(Array.from(byTeam.values()).flat().map((f:any)=>Number(f.id)).filter(Boolean)));
-    const eventFixtures:any[]=[];
-    const endpointErrors:any[]=[];
-    for(let i=0;i<selectedIds.length;i+=50){
-      const ids=selectedIds.slice(i,i+50).join(",");
-      try{
-        const j=(await jsonFetch(base+"/fixtures/multi/"+ids+"?api_token="+encodeURIComponent(token)+"&include=participants;league;state;events.type;events.subType&timezone=Europe%2FOslo",{headers:{accept:"application/json"}},15000)).data;
-        eventFixtures.push(...(Array.isArray(j?.data)?j.data:[]));
-      }catch(e){endpointErrors.push({include:"fixtures/multi/events.subType",error:e instanceof Error?e.message:String(e)});}
-    }
-    const fixtureMap=new Map(eventFixtures.map((f:any)=>[Number(f.id),f]));
-    const teams=new Map<number,any>();
-    for(const f of fixtures)for(const p of Array.isArray(f.participants)?f.participants:[])if(p?.id)teams.set(Number(p.id),{id:Number(p.id),name:p.name,league_id:Number(f.league?.id||0)});
-    const rawTeamHistory=new Map<number,any[]>();
-    const uniqueShots=new Map<string,any>();
-    const shotKey=(fixtureId:any,e:any)=>{
-      const eventId=e?.id??e?.event_id;
-      if(eventId!=null)return String(fixtureId)+":event:"+String(eventId);
-      return String(fixtureId)+":fallback:"+[
-        e?.participant_id??"",
-        e?.minute??"",
-        e?.extra_minute??"",
-        entityName(e?.type),
-        entityName(e?.sub_type),
-        String(e?.info||"")
-      ].join("|");
-    };
-    for(const [teamId,rows] of byTeam){
-      const parsed=rows.map((f:any)=>{
-        const full=fixtureMap.get(Number(f.id))||f;
-        const participants=Array.isArray(full.participants)?full.participants:Array.isArray(f.participants)?f.participants:[];
-        const home=participants.find((p:any)=>p.meta?.location==="home"||p.location==="home")||participants[0];
-        const away=participants.find((p:any)=>p.meta?.location==="away"||p.location==="away")||participants[1];
-        const eventRows=Array.isArray(full?.events)?full.events:(Array.isArray(full?.events?.data)?full.events.data:[]);
-        const shots=eventRows.filter(eventIsShot);
-        for(const e of shots)uniqueShots.set(shotKey(full.id,e),{...e,category:shotCategory(e)});
-        return{fixture_id:full.id,starting_at:full.starting_at,home_team:home?.name,away_team:away?.name,home_id:Number(home?.id||0),away_id:Number(away?.id||0),shots,event_count:eventRows.length};
-      });
-      rawTeamHistory.set(teamId,parsed);
-    }
-    const allShots=Array.from(uniqueShots.values());
-    const calibration:any={};
-    for(const c of ["penalty","header","free_kick","foot","other"]){
-      const rows=allShots.filter(x=>x.category===c);const goals=rows.filter(x=>shotIsGoal(x)).length;
-      calibration[c]={shots:rows.length,goals,rate:Number(betaRate(c,rows.length,goals).toFixed(4))};
-    }
-    const teamMetrics=new Map<number,any>();
-    for(const [teamId,parsed] of rawTeamHistory){
-      const matches=parsed.map((f:any)=>{
-        let xgFor=0,xgAgainst=0,shotsFor=0,shotsAgainst=0;
-        for(const e of f.shots){const xg=calibration[shotCategory(e)]?.rate??.08;if(Number(e.participant_id)===teamId){xgFor+=xg;shotsFor++}else{xgAgainst+=xg;shotsAgainst++}}
-        return{fixture_id:f.fixture_id,date:f.starting_at,opponent:Number(f.home_id)===teamId?f.away_team:f.home_team,shots_for:shotsFor,shots_against:shotsAgainst,xg_for:Number(xgFor.toFixed(3)),xg_against:Number(xgAgainst.toFixed(3))};
-      });
-      const n=matches.length;
-      teamMetrics.set(teamId,{team_id:teamId,team_name:teams.get(teamId)?.name||"—",matches:n,shots:matches.reduce((a:number,x:any)=>a+x.shots_for,0),xg_for:n?Number((matches.reduce((a:number,x:any)=>a+x.xg_for,0)/n).toFixed(2)):null,xg_against:n?Number((matches.reduce((a:number,x:any)=>a+x.xg_against,0)/n).toFixed(2)):null,recent:matches});
-    }
-    const monitored=fixtures.map((f:any)=>{
-      const ps=Array.isArray(f.participants)?f.participants:[];const home=ps.find((p:any)=>p.meta?.location==="home"||p.location==="home")||ps[0];const away=ps.find((p:any)=>p.meta?.location==="away"||p.location==="away")||ps[1];
-      const hm=teamMetrics.get(Number(home?.id));const am=teamMetrics.get(Number(away?.id));
-      const homeXg=hm?.xg_for!=null&&am?.xg_against!=null?Number(((hm.xg_for+am.xg_against)/2*1.05).toFixed(2)):null;
-      const awayXg=am?.xg_for!=null&&hm?.xg_against!=null?Number(((am.xg_for+hm.xg_against)/2*.95).toFixed(2)):null;
-      const samples=(hm?.shots||0)+(am?.shots||0);const quality=samples>=30?"GOOD":samples>=15?"BUILDING":"LIMITED";
-      return{fixture_id:f.id,league:f.league?.name||"—",kickoff_at:f.starting_at,home_team:home?.name||"—",away_team:away?.name||"—",home:{xg:homeXg,attack_xg:hm?.xg_for??null,defense_xga:hm?.xg_against??null,matches:hm?.matches||0,shots:hm?.shots||0},away:{xg:awayXg,attack_xg:am?.xg_for??null,defense_xga:am?.xg_against??null,matches:am?.matches||0,shots:am?.shots||0},total_xg:homeXg!=null&&awayXg!=null?Number((homeXg+awayXg).toFixed(2)):null,data_quality:quality};
-    });
-    return{status:"OK",model:{name:"TradeMindMZ xG Engine",version:"xG-v1.1-event",method:"Empirical shot-type model without provider xG add-on",coordinate_free:true,training_window_days:90,history_matches_per_team:5,features:["shot outcome","shot subtype/body part","penalty","free kick"],note:"Uses Sportmonks event data only. No Sportmonks xG values are used."},target_window:{from:resolvedTarget,to:windowEnd},fixtures_found:monitored.length,fixtures:monitored,calibration,teams:Array.from(teamMetrics.values()),diagnostics:{history_fixtures:historyFixtures.length,event_fixtures:eventFixtures.length,event_shots:allShots.length,event_errors:endpointErrors.length},endpoint_errors:endpointErrors,audited_at:new Date().toISOString()};
-  }catch(e){return{status:"ERROR",target_window:{from:targetDate,to:windowEnd},error:e instanceof Error?e.message:String(e)}}
-}
-
-function liveSignalIntelligence(ctx:any){
-  const minute=Math.max(0,Number(ctx?.minute)||0),shots=Math.max(0,Number(ctx?.shots)||0),goals=Math.max(0,Number(ctx?.goals)||0),reds=Math.max(0,Number(ctx?.red_cards)||0);
-  const pre=ctx?.pre_prob||null, live=ctx?.live_prob||null;
-  const lp=live?normalize3(live):null, pp=pre?normalize3(pre):null;
-  const agreement=lp&&pp?1-(Math.abs(lp[0]-pp[0])+Math.abs(lp[1]-pp[1])+Math.abs(lp[2]-pp[2]))/2:null;
-  const momentum=lp&&pp?((lp[0]-pp[0])-(lp[2]-pp[2]))*100:null;
-  const activity=Math.min(100,shots*4+goals*15+reds*20);
-  const lateFactor=minute>=75?1.15:minute>=60?1.05:1;
-  const confidence=lp?Math.max(...lp)*100:33;
-  const intelligenceScore=Math.max(0,Math.min(100,confidence*.45+(agreement==null?50:agreement*100)*.25+Math.min(100,activity)*.15+Math.min(100,Math.abs(momentum??0)*2)*.15));
-  let regime="STABLE";
-  if(reds>0)regime="VOLATILE";
-  else if(Math.abs(momentum??0)>=12)regime="SHIFTING";
-  else if(activity>=45)regime="ACTIVE";
-  const direction=momentum==null?"NEUTRAL":momentum>=6?"HOME":momentum<=-6?"AWAY":"NEUTRAL";
-  return{score:Math.round(intelligenceScore),regime,direction,momentum:momentum==null?null:Number(momentum.toFixed(1)),agreement:agreement==null?null:Number((agreement*100).toFixed(1)),activity:Math.round(activity*lateFactor),confidence:Math.round(confidence),signals:{score_state:true,pre_match_comparison:Boolean(pp),event_activity:shots>0||goals>0,red_card_alert:reds>0}};
-}
-function liveRiskGate(value:any,minute:any,redCards:any,shots:any){
-  const min=Math.max(0,Number(minute)||0),reds=Math.max(0,Number(redCards)||0),shotCount=Math.max(0,Number(shots)||0);
-  const reasons:string[]=[];
-  if(min>=85)reasons.push("LATE_MATCH");
-  if(reds>0)reasons.push("RED_CARD_VOLATILITY");
-  if(value?.best?.edge_percent!=null&&Number(value.best.edge_percent)>18)reasons.push("EDGE_OUTLIER");
-  if(value?.best?.expected_value_percent!=null&&Number(value.best.expected_value_percent)<1)reasons.push("EV_TOO_LOW");
-  if(value?.best?.model_probability!=null&&Number(value.best.model_probability)<.58)reasons.push("LOW_MODEL_PROBABILITY");
-  if(shotCount===0)reasons.push("LOW_EVENT_SAMPLE");
-  const riskScore=Math.min(100,(min>=85?35:0)+(reds>0?30:0)+(Number(value?.best?.edge_percent)>18?20:0)+(shotCount===0?15:0));
-  const risk=riskScore>=60?"HIGH":riskScore>=30?"MEDIUM":"LOW";
-  const blocked=reasons.includes("LATE_MATCH")||reasons.includes("RED_CARD_VOLATILITY")||reasons.includes("EV_TOO_LOW")||reasons.includes("LOW_MODEL_PROBABILITY");
-  const decision=blocked?"NO BET":value?.smart_decision||"NO BET";
-  return{risk,risk_score:riskScore,blocked,reasons,decision};
-}
-function liveDecisionEngine(ctx:any){
-  const intelligence=Number(ctx?.intelligence?.score)||0;
-  const riskScore=Number(ctx?.risk?.risk_score)||0;
-  const risk=String(ctx?.risk?.risk||"HIGH");
-  const valueSignal=String(ctx?.value?.value_signal||"NO BET");
-  const edge=Number(ctx?.value?.best?.edge_percent)||0;
-  const ev=Number(ctx?.value?.best?.expected_value_percent)||0;
-  const confidence=Number(ctx?.live_probability?.confidence)||0;
-  const reasons:string[]=[];
-  let score=Math.max(0,Math.min(100,intelligence*.35+confidence*.25+Math.max(0,Math.min(100,50+edge*2))*.25+Math.max(0,Math.min(100,50+ev*5))*.15-riskScore*.25));
-  if(valueSignal==="VALUE")score+=5;
-  if(valueSignal==="NO BET")reasons.push("NO_VALUE_SIGNAL");
-  if(risk==="HIGH")reasons.push("HIGH_RISK");
-  else if(risk==="MEDIUM")reasons.push("MEDIUM_RISK");
-  if(intelligence<60)reasons.push("LOW_INTELLIGENCE");
-  if(confidence<58)reasons.push("LOW_CONFIDENCE");
-  if(edge<1||ev<1)reasons.push("WEAK_EDGE_EV");
-  const decision=(risk==="HIGH"||valueSignal==="NO BET"||intelligence<60||confidence<58||edge<1||ev<1)?"NO BET":(valueSignal==="VALUE"&&score>=72)?"BET":(score>=62)?"LEAN":"NO BET";
-  const strength=score>=78?"STRONG":score>=68?"GOOD":score>=58?"WATCH":"WEAK";
-  return{score:Math.round(score),decision,strength,reasons,gate_passed:decision!=="NO BET",components:{intelligence:Math.round(intelligence),confidence:Math.round(confidence),edge:Number(edge.toFixed(1)),ev:Number(ev.toFixed(1)),risk:Math.round(riskScore)}};
-}
-function liveMarketValue(probabilities:any,odds:any,context:any={}){
-  const p={home:Number(probabilities?.home),draw:Number(probabilities?.draw),away:Number(probabilities?.away)};
-  const o={home:Number(odds?.home),draw:Number(odds?.draw),away:Number(odds?.away)};
-  const keys=["home","draw","away"].filter(k=>Number.isFinite(p[k])&&Number.isFinite(o[k])&&o[k]>1);
-  if(keys.length<2)return{status:"NO_MARKET",reason:"Insufficient live 1X2 odds",value_signal:"NO MARKET",smart_decision:"NO BET",risk:liveRiskGate(null,context.minute,context.red_cards,context.shots)};
-  const raw=keys.map(k=>1/o[k]);const sum=raw.reduce((a,b)=>a+b,0);
-  const fair:any={};for(const k of keys)fair[k]=raw[keys.indexOf(k)]/sum;
-  const rows=keys.map(k=>({selection:k==="home"?"1":k==="draw"?"X":"2",odds:o[k],model_probability:p[k],fair_probability:fair[k],edge_percent:(p[k]-fair[k])*100,expected_value_percent:(p[k]*o[k]-1)*100}));
-  rows.sort((a,b)=>b.edge_percent-a.edge_percent);
-  const best=rows[0];
-  const signal=best.expected_value_percent>=3&&best.edge_percent>=3?"VALUE":best.expected_value_percent>=1&&best.edge_percent>=1?"LEAN":"NO BET";
-  const base={status:"OK",best,rows,overround_percent:(sum-1)*100,value_signal:signal,smart_decision:signal==="VALUE"?"BET":signal==="LEAN"?"LEAN":"NO BET"};
-  const risk=liveRiskGate(base,context.minute,context.red_cards,context.shots);
-  return{...base,risk,smart_decision:risk.decision,value_signal:risk.blocked?"NO BET":signal};
-}
-function liveOutcomeProbabilities(homeScore:number,awayScore:number,minute:number,homeXg:any,awayXg:any,pre:any){
-  const hs=Math.max(0,Math.floor(Number(homeScore)||0)),as=Math.max(0,Math.floor(Number(awayScore)||0));
-  const min=Math.max(0,Math.min(120,Number(minute)||0));
-  const baseH=Number(homeXg),baseA=Number(awayXg);
-  const p=normalize3(pre)||[1/3,1/3,1/3];
-  const totalXg=Number.isFinite(baseH)&&Number.isFinite(baseA)&&baseH>=0&&baseA>=0?baseH+baseA:2.5;
-  const share=Number.isFinite(baseH)&&Number.isFinite(baseA)&&baseH+baseA>0?baseH/(baseH+baseA):Math.max(.2,Math.min(.8,p[0]+p[2]*.15));
-  const elapsed=Math.min(1,min/90);
-  const remaining=Math.max(0,1-elapsed);
-  const rh=Math.max(.05,totalXg*share*remaining);
-  const ra=Math.max(.05,totalXg*(1-share)*remaining);
-  const ph=(k:number)=>poisson(rh,k),pa=(k:number)=>poisson(ra,k);
-  let home=0,draw=0,away=0;
-  for(let i=0;i<=10;i++)for(let j=0;j<=10;j++){
-    const prob=ph(i)*pa(j),fh=hs+i,fa=as+j;
-    if(fh>fa)home+=prob;else if(fh===fa)draw+=prob;else away+=prob;
-  }
-  const probs=normalize3({home,draw,away})||p;
-  const prediction=probs[0]>=probs[1]&&probs[0]>=probs[2]?"1":probs[2]>=probs[1]?"2":"X";
-  return{probabilities:{home:Number(probs[0].toFixed(4)),draw:Number(probs[1].toFixed(4)),away:Number(probs[2].toFixed(4))},prediction,confidence:Math.round(Math.max(...probs)*100),remaining_xg:{home:Number(rh.toFixed(2)),away:Number(ra.toFixed(2))},method:"live_score_state_poisson_v1"};
-}
-async function trackLiveSignal(prediction:any,ctx:any){
-  if(!prediction?.id)return{tracked:false,reason:"NO_OPEN_PREDICTION"};
-  const previous=prediction.reasoning&&typeof prediction.reasoning==="object"?prediction.reasoning:{};
-  const history=Array.isArray(previous.live_tracking)?previous.live_tracking:[];
-  const snap={
-    captured_at:new Date().toISOString(),
-    minute:Number(ctx.minute)||0,
-    score:ctx.score,
-    live_probability:ctx.live_probability?.probabilities||null,
-    live_prediction:ctx.live_probability?.prediction||null,
-    live_confidence:ctx.live_probability?.confidence??null,
-    intelligence_score:ctx.live_intelligence?.score??null,
-    momentum:ctx.live_intelligence?.momentum??null,
-    regime:ctx.live_intelligence?.regime||null,
-    edge:ctx.live_value?.best?.edge_percent??null,
-    ev:ctx.live_value?.best?.expected_value_percent??null,
-    odds:ctx.live_value?.best?.odds??null,
-    selection:ctx.live_value?.best?.selection??null,
-    value_signal:ctx.live_value?.value_signal||"NO MARKET",
-    risk:ctx.live_risk?.risk||null,
-    risk_score:ctx.live_risk?.risk_score??null,
-    decision:ctx.live_decision?.decision||"NO BET",
-    decision_score:ctx.live_decision?.score??null
-  };
-  const last=history[history.length-1];
-  if(last&&last.minute===snap.minute&&last.score?.home===snap.score?.home&&last.score?.away===snap.score?.away&&last.decision===snap.decision)return{tracked:true,duplicate:true,samples:history.length};
-  const next=[...history,snap].slice(-180);
-  const reasoning={...previous,live_tracking:next,live_tracking_version:"v5.7"};
-  const q=await sb.from("football_ai_predictions").update({reasoning}).eq("id",prediction.id);
-  if(q.error)return{tracked:false,error:q.error.message,samples:history.length};
-  return{tracked:true,duplicate:false,samples:next.length};
-}
-async function liveAlertEngine(ctx:any){
-  const decision=String(ctx?.decision?.decision||"NO BET");
-  const strength=String(ctx?.decision?.strength||"WEAK");
-  const score=Number(ctx?.decision?.score)||0;
-  const intelligence=Number(ctx?.intelligence?.score)||0;
-  const confidence=Number(ctx?.probability?.confidence)||0;
-  const valueSignal=String(ctx?.value?.value_signal||"NO MARKET");
-  const edge=Number(ctx?.value?.best?.edge_percent)||0;
-  const ev=Number(ctx?.value?.best?.expected_value_percent)||0;
-  const risk=String(ctx?.risk?.risk||"HIGH");
-  const minute=Number(ctx?.minute)||0;
-  const reasons:string[]=[];
-  if(decision==="BET"&&strength!=="WEAK"&&score>=72&&intelligence>=60&&confidence>=58&&valueSignal==="VALUE"&&edge>=3&&ev>=3&&risk!=="HIGH"){
-    return{status:"LIVE_OPPORTUNITY",active:true,level:"HIGH",title:"LIVE OPPORTUNITY",score:Math.round(score),reasons:["DECISION_GATE_PASSED","VALUE_SIGNAL_ACTIVE","POSITIVE_EDGE_EV"],expires_after_minute:85};
-  }
-  if(decision==="LEAN"&&score>=62&&intelligence>=60&&confidence>=58&&valueSignal!=="NO BET"&&edge>=1&&ev>=1&&risk!=="HIGH"){
-    return{status:"WATCH",active:false,level:"MEDIUM",title:"LIVE WATCH",score:Math.round(score),reasons:["LEAN_SIGNAL","POSITIVE_VALUE","NOT_STRONG_ENOUGH_FOR_ALERT"]};
-  }
-  if(minute>=85)reasons.push("LATE_MATCH");
-  if(risk==="HIGH")reasons.push("HIGH_RISK");
-  if(valueSignal==="NO BET"||valueSignal==="NO MARKET")reasons.push("NO_VALUE_SIGNAL");
-  if(edge<1||ev<1)reasons.push("WEAK_EDGE_EV");
-  if(intelligence<60)reasons.push("LOW_INTELLIGENCE");
-  if(confidence<58)reasons.push("LOW_CONFIDENCE");
-  return{status:"SIGNAL_INVALIDATED",active:false,level:"BLOCKED",title:"SIGNAL INVALIDATED",score:Math.round(score),reasons};
-}
-async function liveSettlement(){
-  const {data:preds}=await sb.from("football_ai_predictions").select("id,match_id,prediction,reasoning,status,created_at").limit(500);
-  if(!preds?.length)return{checked:0,settled:0};
-  const ids=preds.map((x:any)=>x.match_id).filter(Boolean);
-  const {data:matches}=await sb.from("football_matches").select("id,status,home_score,away_score").in("id",ids);
-  let settled=0;
-  for(const p of preds){
-    const m=(matches||[]).find((x:any)=>x.id===p.match_id);
-    if(!m||m.home_score==null||m.away_score==null||VOID.has(String(m.status||"").toLowerCase()))continue;
-    const actual=Number(m.home_score)>Number(m.away_score)?"1":Number(m.home_score)<Number(m.away_score)?"2":"X";
-    const tracking=Array.isArray(p.reasoning?.live_tracking)?p.reasoning.live_tracking:[];
-    if(!tracking.length)continue;
-    const updates=tracking.map((s:any)=>({...s,actual_result:actual,settled_at:new Date().toISOString(),outcome:s.live_prediction===actual?"WON":"LOST"}));
-    const settledAt=new Date().toISOString();
-    const settledUpdates=updates.map((s:any)=>{const actionable=s.decision==="BET"||s.decision==="LEAN";const won=s.live_prediction===actual;const odds=Number(s.odds);return{...s,actual_result:actual,settled_at:settledAt,outcome:won?"WON":"LOST",actionable,pnl:actionable&&Number.isFinite(odds)&&odds>1?(won?odds-1:-1):0}});
-    const reasoning={...p.reasoning,live_tracking:settledUpdates,live_settled_result:actual,live_settled_at:settledAt,live_tracking_version:"v5.9"};
-    await sb.from("football_ai_predictions").update({reasoning}).eq("id",p.id);
-    settled++;
-  }
-  return{checked:preds.length,settled};
-}
-async function liveMatchEngine(){
-  const {end}=todayBounds();
-  const from=new Date(Date.now()-6*3600000).toISOString();
-  const readRecent=async()=>{const {data,error}=await sb.from("football_matches").select("id,home_team,away_team,league,kickoff_at,status,home_score,away_score").gte("kickoff_at",from).lt("kickoff_at",end.toISOString()).order("kickoff_at",{ascending:true}).limit(200);if(error)throw error;return data||[]};
-  const isLiveStatus=(value:any)=>{const s=String(value||"").trim().toUpperCase().replace(/[^A-Z0-9]+/g," ").trim();if(!s||/NOT STARTED|NOT START|NS|SCHEDULED|CANCELLED|POSTPONED|FINISHED|FULL TIME|AFTER EXTRA|AFTER PENALTIES/.test(s))return false;return new Set(["LIVE","1H","HT","2H","ET","P","BREAK","INPLAY","IN PLAY","PLAYING","FIRST HALF","1ST HALF","HALF TIME","HALFTIME","SECOND HALF","2ND HALF","EXTRA TIME","PENALTIES","LIVE 1ST HALF","LIVE 2ND HALF"]).has(s)||s.includes("LIVE")||s.includes("IN PLAY")||s.includes("FIRST HALF")||s.includes("SECOND HALF")||s.includes("HALF TIME")};
-  let matches=await readRecent();
-  let live=matches.filter((m:any)=>isLiveStatus(m.status));
-  // If the database has no live-state rows, refresh provider fixtures once before declaring the feed empty.
-  if(!live.length&&footballConfigured()){try{await syncExternalData(false);matches=await readRecent();live=matches.filter((m:any)=>isLiveStatus(m.status))}catch(e){console.error("Live fixture refresh failed",e)}}
-  if(!live.length)return{status:"NO_LIVE_MATCHES",checked:matches.length,updated_at:new Date().toISOString(),matches:[]};
-  const token=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");
-  const base=env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football");
-  const outRows:any[]=[];
-  for(const m of live){
-    let provider:any=null;let providerError=null;
-    if(token){
-      try{
-        const q=(await jsonFetch(base+"/fixtures/between/"+apiDate(new Date(m.kickoff_at))+"/"+apiDate(new Date(m.kickoff_at))+"?api_token="+encodeURIComponent(token)+"&include=participants;scores;events.type;statistics.type;league;state&timezone=Europe%2FOslo&per_page=100",{headers:{accept:"application/json"}},12000)).data;
-        provider=(Array.isArray(q?.data)?q.data:[]).find((f:any)=>String(f.id)===String(m.id)||String(f?.participants?.[0]?.name||"").toLowerCase()===String(m.home_team).toLowerCase()&&String(f?.participants?.[1]?.name||"").toLowerCase()===String(m.away_team).toLowerCase());
-      }catch(e){providerError=e instanceof Error?e.message:String(e)}
-    }
-    const {data:openPrediction}=await sb.from("football_ai_predictions").select("prediction,confidence,reasoning").eq("match_id",m.id).eq("status","OPEN").order("created_at",{ascending:false}).limit(1).maybeSingle();
-    let liveOdds:any=null;
-    if(token){
-      try{
-        const oq=(await jsonFetch(base+"/odds/live/fixtures/"+encodeURIComponent(String(provider?.id||m.id))+"?api_token="+encodeURIComponent(token)+"&include=bookmaker;market",{headers:{accept:"application/json"}},10000)).data;
-        const liveRows=Array.isArray(oq?.data)?oq.data:[];
-        const prices:any={};
-        for(const o of liveRows){
-          const desc=String(o.market_description||o.market?.name||"").toLowerCase(),label=String(o.label||o.name||"").trim().toLowerCase();
-          if(!/fulltime result|match winner|1x2/.test(desc))continue;
-          const price=Number(o.value);if(!Number.isFinite(price)||price<=1)continue;
-          const k=label==="1"||label==="home"?"home":label==="x"||label==="draw"?"draw":label==="2"||label==="away"?"away":null;
-          if(k&&!prices[k])prices[k]=price;
-        }
-        if(Object.keys(prices).length>=2)liveOdds=prices;
-      }catch(e){providerError=providerError||("Live odds: "+(e instanceof Error?e.message:String(e)))}
-    }
-    const reasoning=openPrediction?.reasoning||{};
-    const preProb=reasoning.ensemble_probabilities||null;
-    const liveXgH=reasoning.xg_home,liveXgA=reasoning.xg_away;
-    const scores=Array.isArray(provider?.scores)?provider.scores:[];const current=scores.find((s:any)=>String(s.description||s.type?.code||"").toUpperCase()==="CURRENT")||scores[0];
-    const homeScore=current?.score?.goals??m.home_score??0;const awayScore=scores.find((s:any)=>s.participant_id===provider?.participants?.find((p:any)=>p.meta?.location==="away")?.id)?.score?.goals??m.away_score??0;
-    const events=Array.isArray(provider?.events)?provider.events:[];const stats=Array.isArray(provider?.statistics)?provider.statistics:[];
-    const minute=events.reduce((max:number,e:any)=>Math.max(max,Number(e.minute||e.minute_extra||0)),0);
-    const goals=events.filter((e:any)=>/GOAL/i.test(String(e.type?.name||e.type?.developer_name||e.type||""))).length;
-    const reds=events.filter((e:any)=>/RED/i.test(String(e.type?.name||e.type?.developer_name||e.type||""))).length;
-    const shots=events.filter((e:any)=>/SHOT/i.test(String(e.type?.name||e.type?.developer_name||e.type||""))).length;
-    const liveProb=liveOutcomeProbabilities(Number(homeScore)||0,Number(awayScore)||0,minute,liveXgH,liveXgA,preProb);
-    const liveIntelligence=liveSignalIntelligence({minute,shots,goals,red_cards:reds,pre_prob:preProb,live_prob:liveProb.probabilities});
-    const liveValue=liveMarketValue(liveProb.probabilities,liveOdds,{minute,red_cards:reds,shots});
-    const liveDecision=liveDecisionEngine({intelligence:liveIntelligence,risk:liveValue?.risk,value:liveValue,live_probability:liveProb});
-    const liveAlert=liveAlertEngine({decision:liveDecision,intelligence:liveIntelligence,risk:liveValue?.risk,value:liveValue,probability:liveProb,minute});
-    const liveTracking=await trackLiveSignal(openPrediction,{minute,score:{home:Number(homeScore)||0,away:Number(awayScore)||0},live_probability:liveProb,live_intelligence:liveIntelligence,live_value:liveValue,live_risk:liveValue?.risk,live_decision:liveDecision});
-    outRows.push({match_id:m.id,home_team:m.home_team,away_team:m.away_team,league:m.league,kickoff_at:m.kickoff_at,status:provider?.state?.developer_name||m.status,minute,score:{home:Number(homeScore)||0,away:Number(awayScore)||0},events:{goals,red_cards:reds,shots},statistics:stats.length,provider_ok:Boolean(provider),provider_error:providerError,live_probability:liveProb,live_intelligence:liveIntelligence,live_odds:liveOdds,live_value:liveValue,live_risk:liveValue?.risk||null,live_decision:liveDecision,live_tracking:liveTracking,live_alert:liveAlert,pre_match_prediction:openPrediction?.prediction||null});
-  }
-  return{status:"OK",live_matches:outRows.length,updated_at:new Date().toISOString(),matches:outRows};
-}
 async function footballDataTest(){
   const key=env("football_API_KEY")||env("FOOTBALL_DATA_API_KEY");
   if(!key)return{configured:false,provider:"football-data.org",error:"Missing secret football_API_KEY (or FOOTBALL_DATA_API_KEY)"};
@@ -944,62 +373,38 @@ async function footballDataTest(){
   }catch(e){return{configured:true,provider:"football-data.org",ok:false,error:e instanceof Error?e.message:String(e),from:fromDate,to:toDate}}
 }
 async function syncFootball(lightweight=false){
-  const sportmonks=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");
-  const provider=env("FOOTBALL_PROVIDER","auto").toLowerCase();
-  if((provider==="sportmonks"||provider==="auto")&&sportmonks){
-    const base=env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football");
-    const {date:today}=todayBounds();const from=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d-14,12,0,0)))})();const to=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d+7,12,0,0)))})();
-    let page=1,fixtures:any[]=[];
-    try{
-      for(let i=0;i<20;i++){
-        const j=(await jsonFetch(base+"/fixtures/between/"+from+"/"+to+"?api_token="+encodeURIComponent(sportmonks)+"&include=participants;scores;league;state&timezone=Europe%2FOslo&per_page=50&page="+page,{headers:{accept:"application/json"}},12000)).data;
-        const rows=Array.isArray(j?.data)?j.data:[];
-        fixtures.push(...rows);
-        if(!j?.pagination?.has_more||!rows.length)break;
-        page++;
-      }
-    }catch(e){
-      return{configured:true,provider:"sportmonks",synced:0,error:e instanceof Error?e.message:String(e)};
-    }
-    let synced=0,failed=0;
-    for(const f of fixtures){
-      const participants=Array.isArray(f.participants)?f.participants:[];
-      const home=participants.find((p:any)=>p.meta?.location==="home"||p.location==="home")||participants[0];
-      const away=participants.find((p:any)=>p.meta?.location==="away"||p.location==="away")||participants[1];
-      const scores=Array.isArray(f.scores)?f.scores:[];
-      const scoreCode=(s:any)=>String(s.description||s.type?.code||s.type?.name||"").toUpperCase().replace(/[^A-Z0-9]+/g,"_");
-      const scoreFor=(participant:any,side:"home"|"away")=>{const own=scores.filter((s:any)=>String(s.participant_id??"")===String(participant?.id??"")||String(s.score?.participant||"").toLowerCase()===side);const preferred=own.find((s:any)=>["CURRENT","FULLTIME","FULL_TIME","FT","FULL_TIME_SCORE"].includes(scoreCode(s)));const selected=preferred||own[0];const value=selected?.score?.goals;return value===null||value===undefined||value===""?null:Number.isFinite(Number(value))?Number(value):null};
-      const homeScore=scoreFor(home,"home"),awayScore=scoreFor(away,"away");
-      const stateRaw=String(f.state?.short_name||f.state?.developer_name||f.state?.name||"NS").trim();
-      const stateUpper=stateRaw.toUpperCase().replace(/[^A-Z0-9]+/g," ").trim();
-      // Sportmonks fixture responses expose state_id at the fixture level; the nested state include may be absent.
-      const stateId=Number(f.state_id??f.state?.id??f.state?.state_id);
-      const finalState=new Set(["FT","AET","PEN","FT PEN","FT AET","FINISHED","MATCH FINISHED","FULL TIME","AFTER EXTRA TIME","AFTER PENALTIES","FINISHED AFTER EXTRA TIME","FINISHED AFTER PENALTIES"]).has(stateUpper)||stateUpper.includes("FINISHED")||[5,7,8].includes(stateId);
-      const canonicalStatus=finalState?(stateId===8||stateUpper.includes("PEN")?"FT_PEN":stateId===7||stateUpper==="AET"||stateUpper.includes("EXTRA")?"AET":"FT"):stateRaw;
-      const leagueName=String(f.league?.name||"");
-      const row={home_team:home?.name,away_team:away?.name,league:"Europe · "+leagueName,kickoff_at:f.starting_at,status:canonicalStatus,home_score:homeScore,away_score:awayScore};
-      if(!row.home_team||!row.away_team||!row.kickoff_at)continue;
-      const fixtureTime=new Date(row.kickoff_at).getTime();const matchWindowStart=new Date(fixtureTime-36*60*60*1000).toISOString(),matchWindowEnd=new Date(fixtureTime+36*60*60*1000).toISOString();const {data:existingRows}=await sb.from("football_matches").select("id,home_team,away_team,kickoff_at").eq("home_team",row.home_team).eq("away_team",row.away_team).gte("kickoff_at",matchWindowStart).lte("kickoff_at",matchWindowEnd).limit(20);
-      const existing=(existingRows||[]).sort((a:any,b:any)=>Math.abs(new Date(a.kickoff_at).getTime()-new Date(row.kickoff_at).getTime())-Math.abs(new Date(b.kickoff_at).getTime()-new Date(row.kickoff_at).getTime()))[0]; let q:any;
-      if(existing?.id)q=await sb.from("football_matches").update(row).eq("id",existing.id);else q=await sb.from("football_matches").insert(row);
-      if(q.error)failed++;else synced++;
-    }
-    if(lightweight)return{configured:true,provider:"sportmonks",synced,stats_synced:0,failed,total:fixtures.length,from,to,pages:page,diagnostics_skipped:true};
-    const {data:recent}=await sb.from("football_matches").select("home_team,away_team,status,home_score,away_score").gte("kickoff_at",new Date(Date.now()-30*86400000).toISOString()).not("home_score","is",null).limit(3000);
-    const agg=new Map<string,any>();
-    for(const m of recent||[]){const hs=Number(m.home_score),as=Number(m.away_score);for(const side of ["home","away"]){const team=side==="home"?m.home_team:m.away_team;if(!team)continue;const gf=side==="home"?hs:as,ga=side==="home"?as:hs;const x=agg.get(norm(team))||{team_name:team,wins:0,losses:0,draws:0,goals_for:0,goals_against:0,xg_for:0,xg_against:0};x.goals_for+=gf;x.goals_against+=ga;if(gf>ga)x.wins++;else if(gf<ga)x.losses++;else x.draws++;agg.set(norm(team),x)}}
-    let statsSynced=0;for(const x of agg.values()){const {data:old}=await sb.from("football_team_stats").select("id").eq("team_name",x.team_name).limit(1).maybeSingle();const q=old?.id?await sb.from("football_team_stats").update(x).eq("id",old.id):await sb.from("football_team_stats").insert(x);if(!q.error)statsSynced++}
-    const data_intake=await sportmonksDataProbe(base,sportmonks,today);return{configured:true,provider:"sportmonks",synced,stats_synced:statsSynced,failed,total:fixtures.length,from,to,pages:page,data_intake};
+  const key=env("football_API_KEY")||env("FOOTBALL_DATA_API_KEY");
+  if(!key)return{configured:false,provider:"football-data.org",synced:0,error:"Missing football_API_KEY secret"};
+  const {date:today}=todayBounds();
+  const from=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d-14,12,0,0)))})();
+  const to=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d+7,12,0,0)))})();
+  let fixtures:any[];
+  try{
+    const payload=(await jsonFetch("https://api.football-data.org/v4/matches?dateFrom="+from+"&dateTo="+to,{headers:{"X-Auth-Token":key,"accept":"application/json"},},15000)).data;
+    if(payload?.errorCode||payload?.message&&!Array.isArray(payload?.matches))return{configured:true,provider:"football-data.org",synced:0,error:String(payload.message||payload.error||"Provider error"),from,to};
+    fixtures=Array.isArray(payload?.matches)?payload.matches:[];
+  }catch(e){return{configured:true,provider:"football-data.org",synced:0,error:e instanceof Error?e.message:String(e),from,to}}
+  const allowedCodes=new Set(["PL","PD","SA","BL1","FL1","CL","DED","PPL","ELC","BSA","EL","ECL"]);
+  const allowedNames=/premier league|la liga|serie a|bundesliga|ligue 1|champions league|eredivisie|primeira liga|championship|europa league|conference league/i;
+  fixtures=fixtures.filter((f:any)=>allowedCodes.has(String(f?.competition?.code||"").toUpperCase())||allowedNames.test(String(f?.competition?.name||"")));
+  let synced=0,failed=0;
+  for(const f of fixtures){
+    const statusMap:any={FINISHED:"FT",IN_PLAY:"IN_PLAY",PAUSED:"PAUSED",SCHEDULED:"NS",TIMED:"NS",POSTPONED:"POSTPONED",CANCELLED:"CANCELLED",SUSPENDED:"SUSPENDED",AWARDED:"FT"};
+    const row={home_team:String(f.homeTeam?.name||"").trim(),away_team:String(f.awayTeam?.name||"").trim(),league:"Europe · "+String(f.competition?.name||f.competition?.code||"Unknown"),kickoff_at:f.utcDate,status:statusMap[String(f.status||"").toUpperCase()]||String(f.status||"NS"),home_score:f.score?.fullTime?.home??null,away_score:f.score?.fullTime?.away??null};
+    if(!row.home_team||!row.away_team||!row.kickoff_at||!Number.isFinite(new Date(row.kickoff_at).getTime()))continue;
+    const kickoffMs=new Date(row.kickoff_at).getTime(),lo=new Date(kickoffMs-36*3600000).toISOString(),hi=new Date(kickoffMs+36*3600000).toISOString();
+    const {data:existingRows}=await sb.from("football_matches").select("id,home_team,away_team,kickoff_at").eq("home_team",row.home_team).eq("away_team",row.away_team).gte("kickoff_at",lo).lte("kickoff_at",hi).limit(20);
+    const existing=(existingRows||[]).sort((a:any,b:any)=>Math.abs(new Date(a.kickoff_at).getTime()-kickoffMs)-Math.abs(new Date(b.kickoff_at).getTime()-kickoffMs))[0];
+    const q=existing?.id?await sb.from("football_matches").update(row).eq("id",existing.id):await sb.from("football_matches").insert(row);
+    if(q.error)failed++;else synced++;
   }
-  const key=env("FOOTBALL_API_KEY"),base=env("FOOTBALL_API_BASE_URL","https://v3.football.api-sports.io");
-  if(!key)return{configured:false,synced:0,error:"No football provider token configured"};
-  const {date:today}=todayBounds();const fromDate=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d-1,12,0,0)))})();const toDate=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d+7,12,0,0)))})();let payload:any;
-  try{payload=(await jsonFetch(base+"/fixtures?from="+fromDate+"&to="+toDate+"&timezone=Europe%2FOslo",{headers:{"x-apisports-key":key,"accept":"application/json"}})).data}catch(e){return{configured:true,provider:"api-football",synced:0,error:e instanceof Error?e.message:String(e)}}
-  if(payload?.errors&&Object.keys(payload.errors).length)return{configured:true,provider:"api-football",synced:0,error:JSON.stringify(payload.errors)};
-  const fixtures=Array.isArray(payload?.response)?payload.response:[];let synced=0,failed=0;
-  for(const f of fixtures){const row={home_team:f.teams?.home?.name,away_team:f.teams?.away?.name,league:String(f.league?.country||"")+" · "+String(f.league?.name||""),kickoff_at:f.fixture?.date,status:f.fixture?.status?.short,home_score:f.goals?.home,away_score:f.goals?.away};if(!row.home_team||!row.away_team||!european(row))continue;const fixtureTime=new Date(row.kickoff_at).getTime();const matchWindowStart=new Date(fixtureTime-36*60*60*1000).toISOString(),matchWindowEnd=new Date(fixtureTime+36*60*60*1000).toISOString();const {data:existingRows}=await sb.from("football_matches").select("id,home_team,away_team,kickoff_at").eq("home_team",row.home_team).eq("away_team",row.away_team).gte("kickoff_at",matchWindowStart).lte("kickoff_at",matchWindowEnd).limit(20);const existing=(existingRows||[]).sort((a:any,b:any)=>Math.abs(new Date(a.kickoff_at).getTime()-new Date(row.kickoff_at).getTime())-Math.abs(new Date(b.kickoff_at).getTime()-new Date(row.kickoff_at).getTime()))[0];let q:any;if(existing?.id)q=await sb.from("football_matches").update(row).eq("id",existing.id);else q=await sb.from("football_matches").insert(row);if(q.error)failed++;else synced++}
-  const {data:recent}=await sb.from("football_matches").select("home_team,away_team,status,home_score,away_score").gte("kickoff_at",new Date(Date.now()-30*86400000).toISOString()).not("home_score","is",null).limit(3000);const agg=new Map<string,any>();for(const m of recent||[]){const hs=Number(m.home_score),as=Number(m.away_score);for(const side of ["home","away"]){const team=side==="home"?m.home_team:m.away_team;if(!team)continue;const gf=side==="home"?hs:as,ga=side==="home"?as:hs;const x=agg.get(norm(team))||{team_name:team,wins:0,losses:0,draws:0,goals_for:0,goals_against:0,xg_for:0,xg_against:0};x.goals_for+=gf;x.goals_against+=ga;if(gf>ga)x.wins++;else if(gf<ga)x.losses++;else x.draws++;agg.set(norm(team),x)}}let statsSynced=0;for(const x of agg.values()){const {data:old}=await sb.from("football_team_stats").select("id").eq("team_name",x.team_name).limit(1).maybeSingle();const q=old?.id?await sb.from("football_team_stats").update(x).eq("id",old.id):await sb.from("football_team_stats").insert(x);if(!q.error)statsSynced++}return{configured:true,provider:"api-football",synced,stats_synced:statsSynced,failed,total:fixtures.length,from:apiDate(from),to:apiDate(to),data_intake:{status:"LEGACY_PROVIDER",note:"Phase 1 probe is implemented for Sportmonks; API-Football remains fallback."}};
+  const {data:recent}=await sb.from("football_matches").select("home_team,away_team,status,home_score,away_score").gte("kickoff_at",new Date(Date.now()-30*86400000).toISOString()).not("home_score","is",null).limit(3000);
+  const agg=new Map<string,any>();
+  for(const m of recent||[]){const hs=Number(m.home_score),as=Number(m.away_score);if(!Number.isFinite(hs)||!Number.isFinite(as))continue;for(const side of ["home","away"]){const team=side==="home"?m.home_team:m.away_team;if(!team)continue;const gf=side==="home"?hs:as,ga=side==="home"?as:hs;const x=agg.get(norm(team))||{team_name:team,wins:0,losses:0,draws:0,goals_for:0,goals_against:0,xg_for:0,xg_against:0};x.goals_for+=gf;x.goals_against+=ga;if(gf>ga)x.wins++;else if(gf<ga)x.losses++;else x.draws++;agg.set(norm(team),x)}}
+  let statsSynced=0;for(const x of agg.values()){const {data:old}=await sb.from("football_team_stats").select("id").eq("team_name",x.team_name).limit(1).maybeSingle();const q=old?.id?await sb.from("football_team_stats").update(x).eq("id",old.id):await sb.from("football_team_stats").insert(x);if(!q.error)statsSynced++}
+  return{configured:true,provider:"football-data.org",synced,stats_synced:statsSynced,failed,total:fixtures.length,from,to,diagnostics_skipped:lightweight,note:"Fixtures/results only. football-data.org does not provide the shot-event xG inputs or bookmaker odds used by those modules."};
 }
+
 function normalizeOddsMarket(market:string,selection:string,total:any){
   const m=String(market||"").toLowerCase(),s=String(selection||"").trim().toLowerCase(),t=Number(total);
   if(/fulltime result|match winner/.test(m)&&/^(1|x|2|home|draw|away)$/.test(s))return{market:"h2h",selection:s==="home"?"1":s==="draw"?"X":s==="away"?"2":s};
@@ -1015,124 +420,20 @@ async function persistOdd(row:any){
   const {data:oldOdds}=await sb.from("football_odds").select("id").eq("match_id",row.match_id).eq("market",row.market).eq("selection",row.selection).eq("bookmaker",row.bookmaker).limit(1).maybeSingle();
   return oldOdds?.id?await sb.from("football_odds").update(row).eq("id",oldOdds.id):await sb.from("football_odds").insert(row);
 }
-async function syncOdds(){
-  const sportmonks=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");
-  const footballKey=env("FOOTBALL_API_KEY");
-  const {date:today,start}=todayBounds();const endDate=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d+8,12,0,0)))})();const end=osloMidnight(endDate);
-  const {data:matches}=await sb.from("football_matches").select("id,home_team,away_team,kickoff_at").gte("kickoff_at",start.toISOString()).lt("kickoff_at",end.toISOString()).limit(1500);
-  const list=matches||[];
-  if(sportmonks){
-    const base=env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football");
-    let fixtures:any[]=[];let page=1;
-    try{
-      for(let i=0;i<20;i++){
-        const to=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d+7,12,0,0)))})();const j=(await jsonFetch(base+"/fixtures/between/"+today+"/"+to+"?api_token="+encodeURIComponent(sportmonks)+"&include=participants;league;state&timezone=Europe%2FOslo&per_page=50&page="+page,{headers:{accept:"application/json"}},12000)).data;
-        const rows=Array.isArray(j?.data)?j.data:[];
-        fixtures.push(...rows);
-        if(!j?.pagination?.has_more||!rows.length)break;
-        page++;
-      }
-    }catch(e){return{configured:true,provider:"sportmonks",synced:0,error:e instanceof Error?e.message:String(e)}}
-    let synced=0,failed=0,events=0,fixturesMatched=0,markets={h2h:0,double_chance:0,btts:0,ou_2_5:0};
-    for(const f of fixtures){
-      const participants=Array.isArray(f.participants)?f.participants:[];
-      const home=participants.find((p:any)=>p.meta?.location==="home"||p.location==="home")||participants[0];
-      const away=participants.find((p:any)=>p.meta?.location==="away"||p.location==="away")||participants[1];
-      const kickoff=f.starting_at;
-      if(!home?.name||!away?.name||!kickoff)continue;
-      const match=list.find((m:any)=>norm(m.home_team)===norm(home.name)&&norm(m.away_team)===norm(away.name)&&Math.abs(new Date(m.kickoff_at).getTime()-new Date(kickoff).getTime())<4*3600000);
-      if(!match)continue;
-      fixturesMatched++;
-      let payload:any;
-      try{payload=(await jsonFetch(base+"/odds/pre-match/fixtures/"+encodeURIComponent(String(f.id))+"?api_token="+encodeURIComponent(sportmonks)+"&include=bookmaker;market",{headers:{accept:"application/json"}},12000)).data}catch{continue}
-      for(const o of (Array.isArray(payload?.data)?payload.data:[])){
-        events++;
-        const normalized=normalizeOddsMarket(String(o.market_description||o.market?.name||""),String(o.label||o.name||""),o.total);
-        if(!normalized)continue;
-        const price=Number(o.value);if(!Number.isFinite(price)||price<=1)continue;
-        const row={match_id:match.id,market:normalized.market,selection:normalized.selection,odds:price,bookmaker:String(o.bookmaker?.name||o.bookmaker_id||"Sportmonks"),captured_at:o.latest_bookmaker_update||o.updated_at||new Date().toISOString()};
-        const q=await persistOdd(row);
-        if(q.error)failed++;else{synced++;markets[normalized.market as keyof typeof markets]++}
-      }
-    }
-    return{configured:true,provider:"sportmonks",synced,failed,events,fixtures:fixturesMatched,total_fixtures:fixtures.length,pages:page,markets};
-  }
-  if(footballKey){
-    const base=env("FOOTBALL_API_BASE_URL","https://v3.football.api-sports.io");
-    let fixtures:any[]=[];
-    try{
-      const payload=(await jsonFetch(base+"/fixtures?from="+today+"&to="+(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d+7,12,0,0)))})()+"&timezone=Europe%2FOslo",{headers:{"x-apisports-key":footballKey,accept:"application/json"}},12000)).data;
-      fixtures=Array.isArray(payload?.response)?payload.response:[];
-    }catch(e){return{configured:true,provider:"api-football",synced:0,error:e instanceof Error?e.message:String(e)}}
-    let synced=0,failed=0,events=0,fixturesMatched=0,markets={h2h:0,double_chance:0,btts:0,ou_2_5:0};
-    for(const f of fixtures){
-      const home=f.teams?.home?.name,away=f.teams?.away?.name,kickoff=f.fixture?.date;
-      if(!home||!away||!kickoff||!european({home_team:home,away_team:away,league:String(f.league?.country||"")+" · "+String(f.league?.name||"")}))continue;
-      const match=list.find((m:any)=>norm(m.home_team)===norm(home)&&norm(m.away_team)===norm(away)&&Math.abs(new Date(m.kickoff_at).getTime()-new Date(kickoff).getTime())<4*3600000);
-      if(!match)continue;
-      fixturesMatched++;
-      let payload:any;
-      try{payload=(await jsonFetch(base+"/odds?fixture="+encodeURIComponent(String(f.fixture?.id)),{headers:{"x-apisports-key":footballKey,accept:"application/json"}},12000)).data}catch{continue}
-      const bookmakers=Array.isArray(payload?.response?.[0]?.bookmakers)?payload.response[0].bookmakers:[];
-      for(const bm of bookmakers)for(const market of (bm.bets||[])){
-        for(const o of (market.values||[])){
-          const normalized=normalizeOddsMarket(String(market.name||""),String(o.value||""),null);
-          if(!normalized)continue;
-          const price=Number(o.odd);if(!Number.isFinite(price)||price<=1)continue;
-          events++;
-          const row={match_id:match.id,market:normalized.market,selection:normalized.selection,odds:price,bookmaker:String(bm.name||bm.id||"API-Football"),captured_at:new Date().toISOString()};
-          const q=await persistOdd(row);
-          if(q.error)failed++;else{synced++;markets[normalized.market as keyof typeof markets]++}
-        }
-      }
-    }
-    return{configured:true,provider:"api-football",synced,failed,events,fixtures:fixturesMatched,total_fixtures:fixtures.length,markets};
-  }
-  return{configured:false,synced:0,error:"No football provider token configured for odds"};
-}
-const footballConfigured=()=>Boolean(env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY")||env("FOOTBALL_API_KEY"));
-const oddsConfigured=()=>Boolean(env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY")||env("FOOTBALL_API_KEY"));
-async function dataIntakeAudit(){
-  const {date:today,start,end}=todayBounds();
-  const sportmonks=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");
-  const {count:matchCount}=await sb.from("football_matches").select("*",{count:"exact",head:true});
-  const {count:oddsCount}=await sb.from("football_odds").select("*",{count:"exact",head:true});
-  const {count:statsCount}=await sb.from("football_team_stats").select("*",{count:"exact",head:true});
-  const {count:todayMatchCount}=await sb.from("football_matches").select("*",{count:"exact",head:true}).gte("kickoff_at",start.toISOString()).lt("kickoff_at",end.toISOString());
-  const {count:todayOddsCount}=await sb.from("football_odds").select("*",{count:"exact",head:true}).gte("captured_at",start.toISOString()).lt("captured_at",end.toISOString());
-  let provider_probe:any;
-  if(sportmonks){
-    provider_probe=await sportmonksDataProbe(env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football"),sportmonks,today);
-  }else{
-    provider_probe={status:"NO_PROVIDER",error:"No Sportmonks token configured for Phase 1 probe"};
-  }
-  return{
-    date:today,
-    stored_matches:matchCount||0,
-    team_stats:statsCount||0,
-    today_matches:todayMatchCount||0,
-    today_odds:todayOddsCount||0,
-    provider_probe,
-    ready:{
-      fixtures:Boolean(provider_probe?.available?.fixtures),
-      form_stats:(statsCount||0)>0,
-      odds:(oddsCount||0)>0
-    },
-    audited_at:new Date().toISOString()
-  };
-}
+async function syncOdds(){return{configured:false,provider:"football-data.org",synced:0,failed:0,skipped:true,note:"football-data.org does not provide bookmaker odds. No substitute odds source is configured; stale stored odds are not refreshed."}}
+
+const footballConfigured=()=>Boolean(env("football_API_KEY")||env("FOOTBALL_DATA_API_KEY"));
+const oddsConfigured=()=>false;
+
+async function dataIntakeAudit(){const {date:today,start,end}=todayBounds();const {count:matchCount}=await sb.from("football_matches").select("*",{count:"exact",head:true});const {count:oddsCount}=await sb.from("football_odds").select("*",{count:"exact",head:true});const {count:statsCount}=await sb.from("football_team_stats").select("*",{count:"exact",head:true});const {count:todayMatchCount}=await sb.from("football_matches").select("*",{count:"exact",head:true}).gte("kickoff_at",start.toISOString()).lt("kickoff_at",end.toISOString());const {count:todayOddsCount}=await sb.from("football_odds").select("*",{count:"exact",head:true}).gte("captured_at",start.toISOString()).lt("captured_at",end.toISOString());const key=env("football_API_KEY")||env("FOOTBALL_DATA_API_KEY");let provider_probe:any={status:key?"CONFIGURED":"NO_PROVIDER",provider:"football-data.org",available:{fixtures:Boolean(key)},coverage:{statistics:0,odds:0},note:"football-data.org supplies fixtures and scores; detailed shot events and bookmaker odds are not supplied by this integration."};if(key){const test=await footballDataTest();provider_probe={...provider_probe,status:test.ok?"OK":"ERROR",error:test.error||null,fixtures_in_window:test.total||0,competitions:test.competitions||[]}}return{date:today,stored_matches:matchCount||0,team_stats:statsCount||0,today_matches:todayMatchCount||0,today_odds:todayOddsCount||0,provider_probe,ready:{fixtures:Boolean(provider_probe?.available?.fixtures),form_stats:(statsCount||0)>0,odds:false},audited_at:new Date().toISOString()}}
+
 async function syncExternalData(force=false){const now=Date.now();const football=force||now-lastFootballSync>10*60*1000?await syncFootball():{configured:footballConfigured(),skipped:true};if(football.configured&&!football.error)lastFootballSync=now;const odds=force||now-lastOddsSync>30*60*1000?await syncOdds():{configured:oddsConfigured(),skipped:true};if(odds.configured&&!odds.error)lastOddsSync=now;const {count:matchCount}=await sb.from("football_matches").select("*",{count:"exact",head:true});const {count:oddsCount}=await sb.from("football_odds").select("*",{count:"exact",head:true});const {count:statsCount}=await sb.from("football_team_stats").select("*",{count:"exact",head:true});const {date:today,start,end}=todayBounds();const {count:todayMatchCount}=await sb.from("football_matches").select("*",{count:"exact",head:true}).gte("kickoff_at",start.toISOString()).lt("kickoff_at",end.toISOString());const {count:todayOddsCount}=await sb.from("football_odds").select("*",{count:"exact",head:true}).gte("captured_at",start.toISOString()).lt("captured_at",end.toISOString());return{football,odds,database:{football_matches:matchCount||0,football_odds:oddsCount||0,football_team_stats:statsCount||0},data_intake:{date:today,stored_matches:matchCount||0,team_stats:statsCount||0,today_matches:todayMatchCount||0,today_odds:todayOddsCount||0,provider_probe:football?.data_intake||null,ready:{fixtures:Boolean((football as any)?.configured&&!((football as any)?.error)),form_stats:(statsCount||0)>0,odds:(todayOddsCount||0)>0}},synced_at:new Date().toISOString()}}
-async function connectivity(){const {count:matchCount,error:matchError}=await sb.from("football_matches").select("*",{count:"exact",head:true});const {count:oddsCount,error:oddsError}=await sb.from("football_odds").select("*",{count:"exact",head:true});const {count:statsCount,error:statsError}=await sb.from("football_team_stats").select("*",{count:"exact",head:true});const providers={football_api:footballConfigured(),odds_api:oddsConfigured(),groq:Boolean(env("GROQ_API_KEY")),openai:Boolean(env("OPENAI_API_KEY"))};const dbError=matchError||oddsError||statsError;const aiAvailable=providers.groq||providers.openai;const status=dbError?"DEGRADED":providers.football_api&&providers.odds_api&&aiAvailable?"HEALTHY":"DEGRADED";return{status,providers,database:{football_matches:matchCount||0,football_odds:oddsCount||0,football_team_stats:statsCount||0,status:dbError?"DEGRADED":"HEALTHY"},provider_status:{football_api:providers.football_api?"CONFIGURED":"OFFLINE",odds_api:providers.odds_api?"CONFIGURED":"OFFLINE",groq:providers.groq?"CONFIGURED":"OFFLINE",openai:providers.openai?"CONFIGURED":"OFFLINE"},updated_at:new Date().toISOString()}}
-async function diagnostics(){const checkedAt=new Date().toISOString();const result:any={checked_at:checkedAt,providers:{},database:{},sync:{football_last_ok:lastFootballSync?new Date(lastFootballSync).toISOString():null,odds_last_ok:lastOddsSync?new Date(lastOddsSync).toISOString():null}};
-const db=await sb.from("football_matches").select("*",{count:"exact",head:true});const od=await sb.from("football_odds").select("*",{count:"exact",head:true});const st=await sb.from("football_team_stats").select("*",{count:"exact",head:true});
-result.database={football_matches:db.count||0,football_odds:od.count||0,football_team_stats:st.count||0,status:db.error||od.error||st.error?"DEGRADED":"HEALTHY"};
-const sportmonks=env("SPORTMONKS_API_TOKEN")||env("SPORT_API_KEY");if(sportmonks){try{const {date:today}=todayBounds();await jsonFetch(env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football")+"/fixtures/between/"+today+"/"+today+"?api_token="+encodeURIComponent(sportmonks)+"&timezone=Europe%2FOslo&per_page=1",{headers:{accept:"application/json"}},9000);result.providers.football_api={status:"CONNECTED",provider:"Sportmonks",detail:"Fixtures endpoint OK · auth + plan access confirmed"}}catch(e){result.providers.football_api={status:"ERROR",provider:"Sportmonks",detail:e instanceof Error?e.message:String(e)}}}else if(env("FOOTBALL_API_KEY")){try{await jsonFetch(env("FOOTBALL_API_BASE_URL","https://v3.football.api-sports.io")+"/status",{headers:{"x-apisports-key":env("FOOTBALL_API_KEY"),accept:"application/json"}},9000);result.providers.football_api={status:"CONNECTED",provider:"API-Football",detail:"Live API handshake OK"}}catch(e){result.providers.football_api={status:"ERROR",provider:"API-Football",detail:e instanceof Error?e.message:String(e)}}}else result.providers.football_api={status:"OFFLINE",provider:"—",detail:"Ingen football API-secret"};
-if(sportmonks){try{await jsonFetch(env("SPORTMONKS_API_BASE_URL","https://api.sportmonks.com/v3/football")+"/odds/pre-match?api_token="+encodeURIComponent(sportmonks)+"&per_page=1",{headers:{accept:"application/json"}},9000);result.providers.odds_api={status:"CONNECTED",provider:"Sportmonks Odds",detail:"Pre-match odds endpoint OK · Odds add-on access confirmed"}}catch(e){result.providers.odds_api={status:"ERROR",provider:"Sportmonks Odds",detail:e instanceof Error?e.message:String(e)}}}else if(env("FOOTBALL_API_KEY")){try{await jsonFetch(env("FOOTBALL_API_BASE_URL","https://v3.football.api-sports.io")+"/status",{headers:{"x-apisports-key":env("FOOTBALL_API_KEY"),accept:"application/json"}},9000);result.providers.odds_api={status:"CONNECTED",provider:"API-Football Odds",detail:"Football API auth OK · odds provider fallback active"}}catch(e){result.providers.odds_api={status:"ERROR",provider:"API-Football Odds",detail:e instanceof Error?e.message:String(e)}}}else result.providers.odds_api={status:"OFFLINE",provider:"—",detail:"Ingen football provider-secret"};
-if(env("GROQ_API_KEY")){try{await jsonFetch("https://api.groq.com/openai/v1/models",{headers:{authorization:"Bearer "+env("GROQ_API_KEY")},},9000);result.providers.groq={status:"CONNECTED",provider:"Groq",detail:"Auth handshake OK"}}catch(e){result.providers.groq={status:"ERROR",provider:"Groq",detail:e instanceof Error?e.message:String(e)}}}else result.providers.groq={status:"OFFLINE",provider:"—",detail:"GROQ_API_KEY mangler"};
-if(env("OPENAI_API_KEY")){try{await jsonFetch("https://api.openai.com/v1/models",{headers:{authorization:"Bearer "+env("OPENAI_API_KEY")}},9000);result.providers.openai={status:"CONNECTED",provider:"OpenAI",detail:"Auth handshake OK"}}catch(e){result.providers.openai={status:"ERROR",provider:"OpenAI",detail:e instanceof Error?e.message:String(e)}}}else result.providers.openai={status:"OFFLINE",provider:"—",detail:"OPENAI_API_KEY mangler"};
-const providerStatuses=Object.values(result.providers).map((x:any)=>x?.status);const providerErrors=providerStatuses.filter((x:any)=>x==="ERROR"||x==="OFFLINE").length;const databaseDegraded=result.database?.status!=="HEALTHY";const aiReady=result.providers.groq?.status==="CONNECTED"||result.providers.openai?.status==="CONNECTED";const dataReady=result.providers.football_api?.status==="CONNECTED"&&result.providers.odds_api?.status==="CONNECTED";result.status=databaseDegraded||providerErrors||!aiReady||!dataReady?"DEGRADED":"HEALTHY";return result}
+async function connectivity(){const {count:matchCount,error:matchError}=await sb.from("football_matches").select("*",{count:"exact",head:true});const {count:oddsCount,error:oddsError}=await sb.from("football_odds").select("*",{count:"exact",head:true});const {count:statsCount,error:statsError}=await sb.from("football_team_stats").select("*",{count:"exact",head:true});const key=env("football_API_KEY")||env("FOOTBALL_DATA_API_KEY");const providers={football_api:key,odds_api:false,groq:Boolean(env("GROQ_API_KEY")),openai:Boolean(env("OPENAI_API_KEY"))};const dbError=matchError||oddsError||statsError;const aiAvailable=providers.groq||providers.openai;return{status:dbError?"DEGRADED":providers.football_api&&aiAvailable?"HEALTHY":"DEGRADED",providers,database:{football_matches:matchCount||0,football_odds:oddsCount||0,football_team_stats:statsCount||0,status:dbError?"DEGRADED":"HEALTHY"},provider_status:{football_api:key?"CONFIGURED":"OFFLINE",odds_api:"UNAVAILABLE",groq:providers.groq?"CONFIGURED":"OFFLINE",openai:providers.openai?"CONFIGURED":"OFFLINE"},updated_at:new Date().toISOString()}}
+
+async function diagnostics(){const checked_at=new Date().toISOString();const db=await sb.from("football_matches").select("*",{count:"exact",head:true});const od=await sb.from("football_odds").select("*",{count:"exact",head:true});const st=await sb.from("football_team_stats").select("*",{count:"exact",head:true});const key=env("football_API_KEY")||env("FOOTBALL_DATA_API_KEY");const result:any={checked_at,providers:{football_api:{status:key?"CONFIGURED":"OFFLINE",provider:"football-data.org",detail:key?"API secret is configured":"football_API_KEY secret missing"},odds_api:{status:"UNAVAILABLE",provider:"—",detail:"football-data.org does not provide bookmaker odds"},groq:{status:env("GROQ_API_KEY")?"CONFIGURED":"OFFLINE",provider:"Groq"},openai:{status:env("OPENAI_API_KEY")?"CONFIGURED":"OFFLINE",provider:"OpenAI"}},database:{football_matches:db.count||0,football_odds:od.count||0,football_team_stats:st.count||0,status:db.error||od.error||st.error?"DEGRADED":"HEALTHY"},sync:{football_last_ok:lastFootballSync?new Date(lastFootballSync).toISOString():null,odds_last_ok:null}};const aiReady=result.providers.groq.status==="CONFIGURED"||result.providers.openai.status==="CONFIGURED";result.status=result.database.status==="HEALTHY"&&key&&aiReady?"HEALTHY":"DEGRADED";return result}
+
 function marketValue(prediction:string,oddsRows:any[]){const wanted=String(prediction||"").toUpperCase();const rows=(oddsRows||[]).filter((x:any)=>String(x.selection||"").toUpperCase()===wanted&&Number(x.odds)>1);if(!rows.length)return null;return rows.reduce((a:any,b:any)=>Number(b.odds)>Number(a.odds)?b:a)}
-async function top6(force=false){const {date:today,start,end}=todayBounds();const batchId="day-"+today;const {data:cached,error:cachedError}=force?{data:[],error:null}:await sb.from("football_ai_predictions").select("id,match_id,prediction,selected_outcome,confidence,odds,value_percent,provider,model,status,reasoning,created_at").order("created_at",{ascending:false}).limit(500);if(cachedError)throw cachedError;const cachedBatch=(cached||[]).filter((p:any)=>String(p?.reasoning?.batch_id||"")===batchId).slice(0,6);const cacheReady=cachedBatch.length>0&&cachedBatch.every((x:any)=>Number.isFinite(Number(x?.reasoning?.engine_score))&&Number.isFinite(Number(x?.reasoning?.final_score))&&String(x?.reasoning?.engine_prediction||"").length>0&&String(x?.reasoning?.ensemble_prediction||"").length>0);if(cachedBatch.length){const ids=cachedBatch.map((x:any)=>x.match_id).filter(Boolean);const {data:cachedMatches}=ids.length?await sb.from("football_matches").select("*").in("id",ids):{data:[]};const matches=new Map((cachedMatches||[]).map((m:any)=>[m.id,m]));const seenCached=new Set<string>();const nowMs=Date.now();const liveStates=new Set(["live","inplay","in_play","1st half","2nd half","half time","halftime","extra time","penalties","playing","in progress","in_progress","delayed","interrupted"]);const uniqueCached=cachedBatch.filter((p:any)=>{const m=matches.get(p.match_id);if(!m||!m.kickoff_at)return false;const status=String(m.status||"").toLowerCase().replace(/[-_]+/g," ");const kickoffMs=new Date(m.kickoff_at).getTime();if(!Number.isFinite(kickoffMs)||kickoffMs<=nowMs||VOID.has(status)||liveStates.has(status))return false;const key=[norm(m.home_team),norm(m.away_team),String(m.kickoff_at).slice(0,10)].join("|");if(seenCached.has(key))return false;seenCached.add(key);return true});const cachedNearKickoff=uniqueCached.some((p:any)=>{const m=matches.get(p.match_id);const kickoffMs=m?new Date(m.kickoff_at).getTime():NaN;return Number.isFinite(kickoffMs)&&kickoffMs-Date.now()<=3*60*60*1000});const cachedRowsDropped=uniqueCached.length<cachedBatch.length;if(uniqueCached.length&&(cacheReady||!force)&&!cachedNearKickoff&&!cachedRowsDropped){return{matches_scanned:uniqueCached.length,top6:uniqueCached.map((p:any)=>{const m=matches.get(p.match_id);if(!m)return null;const conf=Number(p.confidence||0),reasoning=p.reasoning||{};return{...m,ai:{prediction:p.prediction,confidence:conf,probabilities:reasoning.ensemble_probabilities||{home:0,draw:0,away:0},value_percent:p.value_percent,provider:p.provider,model:p.model},prediction:p,cached:true}}).filter(Boolean),cached:true,cache_complete:cacheReady,batch_id:batchId,scan:{date:today,reason:"CACHED_PREDICTIONS",ranked_matches:uniqueCached.length}}}}const intakeSync=await syncExternalData(false);const s=await getSettings();const syncResult:any=intakeSync;const ms=await getMatches(),history=await getHistoricalMatches(),st=await getStats(),{data:state}=await sb.from("football_ai_model_weights").select("*").eq("model_name","trademindmz-v3").maybeSingle();const nowMs=Date.now();const liveStates=new Set(["live","inplay","in_play","1st half","2nd half","half time","halftime","extra time","penalties","playing","in progress","in_progress","delayed","interrupted"]);const eligibleRaw=ms.filter((m:any)=>{const kickoff=new Date(m.kickoff_at);const status=String(m.status||"").toLowerCase().replace(/[-_]+/g," ");return Number.isFinite(kickoff.getTime())&&kickoff.getTime()>nowMs&&kickoff>=start&&kickoff<end&&!VOID.has(status)&&!liveStates.has(status)});const seenFixtures=new Set<string>();const eligible=eligibleRaw.filter((m:any)=>{const key=[norm(m.home_team),norm(m.away_team),m.kickoff_at?String(m.kickoff_at).slice(0,10):String(m.league||"")].join("|");if(seenFixtures.has(key))return false;seenFixtures.add(key);return true});const syncError=syncResult?.football?.error||syncResult?.odds?.error||null;const providerTodayMatches=Number(syncResult?.data_intake?.today_matches??syncResult?.database?.today_matches??syncResult?.today_matches??0);const scanReason=syncError?"SYNC_ERROR":eligible.length?"READY":providerTodayMatches===0&&!syncResult?.football?.skipped?"NO_PROVIDER_DATA":"NO_MATCHES_TODAY";const scan={date:today,start:start.toISOString(),end:end.toISOString(),db_today_matches:ms.length,eligible_matches:eligible.length,provider_sync:syncResult,reason:scanReason,error:syncError};if(!eligible.length)return{matches_scanned:0,top6:[],cached:false,batch_id:batchId,scan};const baseRanked=await Promise.all(eligible.map(async (m:any)=>{const advanced_strength={home:advancedTeamStrength(m.home_team,st,history),away:advancedTeamStrength(m.away_team,st,history)};const home_away={home:homeAwayIntelligence(m.home_team,"HOME",st,history),away:homeAwayIntelligence(m.away_team,"AWAY",st,history)};const game_state=gameStateModel(m,st,home_away);const momentum={home:advancedMomentum(m.home_team,st,history),away:advancedMomentum(m.away_team,st,history)};const league_competition=await leagueCompetitionIntelligence(m,st);return {...m,model:{...preScore(m,st,state?.weights,advanced_strength,home_away,game_state,momentum,null,null,league_competition),advanced_strength,home_away,game_state,momentum,league_competition}};}));const ranked=baseRanked.sort((a,b)=>b.model.score-a.model.score).slice(0,6);let xgContext:any=null;try{const xg=await xgMonitor(today);if(xg?.status==="OK")xgContext=xg}catch{}const xgByTeam=new Map<string,any>();for(const tm of xgContext?.teams||[])xgByTeam.set(norm(tm.team_name),tm);const calibration=await confidenceCalibration();const result=[];for(const m of ranked){const lineup=await lineupIntelligence(m);const tactical=tacticalIntelligence(m,lineup);const manager=await managerTacticalMatchup(m,lineup,tactical);const referee=await refereeEnvironmentIntelligence(m);const leagueCompetition=m.model.league_competition||await leagueCompetitionIntelligence(m,st);m.model={...m.model,lineup,tactical,manager,referee,league_competition:leagueCompetition};const tacticalEdge=Number(tactical?.formation_edge||0)+Number(tactical?.readiness_edge||0);const managerEdge=Number(manager?.tactical_matchup_edge||0);const refereeEdge=Number(referee?.environment_edge||0);m.model={...m.model,...preScore(m,st,state?.weights,m.model.advanced_strength,m.model.home_away,m.model.game_state,m.model.momentum,lineup,manager,leagueCompetition,referee)};m.model.tactical_edge=Number(tacticalEdge.toFixed(3));m.model.manager_tactical_edge=Number(managerEdge.toFixed(3));m.model.referee_environment_edge=Number(refereeEdge.toFixed(3));m.model.engineScore=Math.max(0,Math.min(100,Number(m.model.engineScore||0)+Math.abs(tacticalEdge)*12));m.model.score=m.model.engineScore;const {data:od}=s.odds_api_enabled?await sb.from("football_odds").select("market,selection,odds,bookmaker,captured_at").eq("match_id",m.id).in("market",["h2h","double_chance","btts","ou_2_5"]).order("captured_at",{ascending:false}).limit(100):{data:[]};const ai=await deep(m,s,od||[]);
+async function top6(force=false){const {date:today,start,end}=todayBounds();const batchId="day-"+today;const {data:cached,error:cachedError}=force?{data:[],error:null}:await sb.from("football_ai_predictions").select("id,match_id,prediction,selected_outcome,confidence,odds,value_percent,provider,model,status,reasoning,created_at").order("created_at",{ascending:false}).limit(500);if(cachedError)throw cachedError;const cachedBatch=(cached||[]).filter((p:any)=>String(p?.reasoning?.batch_id||"")===batchId).slice(0,6);const cacheReady=cachedBatch.length>0&&cachedBatch.every((x:any)=>Number.isFinite(Number(x?.reasoning?.engine_score))&&Number.isFinite(Number(x?.reasoning?.final_score))&&String(x?.reasoning?.engine_prediction||"").length>0&&String(x?.reasoning?.ensemble_prediction||"").length>0);if(cachedBatch.length){const ids=cachedBatch.map((x:any)=>x.match_id).filter(Boolean);const {data:cachedMatches}=ids.length?await sb.from("football_matches").select("*").in("id",ids):{data:[]};const matches=new Map((cachedMatches||[]).map((m:any)=>[m.id,m]));const seenCached=new Set<string>();const nowMs=Date.now();const liveStates=new Set(["live","inplay","in_play","1st half","2nd half","half time","halftime","extra time","penalties","playing","in progress","in_progress","delayed","interrupted"]);const uniqueCached=cachedBatch.filter((p:any)=>{const m=matches.get(p.match_id);if(!m||!m.kickoff_at)return false;const status=String(m.status||"").toLowerCase().replace(/[-_]+/g," ");const kickoffMs=new Date(m.kickoff_at).getTime();if(!Number.isFinite(kickoffMs)||kickoffMs<=nowMs||VOID.has(status)||liveStates.has(status))return false;const key=[norm(m.home_team),norm(m.away_team),String(m.kickoff_at).slice(0,10)].join("|");if(seenCached.has(key))return false;seenCached.add(key);return true});const cachedNearKickoff=uniqueCached.some((p:any)=>{const m=matches.get(p.match_id);const kickoffMs=m?new Date(m.kickoff_at).getTime():NaN;return Number.isFinite(kickoffMs)&&kickoffMs-Date.now()<=3*60*60*1000});const cachedRowsDropped=uniqueCached.length<cachedBatch.length;if(uniqueCached.length&&(cacheReady||!force)&&!cachedNearKickoff&&!cachedRowsDropped){return{matches_scanned:uniqueCached.length,top6:uniqueCached.map((p:any)=>{const m=matches.get(p.match_id);if(!m)return null;const conf=Number(p.confidence||0),reasoning=p.reasoning||{};return{...m,ai:{prediction:p.prediction,confidence:conf,probabilities:reasoning.ensemble_probabilities||{home:0,draw:0,away:0},value_percent:p.value_percent,provider:p.provider,model:p.model},prediction:p,cached:true}}).filter(Boolean),cached:true,cache_complete:cacheReady,batch_id:batchId,scan:{date:today,reason:"CACHED_PREDICTIONS",ranked_matches:uniqueCached.length}}}}const intakeSync=await syncExternalData(false);const s=await getSettings();const syncResult:any=intakeSync;const ms=await getMatches(),history=await getHistoricalMatches(),st=await getStats(),{data:state}=await sb.from("football_ai_model_weights").select("*").eq("model_name","trademindmz-v3").maybeSingle();const nowMs=Date.now();const liveStates=new Set(["live","inplay","in_play","1st half","2nd half","half time","halftime","extra time","penalties","playing","in progress","in_progress","delayed","interrupted"]);const eligibleRaw=ms.filter((m:any)=>{const kickoff=new Date(m.kickoff_at);const status=String(m.status||"").toLowerCase().replace(/[-_]+/g," ");return Number.isFinite(kickoff.getTime())&&kickoff.getTime()>nowMs&&kickoff>=start&&kickoff<end&&!VOID.has(status)&&!liveStates.has(status)});const seenFixtures=new Set<string>();const eligible=eligibleRaw.filter((m:any)=>{const key=[norm(m.home_team),norm(m.away_team),m.kickoff_at?String(m.kickoff_at).slice(0,10):String(m.league||"")].join("|");if(seenFixtures.has(key))return false;seenFixtures.add(key);return true});const syncError=syncResult?.football?.error||syncResult?.odds?.error||null;const providerTodayMatches=Number(syncResult?.data_intake?.today_matches??syncResult?.database?.today_matches??syncResult?.today_matches??0);const scanReason=syncError?"SYNC_ERROR":eligible.length?"READY":providerTodayMatches===0&&!syncResult?.football?.skipped?"NO_PROVIDER_DATA":"NO_MATCHES_TODAY";const scan={date:today,start:start.toISOString(),end:end.toISOString(),db_today_matches:ms.length,eligible_matches:eligible.length,provider_sync:syncResult,reason:scanReason,error:syncError};if(!eligible.length)return{matches_scanned:0,top6:[],cached:false,batch_id:batchId,scan};const baseRanked=await Promise.all(eligible.map(async (m:any)=>{const advanced_strength={home:advancedTeamStrength(m.home_team,st,history),away:advancedTeamStrength(m.away_team,st,history)};const home_away={home:homeAwayIntelligence(m.home_team,"HOME",st,history),away:homeAwayIntelligence(m.away_team,"AWAY",st,history)};const game_state=gameStateModel(m,st,home_away);const momentum={home:advancedMomentum(m.home_team,st,history),away:advancedMomentum(m.away_team,st,history)};const league_competition=await leagueCompetitionIntelligence(m,st);return {...m,model:{...preScore(m,st,state?.weights,advanced_strength,home_away,game_state,momentum,null,null,league_competition),advanced_strength,home_away,game_state,momentum,league_competition}};}));const ranked=baseRanked.sort((a,b)=>b.model.score-a.model.score).slice(0,6);let xgContext:any=null;try{const xg=await xgMonitor(today);if(xg?.status==="OK")xgContext=xg}catch{}const xgByTeam=new Map<string,any>();for(const tm of xgContext?.teams||[])xgByTeam.set(norm(tm.team_name),tm);const calibration=await confidenceCalibration();const result=[];for(const m of ranked){const lineup=await lineupIntelligence(m);const tactical=tacticalIntelligence(m,lineup);const manager=await managerTacticalMatchup(m,lineup,tactical);const referee=await refereeEnvironmentIntelligence(m);const leagueCompetition=m.model.league_competition||await leagueCompetitionIntelligence(m,st);m.model={...m.model,lineup,tactical,manager,referee,league_competition:leagueCompetition};const tacticalEdge=Number(tactical?.formation_edge||0)+Number(tactical?.readiness_edge||0);const managerEdge=Number(manager?.tactical_matchup_edge||0);const refereeEdge=Number(referee?.environment_edge||0);m.model={...m.model,...preScore(m,st,state?.weights,m.model.advanced_strength,m.model.home_away,m.model.game_state,m.model.momentum,lineup,manager,leagueCompetition,referee)};m.model.tactical_edge=Number(tacticalEdge.toFixed(3));m.model.manager_tactical_edge=Number(managerEdge.toFixed(3));m.model.referee_environment_edge=Number(refereeEdge.toFixed(3));m.model.engineScore=Math.max(0,Math.min(100,Number(m.model.engineScore||0)+Math.abs(tacticalEdge)*12));m.model.score=m.model.engineScore;const {data:od}=false?await sb.from("football_odds").select("market,selection,odds,bookmaker,captured_at").eq("match_id",m.id).in("market",["h2h","double_chance","btts","ou_2_5"]).order("captured_at",{ascending:false}).limit(100):{data:[]};const ai=await deep(m,s,od||[]);
 const hm=xgByTeam.get(norm(m.home_team)),am=xgByTeam.get(norm(m.away_team));const xgHome=hm?.xg_for??null,xgAway=am?.xg_for??null;const xgProb=xg1x2Prob(xgHome,xgAway);const marketConsensus=marketConsensus1x2(od||[]);const ensemble=ensembleProbabilities(m.model,ai,marketConsensus,xgProb);const calibrated=calibratedConfidence(ensemble.confidence,calibration);ensemble.confidence=calibrated.confidence;const ensembleProb={home:ensemble.probabilities[0],draw:ensemble.probabilities[1],away:ensemble.probabilities[2]};
 const marketRows=(od||[]).filter((x:any)=>String(x.selection||"").toUpperCase()===String(ensemble.prediction||m.model.selected).toUpperCase()&&Number(x.odds)>1);const market=marketRows.length?marketRows.reduce((a:any,b:any)=>Number(b.odds)>Number(a.odds)?b:a):null;const marketOdds=market?Number(market.odds):null;const implied=marketOdds?1/marketOdds:null;const selectedProbability=ensemble.prediction==="1"?ensembleProb.home:ensemble.prediction==="X"?ensembleProb.draw:ensembleProb.away;const edge=implied!=null&&Number.isFinite(selectedProbability)?Number(((selectedProbability-implied)*100).toFixed(1)):null;const ev=marketOdds!=null&&Number.isFinite(selectedProbability)?Number(((selectedProbability*marketOdds-1)*100).toFixed(1)):null;const valueSignal=edge==null?"NO MARKET":edge>=8&&ev>=5?"VALUE":edge>=3&&ev>=1?"LEAN":"NO BET";const noBet=valueSignal==="NO BET";const xgAvailable=Number.isFinite(Number(xgHome))&&Number.isFinite(Number(xgAway));const modelMarkets=marketProbabilities(ai.probabilities?.home,ai.probabilities?.draw,ai.probabilities?.away,xgHome,xgAway);
 const marketDefinitions=[
