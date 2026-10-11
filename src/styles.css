@@ -275,3 +275,8 @@
 .dashboard-v2 .dash-signal{animation:dashSignalPulse 5s ease-in-out infinite}
 @keyframes dashSignalPulse{0%,100%{box-shadow:0 0 0 #24f0cb00}50%{box-shadow:0 0 22px #24f0cb0c}}
 @media(max-width:480px){.dashboard-v2 .dash-market-probs{padding:8px 7px}.dashboard-v2 .dash-prob-row{gap:5px}.dashboard-v2 .dash-prob{padding:6px 5px}.dashboard-v2 .dash-prob>div{gap:3px}.dashboard-v2 .dash-prob>div b{font-size:11px;min-width:28px}.dashboard-v2 .dash-extra-markets{gap:4px}.dashboard-v2 .dash-extra-markets span{padding:7px 5px}.dashboard-v2 .dash-extra-markets b{font-size:10px}}
+
+/* Clear diagnostics for empty scans and suspicious value metrics */
+.dash-scan-diagnostic{display:block;margin-top:8px;color:#f0c879;font-size:10px;line-height:1.5;overflow-wrap:anywhere}
+.value-warning{display:flex;align-items:flex-start;gap:9px;margin:10px 0;padding:11px 13px;border:1px solid #6b5527;border-radius:9px;background:linear-gradient(100deg,#2a2110,#151a1b);color:#f1d58e;font-size:11px;line-height:1.55}
+.value-warning svg{flex:0 0 auto;margin-top:1px}
