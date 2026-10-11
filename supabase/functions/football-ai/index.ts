@@ -376,8 +376,10 @@ async function syncFootball(lightweight=false){
   const key=env("football_API_KEY")||env("FOOTBALL_DATA_API_KEY");
   if(!key)return{configured:false,provider:"football-data.org",synced:0,error:"Missing football_API_KEY secret"};
   const {date:today}=todayBounds();
-  const from=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d-14,12,0,0)))})();
-  const to=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d+7,12,0,0)))})();
+  // football-data.org rejects date ranges longer than 10 days.
+  // Use a 9-calendar-day inclusive window to leave margin under the provider limit.
+  const from=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d-4,12,0,0)))})();
+  const to=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d+4,12,0,0)))})();
   let fixtures:any[];
   try{
     const payload=(await jsonFetch("https://api.football-data.org/v4/matches?dateFrom="+from+"&dateTo="+to,{headers:{"X-Auth-Token":key,"accept":"application/json"},},15000)).data;
