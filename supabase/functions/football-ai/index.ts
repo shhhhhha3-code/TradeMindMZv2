@@ -1191,7 +1191,8 @@ const finalScore=Math.round(Math.max(0,Math.min(100,engineScore*.35+ensembleScor
 async function evaluateDiagnostics(){
   const {data:ps,error:pe}=await sb.from("football_ai_predictions").select("id,match_id,prediction,status,created_at").eq("status","OPEN").order("created_at",{ascending:false}).limit(100);
   if(pe)throw pe;
-  const ids=(ps||[]).map((p:any)=>p.match_id).filter(Boolean);
+  const ids=[...new Set((ps||[]).map((p:any)=>p.match_id).filter(Boolean))];
+  const openWithMatchId=(ps||[]).filter((p:any)=>Boolean(p.match_id)).length;
   const {data:linked,error:le}=ids.length?await sb.from("football_matches").select("id,home_team,away_team,kickoff_at,status,home_score,away_score").in("id",ids):{data:[],error:null};
   if(le)throw le;
   const {date}=todayBounds();
@@ -1205,7 +1206,7 @@ async function evaluateDiagnostics(){
   const linkedFinished=(linked||[]).filter((m:any)=>isFinal(m.status)&&m.home_score!=null&&m.away_score!=null).length;
   const recentFinished=(recent||[]).filter((m:any)=>isFinal(m.status)&&m.home_score!=null&&m.away_score!=null);
   const status=pe||le||re?"ERROR":openCount===0?"OK":linkedCount<ids.length?"WARNING":"OK";
-  return {status,checked_at:new Date().toISOString(),open_predictions_sample:openCount,open_with_match_id:ids.length,open_without_match_id:openCount-ids.length,linked_match_rows:linkedCount,linked_finished_with_scores:linkedFinished,linked_rows:(linked||[]).slice(0,25),recent_matches_scanned:(recent||[]).length,recent_finished_with_scores:recentFinished.length,recent_finished_sample:recentFinished.slice(0,10),notes:openCount===0?["Ingen åpne prediksjoner i utvalget."]:linkedCount<ids.length?["Noen prediksjoner peker på kamp-ID-er som ikke ble funnet."]:[]};
+  return {status,checked_at:new Date().toISOString(),open_predictions_sample:openCount,open_with_match_id:openWithMatchId,unique_linked_match_ids:ids.length,open_without_match_id:openCount-openWithMatchId,linked_match_rows:linkedCount,linked_finished_with_scores:linkedFinished,linked_rows:(linked||[]).slice(0,25),recent_matches_scanned:(recent||[]).length,recent_finished_with_scores:recentFinished.length,recent_finished_sample:recentFinished.slice(0,10),notes:openCount===0?["Ingen åpne prediksjoner i utvalget."]:linkedCount<ids.length?["Noen prediksjoner peker på kamp-ID-er som ikke ble funnet."]:[]};
 }
 async function evaluate(){
   const {data:ps,error:predictionError}=await sb.from("football_ai_predictions").select("id,match_id,prediction,odds,reasoning").eq("status","OPEN").order("created_at",{ascending:true}).limit(500);
