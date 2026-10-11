@@ -1224,7 +1224,7 @@ async function evaluate(){
   const isFinished=(value:any)=>{const raw=String(value||"").trim().toUpperCase();const x=raw.replace(/[^A-Z0-9]+/g," ").trim();if(VOID.has(raw.toLowerCase()))return false;return new Set(["FT","AET","PEN","FINISHED","ENDED","FULL TIME","AFTER EXTRA TIME","AFTER PENALTIES","MATCH FINISHED","FT PEN","FINISHED AET","FINISHED PENALTIES","AFTER EXTRA TIME FINISHED","FINISHED AFTER EXTRA TIME","FINISHED AFTER PENALTIES"]).has(x)||x.endsWith(" FINISHED")||x.startsWith("FINISHED ")};
   const hasScore=(m:any)=>m&&m.home_score!==null&&m.home_score!==undefined&&m.away_score!==null&&m.away_score!==undefined&&Number.isFinite(Number(m.home_score))&&Number.isFinite(Number(m.away_score));
   const finalRows=matches.filter((m:any)=>isFinished(m.status)&&hasScore(m));
-  const normTeam=(v:any)=>String(v??"").toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").split(" ").filter(Boolean).filter((part:string)=>!["fc","sc","afc","cf","club"].includes(part)).join(" ");
+  const normTeam=(v:any)=>String(v??"").toLowerCase().replace(/æ/g,"ae").replace(/ø/g,"o").replace(/å/g,"a").normalize("NFKD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g," ").split(" ").filter(Boolean).filter((part:string)=>!["fc","sc","afc","cf","club"].includes(part)).join(" ");
   const findFinal=(m:any)=>{
     const home=normTeam(m?.home_team),away=normTeam(m?.away_team),time=new Date(m?.kickoff_at).getTime();
     if(!home||!away||!Number.isFinite(time))return null;
