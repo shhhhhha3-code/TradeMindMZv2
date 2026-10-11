@@ -1212,9 +1212,15 @@ async function evaluate(){
   const {data:allMatches,error:matchError}=await sb.from("football_matches").select("id,home_team,away_team,league,kickoff_at,status,home_score,away_score").gte("kickoff_at",osloMidnight(fromDate).toISOString()).lt("kickoff_at",osloMidnight(toDate).toISOString()).order("kickoff_at",{ascending:false}).limit(2000);
   if(matchError)throw matchError;
   const matches=allMatches||[];
-  const {data:linkedMatches,error:linkedError}=linkedIds.length?await sb.from("football_matches").select("id,home_team,away_team,league,kickoff_at,status,home_score,away_score").in("id",linkedIds):{data:[],error:null};
-  if(linkedError)throw linkedError;
-  const byId=new Map((linkedMatches||[]).map((m:any)=>[m.id,m]));
+  // Keep PostgREST URL/request size bounded: hundreds of UUIDs in one .in() can fail at fetch level.
+  const linkedMatches:any[]=[];
+  for(let i=0;i<linkedIds.length;i+=100){
+    const batch=linkedIds.slice(i,i+100);
+    const {data,error}=await sb.from("football_matches").select("id,home_team,away_team,league,kickoff_at,status,home_score,away_score").in("id",batch);
+    if(error)throw error;
+    linkedMatches.push(...(data||[]));
+  }
+  const byId=new Map(linkedMatches.map((m:any)=>[m.id,m]));
   const isFinished=(value:any)=>{const raw=String(value||"").trim().toUpperCase();const x=raw.replace(/[^A-Z0-9]+/g," ").trim();if(VOID.has(raw.toLowerCase()))return false;return new Set(["FT","AET","PEN","FINISHED","ENDED","FULL TIME","AFTER EXTRA TIME","AFTER PENALTIES","MATCH FINISHED","FT PEN","FINISHED AET","FINISHED PENALTIES","AFTER EXTRA TIME FINISHED","FINISHED AFTER EXTRA TIME","FINISHED AFTER PENALTIES"]).has(x)||x.endsWith(" FINISHED")||x.startsWith("FINISHED ")};
   const hasScore=(m:any)=>m&&m.home_score!==null&&m.home_score!==undefined&&m.away_score!==null&&m.away_score!==undefined&&Number.isFinite(Number(m.home_score))&&Number.isFinite(Number(m.away_score));
   const finalRows=matches.filter((m:any)=>isFinished(m.status)&&hasScore(m));
