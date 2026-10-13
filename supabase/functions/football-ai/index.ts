@@ -681,7 +681,7 @@ async function evaluate(){
     const {data:claimed,error:claimError}=await sb.from("football_ai_predictions").update({status:correct?"WON":"LOST",settled_result:result,pnl,evaluated_at:evaluatedAt}).eq("id",p.id).eq("status","OPEN").select("id").maybeSingle();
     if(claimError){settlementErrors++;console.error("Prediction settlement update failed",p.id,claimError.message);continue}
     if(!claimed?.id)continue;
-    const {error:evaluationError}=await sb.from("football_ai_evaluations").upsert({prediction_id:p.id,match_id:m.id,actual_result:result,predicted_result:prediction,correct,stake:1,pnl,odds:validSettlementOdds?marketOdds:null,evaluated_at:evaluatedAt},{onConflict:"prediction_id"});
+    const {error:evaluationError}=await sb.from("football_ai_evaluations").upsert({prediction_id:p.id,match_id:m.id,actual_result:result,predicted_result:prediction,correct,stake:1,pnl,evaluated_at:evaluatedAt},{onConflict:"prediction_id"});
     if(evaluationError){settlementErrors++;console.error("Prediction evaluation write failed; reopening prediction",p.id,evaluationError.message);await sb.from("football_ai_predictions").update({status:"OPEN",settled_result:null,pnl:null,evaluated_at:null}).eq("id",p.id).eq("status",correct?"WON":"LOST");continue}
     n++;
   }
