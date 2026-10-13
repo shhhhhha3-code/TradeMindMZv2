@@ -394,15 +394,25 @@ async function syncFootball(lightweight=false){
     const statusMap:any={FINISHED:"FT",IN_PLAY:"IN_PLAY",PAUSED:"PAUSED",SCHEDULED:"NS",TIMED:"NS",POSTPONED:"POSTPONED",CANCELLED:"CANCELLED",SUSPENDED:"SUSPENDED",AWARDED:"FT"};
     const row={home_team:String(f.homeTeam?.name||"").trim(),away_team:String(f.awayTeam?.name||"").trim(),league:"Europe · "+String(f.competition?.name||f.competition?.code||"Unknown"),kickoff_at:f.utcDate,status:statusMap[String(f.status||"").toUpperCase()]||String(f.status||"NS"),home_score:f.score?.fullTime?.home??null,away_score:f.score?.fullTime?.away??null};
     if(!row.home_team||!row.away_team||!row.kickoff_at||!Number.isFinite(new Date(row.kickoff_at).getTime()))continue;
-    const kickoffMs=new Date(row.kickoff_at).getTime(),lo=new Date(kickoffMs-36*3600000).toISOString(),hi=new Date(kickoffMs+36*3600000).toISOString();
-    const {data:existingRows}=await sb.from("football_matches").select("id,home_team,away_team,kickoff_at").eq("home_team",row.home_team).eq("away_team",row.away_team).gte("kickoff_at",lo).lte("kickoff_at",hi).limit(20);
+    const kickoffMs=new Date(row.kickoff_at).getTime(),lo=new Date(kickoffMs-6*3600000).toISOString(),hi=new Date(kickoffMs+6*3600000).toISOString();
+    // Match only the same normalized teams, competition and a narrow kickoff window.
+    // The previous 36-hour window could accidentally merge separate fixtures.
+    const {data:existingRows,error:existingError}=await sb.from("football_matches").select("id,home_team,away_team,league,kickoff_at,home_score,away_score").eq("home_team",row.home_team).eq("away_team",row.away_team).eq("league",row.league).gte("kickoff_at",lo).lte("kickoff_at",hi).limit(20);
+    if(existingError){failed++;continue}
     const existing=(existingRows||[]).sort((a:any,b:any)=>Math.abs(new Date(a.kickoff_at).getTime()-kickoffMs)-Math.abs(new Date(b.kickoff_at).getTime()-kickoffMs))[0];
-    const q=existing?.id?await sb.from("football_matches").update(row).eq("id",existing.id):await sb.from("football_matches").insert(row);
+    // Never erase a known score just because a provider response omits full-time scores.
+    const safeRow:any={...row};
+    if(safeRow.home_score==null&&existing?.home_score!=null)safeRow.home_score=existing.home_score;
+    if(safeRow.away_score==null&&existing?.away_score!=null)safeRow.away_score=existing.away_score;
+    const q=existing?.id?await sb.from("football_matches").update(safeRow).eq("id",existing.id):await sb.from("football_matches").insert(safeRow);
     if(q.error)failed++;else synced++;
   }
-  const {data:recent}=await sb.from("football_matches").select("home_team,away_team,status,home_score,away_score").gte("kickoff_at",new Date(Date.now()-30*86400000).toISOString()).not("home_score","is",null).limit(3000);
+  // Team form is derived only from completed fixtures with both scores present.
+  const {data:recent,error:recentError}=await sb.from("football_matches").select("home_team,away_team,status,home_score,away_score").gte("kickoff_at",new Date(Date.now()-30*86400000).toISOString()).not("home_score","is",null).not("away_score","is",null).limit(3000);
+  if(recentError)return{configured:true,provider:"football-data.org",synced,stats_synced:0,failed:failed+1,total:fixtures.length,from,to,error:"Could not read completed match history for team statistics: "+recentError.message};
+  const isCompleted=(s:any)=>["FT","AET","PEN","FINISHED","ENDED","FULL TIME","AFTER EXTRA TIME","AFTER PENALTIES","AWARDED"].includes(String(s||"").toUpperCase().replace(/[^A-Z0-9]+/g," ").trim());
   const agg=new Map<string,any>();
-  for(const m of recent||[]){const hs=Number(m.home_score),as=Number(m.away_score);if(!Number.isFinite(hs)||!Number.isFinite(as))continue;for(const side of ["home","away"]){const team=side==="home"?m.home_team:m.away_team;if(!team)continue;const gf=side==="home"?hs:as,ga=side==="home"?as:hs;const x=agg.get(norm(team))||{team_name:team,wins:0,losses:0,draws:0,goals_for:0,goals_against:0,xg_for:0,xg_against:0};x.goals_for+=gf;x.goals_against+=ga;if(gf>ga)x.wins++;else if(gf<ga)x.losses++;else x.draws++;agg.set(norm(team),x)}}
+  for(const m of recent||[]){if(!isCompleted(m.status))continue;const hs=Number(m.home_score),as=Number(m.away_score);if(!Number.isInteger(hs)||!Number.isInteger(as)||hs<0||as<0)continue;for(const side of ["home","away"]){const team=side==="home"?m.home_team:m.away_team;if(!team)continue;const gf=side==="home"?hs:as,ga=side==="home"?as:hs;const x=agg.get(norm(team))||{team_name:team,wins:0,losses:0,draws:0,goals_for:0,goals_against:0,xg_for:0,xg_against:0,matches_played:0,updated_at:new Date().toISOString()};x.matches_played++;x.goals_for+=gf;x.goals_against+=ga;if(gf>ga)x.wins++;else if(gf<ga)x.losses++;else x.draws++;agg.set(norm(team),x)}}
   let statsSynced=0;for(const x of agg.values()){const {data:old}=await sb.from("football_team_stats").select("id").eq("team_name",x.team_name).limit(1).maybeSingle();const q=old?.id?await sb.from("football_team_stats").update(x).eq("id",old.id):await sb.from("football_team_stats").insert(x);if(!q.error)statsSynced++}
   return{configured:true,provider:"football-data.org",synced,stats_synced:statsSynced,failed,total:fixtures.length,from,to,diagnostics_skipped:lightweight,note:"Fixtures/results only. football-data.org does not provide the shot-event xG inputs or bookmaker odds used by those modules."};
 }
