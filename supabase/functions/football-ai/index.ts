@@ -25,9 +25,10 @@ function homeAwayIntelligence(teamName:string,venue:"HOME"|"AWAY",stats:any[],ma
     if(venue==="AWAY"&&!away)return false;
     if(!home&&!away)return false;
     if(VOID.has(String(m.status||"").toLowerCase()))return false;
-    const hs=Number(m.home_score),as=Number(m.away_score);
-    return Number.isFinite(hs)&&Number.isFinite(as)&&new Date(m.kickoff_at).getTime()<=now;
-  }).slice(0,16);
+    if(m.home_score==null||m.away_score==null||String(m.home_score).trim()===""||String(m.away_score).trim()==="")return false;
+    const hs=Number(m.home_score),as=Number(m.away_score),kickoff=new Date(m.kickoff_at).getTime();
+    return Number.isFinite(hs)&&Number.isFinite(as)&&Number.isFinite(kickoff)&&kickoff<=now;
+  }).sort((a:any,b:any)=>new Date(b.kickoff_at).getTime()-new Date(a.kickoff_at).getTime()).slice(0,16);
   if(!relevant.length)return null;
   let weightSum=0,points=0,goalDiff=0,xgDiff=0,xgWeight=0,oppStrength=0;
   for(const m of relevant){
