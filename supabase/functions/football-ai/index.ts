@@ -688,9 +688,9 @@ async function evaluate(){
     const marketOddsFor=(type:string,selection:string)=>{const x=storedMarkets.find((v:any)=>String(v.type||"").toUpperCase()===type&&String(v.selection||"").toUpperCase()===selection);const o=Number(x?.market_odds);return Number.isFinite(o)&&o>1?o:null};
     const totalGoals=Number(m.home_score)+Number(m.away_score);
     const marketSettlements=[
-      {key:"H",label:"H · Hjemmeseier",selection:"1",probability:Number.isFinite(Number(probabilities.home))?Number(probabilities.home):null,odds:marketOddsFor("1X2","1"),status:result==="1"?"WON":"LOST"},
-      {key:"U",label:"U · Uavgjort",selection:"X",probability:Number.isFinite(Number(probabilities.draw))?Number(probabilities.draw):null,odds:marketOddsFor("1X2","X"),status:result==="X"?"WON":"LOST"},
-      {key:"B",label:"B · Borteseier",selection:"2",probability:Number.isFinite(Number(probabilities.away))?Number(probabilities.away):null,odds:marketOddsFor("1X2","2"),status:result==="2"?"WON":"LOST"},
+      {key:"H",label:"H · Hjemmeseier",selection:"1",probability:probabilities.home==null||String(probabilities.home).trim()===""?null:Number.isFinite(Number(probabilities.home))?Number(probabilities.home):null,odds:marketOddsFor("1X2","1"),status:result==="1"?"WON":"LOST"},
+      {key:"U",label:"U · Uavgjort",selection:"X",probability:probabilities.draw==null||String(probabilities.draw).trim()===""?null:Number.isFinite(Number(probabilities.draw))?Number(probabilities.draw):null,odds:marketOddsFor("1X2","X"),status:result==="X"?"WON":"LOST"},
+      {key:"B",label:"B · Borteseier",selection:"2",probability:probabilities.away==null||String(probabilities.away).trim()===""?null:Number.isFinite(Number(probabilities.away))?Number(probabilities.away):null,odds:marketOddsFor("1X2","2"),status:result==="2"?"WON":"LOST"},
       {key:"OVER_2_5",label:"Over 2,5",selection:"OVER 2.5",probability:marketProb("OVER_UNDER","OVER 2.5"),odds:marketOddsFor("OVER_UNDER","OVER 2.5"),status:totalGoals>2.5?"WON":"LOST"},
       {key:"UNDER_2_5",label:"Under 2,5",selection:"UNDER 2.5",probability:marketProb("OVER_UNDER","UNDER 2.5"),odds:marketOddsFor("OVER_UNDER","UNDER 2.5"),status:totalGoals<2.5?"WON":"LOST"}
     ].map((x:any)=>({...x,probability:x.probability==null?null:Number.isFinite(Number(x.probability))?Number(x.probability):null}));
@@ -699,7 +699,7 @@ async function evaluate(){
     if(claimError){settlementErrors++;console.error("Prediction settlement update failed",p.id,claimError.message);continue}
     if(!claimed?.id)continue;
     const {error:evaluationError}=await sb.from("football_ai_evaluations").upsert({prediction_id:p.id,match_id:m.id,actual_result:result,predicted_result:prediction,correct,stake:1,pnl,evaluated_at:evaluatedAt},{onConflict:"prediction_id"});
-    if(evaluationError){settlementErrors++;console.error("Prediction evaluation write failed; reopening prediction",p.id,evaluationError.message);await sb.from("football_ai_predictions").update({status:"OPEN",settled_result:null,pnl:null,evaluated_at:null}).eq("id",p.id).eq("status",correct?"WON":"LOST");continue}
+    if(evaluationError){settlementErrors++;console.error("Prediction evaluation write failed; reopening prediction",p.id,evaluationError.message);await sb.from("football_ai_predictions").update({status:"OPEN",settled_result:null,pnl:null,evaluated_at:null,reasoning:p.reasoning||{}}).eq("id",p.id).eq("status",correct?"WON":"LOST");continue}
     n++;
   }
   let learningResult:any=null,learningError=null;
