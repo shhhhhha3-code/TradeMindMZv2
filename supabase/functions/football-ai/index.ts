@@ -917,7 +917,17 @@ if(a==="results"){
   for(const row of rows){
     if(row.status!=="OPEN"||!row.match||!isFinal(row.match)||!hasScore(row.match))continue;
     const kickoffMs=new Date(row.match.kickoff_at).getTime(),createdMs=new Date(row.created_at).getTime();
-    if(Number.isFinite(kickoffMs)&&Number.isFinite(createdMs)&&createdMs>kickoffMs)continue;
+    if(Number.isFinite(kickoffMs)&&Number.isFinite(createdMs)&&createdMs>kickoffMs){
+      const evaluatedAt=new Date().toISOString();
+      const invalidLedger=settleMarketLedger(row,Number(row.match.home_score)>Number(row.match.away_score)?"1":Number(row.match.home_score)<Number(row.match.away_score)?"2":"X",Number(row.match.home_score),Number(row.match.away_score),evaluatedAt);
+      const voidLedger={...invalidLedger,reason:"PREDICTION_CREATED_AFTER_KICKOFF",items:invalidLedger.items.map((item:any)=>({...item,status:"VOID_POST_KICKOFF",pnl:null,evaluated_at:evaluatedAt}))};
+      const {data:claimed,error:claimError}=await sb.from("football_ai_predictions")
+        .update({status:"VOID",settled_result:"VOID_POST_KICKOFF",pnl:null,evaluated_at:evaluatedAt,reasoning:{...(row.reasoning||{}),market_ledger:voidLedger}})
+        .eq("id",row.id).eq("status","OPEN").select("id").maybeSingle();
+      if(claimError){settlementErrors++;console.error("Post-kickoff prediction voiding failed",row.id,claimError.message);continue}
+      if(claimed?.id){Object.assign(row,{status:"VOID",settled_result:"VOID_POST_KICKOFF",pnl:null,evaluated_at:evaluatedAt,reasoning:{...(row.reasoning||{}),market_ledger:voidLedger}});settledNow++}
+      continue;
+    }
     const prediction=normalizeLedgerOutcome(row.selected_outcome??row.prediction);
     if(!prediction)continue;
     const actual=Number(row.match.home_score)>Number(row.match.away_score)?"1":Number(row.match.home_score)<Number(row.match.away_score)?"2":"X";
