@@ -711,7 +711,7 @@ async function evaluateDiagnostics(){
     });
   }
   const missingMatchId=predictions.filter((p:any)=>!p.match_id).length;
-  const status=(missingLinked||siblingFinal||linkedFinal||postKickoffOpen)?"WARNING":"OK";
+  const status=(missingMatchId||missingLinked||siblingFinal||linkedFinal||postKickoffOpen)?"WARNING":"OK";
   const notes:string[]=[];
   if(missingMatchId)notes.push("Åpne prediksjoner mangler match_id.");
   if(missingLinked)notes.push("Prediksjoner peker på kamp-ID-er som ikke finnes i football_matches.");
