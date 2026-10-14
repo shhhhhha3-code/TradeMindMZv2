@@ -707,17 +707,11 @@ Deno.serve(async req=>{const requestId=crypto.randomUUID();if(req.method==="OPTI
   const {date:today}=todayBounds();
   const historyStart=new Date(Date.now()-7*24*60*60*1000).toISOString();
 
-  // Refresh fixture data and settle predictions BEFORE building the response.
-  // Previously this ran in EdgeRuntime.waitUntil after the response had already
-  // captured OPEN rows, so the tab could keep showing stale "not decided" data.
-  let syncSummary:any=null, syncError:string|null=null, evaluation:any=null, evaluationError:string|null=null;
-  try{
-    syncSummary=await syncExternalData(false);
-    if(syncSummary?.football?.error)syncError=String(syncSummary.football.error);
-  }catch(e){syncError=e instanceof Error?e.message:String(e)}
-  if(!syncError){
-    try{evaluation=await evaluate()}catch(e){evaluationError=e instanceof Error?e.message:String(e)}
-  }
+  // First settle against final scores already stored locally, then return a fresh
+  // ledger. Provider sync is intentionally backgrounded so the results endpoint
+  // remains responsive; the next poll sees newly synced scores and settles them.
+  let evaluation:any=null,evaluationError:string|null=null;
+  try{evaluation=await evaluate()}catch(e){evaluationError=e instanceof Error?e.message:String(e)}
 
   const {data:allPs,error:predError}=await sb.from("football_ai_predictions")
     .select("id,match_id,prediction,selected_outcome,confidence,odds,value_percent,provider,model,status,settled_result,pnl,evaluated_at,created_at,reasoning")
@@ -736,6 +730,24 @@ Deno.serve(async req=>{const requestId=crypto.randomUUID();if(req.method==="OPTI
   const settled=rows.filter((x:any)=>x.status==="WON"||x.status==="LOST");
   const wins=settled.filter((x:any)=>x.status==="WON").length;
   const pnl=settled.reduce((sum:number,x:any)=>sum+(x.pnl==null?0:Number(x.pnl)),0);
+
+  const runtime=(globalThis as any).EdgeRuntime;
+  const task=(async()=>{
+    try{
+      const sync=await syncExternalData(false);
+      const nextEvaluation=await evaluate();
+      console.log("Results background refresh",JSON.stringify({
+        football_synced:sync?.football?.synced??null,
+        football_error:sync?.football?.error??null,
+        evaluated:nextEvaluation?.evaluated??0,
+        skipped:nextEvaluation?.skipped??null
+      }));
+      await top6(false);
+    }catch(e){console.error("Results background refresh failed",e instanceof Error?e.message:String(e))}
+  })();
+  if(runtime?.waitUntil)runtime.waitUntil(task);
+  else console.warn("EdgeRuntime.waitUntil unavailable for Results background refresh");
+
   const summary={
     batch_date:today,batch_size:rows.length,history_days:7,evaluated:settled.length,wins,
     losses:settled.filter((x:any)=>x.status==="LOST").length,
@@ -745,7 +757,6 @@ Deno.serve(async req=>{const requestId=crypto.randomUUID();if(req.method==="OPTI
   };
   return out(200,{
     status:rows.length?"READY":"SCANNING",results:rows,summary,
-    refresh:{football:syncSummary?.football?.synced??null,odds:syncSummary?.odds?.synced??null,sync_error:syncError},
     evaluation:{evaluated:evaluation?.evaluated??0,skipped:evaluation?.skipped??null,error:evaluationError}
   });
 }if(a==="performance"){const {data:e}=await sb.from("football_ai_evaluations").select("prediction_id,correct,pnl,evaluated_at,actual_result").order("evaluated_at",{ascending:false}).limit(1000);const rows=e||[];const ids=rows.map((x:any)=>x.prediction_id).filter(Boolean);const {data:ps}=ids.length?await sb.from("football_ai_predictions").select("id,reasoning,prediction,confidence,status,odds,created_at").in("id",ids):{data:[]};const byId=new Map((ps||[]).map((x:any)=>[x.id,x]));const enriched=rows.map((x:any)=>({e:x,p:byId.get(x.prediction_id)}));const engineRows=enriched.filter((x:any)=>x.p?.reasoning?.engine_prediction);const engineCorrect=engineRows.filter((x:any)=>String(x.p.reasoning.engine_prediction)===String(x.e.actual_result)).length;const engineAccuracy=engineRows.length?Math.round(engineCorrect/engineRows.length*100):null;const engineScores=engineRows.map((x:any)=>Number(x.p.reasoning.engine_score)).filter((x:any)=>Number.isFinite(x));const engineAvg=engineScores.length?Math.round(engineScores.reduce((a:number,b:number)=>a+b,0)/engineScores.length):null;const calc=(xs:any[])=>{const n=xs.length,wins=xs.filter(x=>x.correct).length,pnl=xs.reduce((a,x)=>a+Number(x.pnl||0),0);return{samples:n,wins,losses:n-wins,accuracy:n?Math.round(wins/n*100):null,roi:n?Math.round(pnl/n*1000)/10:0,pnl:Math.round(pnl*100)/100}};const recent=calc(rows.slice(0,20)),previous=calc(rows.slice(20,40));const trend=recent.accuracy==null||previous.accuracy==null?"STABLE":recent.accuracy>previous.accuracy?"IMPROVING":recent.accuracy<previous.accuracy?"ADJUSTING":"STABLE";const valueRows=enriched.filter((x:any)=>x.p?.reasoning?.value_signal);const valueCalc=(signal:string)=>calc(valueRows.filter((x:any)=>String(x.p.reasoning.value_signal)===signal).map((x:any)=>x.e));const valueBreakdown={VALUE:valueCalc("VALUE"),LEAN:valueCalc("LEAN"),"NO BET":valueCalc("NO BET")};let cumulative=0,peak=0,maxDrawdown=0;for(const x of [...rows].reverse()){cumulative+=Number(x.pnl||0);peak=Math.max(peak,cumulative);maxDrawdown=Math.min(maxDrawdown,cumulative-peak)}const settledWithOdds=rows.filter((x:any)=>x.pnl!=null&&Number.isFinite(Number(x.pnl)));const avgEdge=valueRows.map((x:any)=>Number(x.p.reasoning.edge_percent)).filter((x:any)=>Number.isFinite(x));const avgEv=valueRows.map((x:any)=>Number(x.p.reasoning.expected_value_percent)).filter((x:any)=>Number.isFinite(x));const backtest={status:rows.length?"ACTIVE_DATASET":"WAITING_FOR_RESULTS",samples:rows.length,settled_with_odds:settledWithOdds.length,accuracy:calc(rows).accuracy,roi:calc(rows).roi,pnl:calc(rows).pnl,avg_edge:avgEdge.length?Math.round(avgEdge.reduce((a:number,b:number)=>a+b,0)/avgEdge.length*10)/10:null,avg_ev:avgEv.length?Math.round(avgEv.reduce((a:number,b:number)=>a+b,0)/avgEv.length*10)/10:null,max_drawdown:Math.round(maxDrawdown*100)/100,value_breakdown:valueBreakdown};const {data:w}=await sb.from("football_ai_model_weights").select("*").eq("model_name","trademindmz-v3").maybeSingle();const weights=w?.weights||{home:1,draw:.1,away:-1};const engineStatus=engineAccuracy==null?"COLLECTING":engineAccuracy>=65?"STRONG":engineAccuracy>=50?"LEARNING":"ADJUSTING";const calibration=await confidenceCalibration();return out(200,{model:{name:"TMZ-AI",version:w?.model_version||"v4.0",samples:w?.training_samples||rows.length,learning_rate:w?.learning_rate||.02,updated_at:w?.updated_at||null,trend,weights},engine:{name:"TradeMindMZ Engine",version:"v1.0",status:engineStatus,samples:engineRows.length,accuracy:engineAccuracy,average_score:engineAvg,learning_active:true,description:"Kvantitativ motor som scorer kampene før AI og justerer vekter fra fasit."},metrics:{...calc(rows),recent,previous},backtest,calibration,pipeline:["Data intake","Engine Score","Deep AI","Resultat","Error scan","Weight update","Validation"],signals:[{name:"ACCURACY",value:recent.accuracy||0,status:trend},{name:"ENGINE",value:engineAccuracy||0,status:engineStatus},{name:"VALUE",value:Math.max(0,Math.min(100,50+recent.roi*4)),status:recent.roi>=0?"POSITIVE":"NEGATIVE"},{name:"DATA QUALITY",value:Math.min(100,Math.round(rows.length/10)),status:rows.length>=100?"STRONG":rows.length>=30?"BUILDING":"COLLECTING"},{name:"LEARNING",value:Math.min(100,Math.round((w?.training_samples||rows.length)/5)),status:trend}]});}if(a==="learning")return out(200,await learning());return out(400,{error:"unknown_action"});}catch(e){console.error("football-ai request failed",JSON.stringify({request_id:requestId,message:e instanceof Error?e.message:String(e),code:e&&typeof e==="object"?(e as any).code:null}));return out(500,{error:"internal_error",request_id:requestId},requestId);}});
