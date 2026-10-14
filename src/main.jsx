@@ -67,7 +67,7 @@ const runScan=async()=>{setLoading(true);setError(null);const checks={};await Pr
 ["data_intake",()=>aiCall("data_intake",{},30000)],
 ["evaluation",()=>aiCall("evaluate_diagnostics",{},30000)],
 ["performance",()=>aiCall("performance",{},30000)],
-["results",()=>aiCall("results",{},30000)],
+["results",()=>aiCall("results_audit",{},30000)],
 ["xg_engine",()=>aiCall("xg_monitor",{},60000)]
 ].map(async([key,fn])=>{try{checks[key]=await fn()}catch(e){checks[key]={status:"ERROR",error:e?.message||String(e)}}}));
 setData(checks);setLastScan(new Date().toISOString());setLoading(false)};
