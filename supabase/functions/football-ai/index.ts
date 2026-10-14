@@ -642,24 +642,92 @@ const finalScore=Math.round(Math.max(0,Math.min(100,engineScore*.35+ensembleScor
   return {date:today,status:rows.length?"OK":"NO_CURRENT_PREDICTIONS",matches_scanned:rows.length,value_bets:rows.filter((x:any)=>x.smart_decision==="VALUE"||x.value_signal==="VALUE").length,leans:rows.filter((x:any)=>x.smart_decision==="LEAN"||x.value_signal==="LEAN").length,no_bets:rows.filter((x:any)=>x.smart_decision==="NO BET"||x.value_signal==="NO BET").length,no_market:rows.filter((x:any)=>x.value_signal==="NO MARKET").length,stale_rows_excluded:staleRowsExcluded,edge_outliers:outliers,best_edge:edges.length?Math.max(...edges):null,average_edge:edges.length?Number((edges.reduce((a:number,b:number)=>a+b,0)/edges.length).toFixed(1)):null,average_ev:evs.length?Number((evs.reduce((a:number,b:number)=>a+b,0)/evs.length).toFixed(1)):null,average_overround:margins.length?Number((margins.reduce((a:number,b:number)=>a+b,0)/margins.length).toFixed(1)):null,rows};
 }
 async function evaluateDiagnostics(){
-  const {data:ps,error:pe}=await sb.from("football_ai_predictions").select("id,match_id,prediction,status,created_at").eq("status","OPEN").order("created_at",{ascending:false}).limit(100);
+  // Read-only audit: never settles predictions or changes model weights.
+  const {data:ps,error:pe}=await sb.from("football_ai_predictions")
+    .select("id,match_id,prediction,selected_outcome,created_at,reasoning")
+    .eq("status","OPEN").order("created_at",{ascending:false}).limit(500);
   if(pe)throw pe;
-  const ids=[...new Set((ps||[]).map((p:any)=>p.match_id).filter(Boolean))];
-  const openWithMatchId=(ps||[]).filter((p:any)=>Boolean(p.match_id)).length;
-  const {data:linked,error:le}=ids.length?await sb.from("football_matches").select("id,home_team,away_team,kickoff_at,status,home_score,away_score").in("id",ids):{data:[],error:null};
-  if(le)throw le;
+  const predictions=ps||[];
+  const ids=[...new Set(predictions.map((p:any)=>p.match_id).filter(Boolean))];
+  const linked:any[]=[];
+  for(let i=0;i<ids.length;i+=100){
+    const {data,error}=await sb.from("football_matches")
+      .select("id,home_team,away_team,league,kickoff_at,status,home_score,away_score")
+      .in("id",ids.slice(i,i+100));
+    if(error)throw error;
+    linked.push(...(data||[]));
+  }
   const {date}=todayBounds();
   const fromDate=(()=>{const [y,m,d]=date.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d-30,12,0,0)))})();
   const toDate=(()=>{const [y,m,d]=date.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d+2,12,0,0)))})();
-  const {data:recent,error:re}=await sb.from("football_matches").select("id,home_team,away_team,kickoff_at,status,home_score,away_score").gte("kickoff_at",osloMidnight(fromDate).toISOString()).lt("kickoff_at",osloMidnight(toDate).toISOString()).order("kickoff_at",{ascending:false}).limit(2000);
+  const {data:recent,error:re}=await sb.from("football_matches")
+    .select("id,home_team,away_team,league,kickoff_at,status,home_score,away_score")
+    .gte("kickoff_at",osloMidnight(fromDate).toISOString())
+    .lt("kickoff_at",osloMidnight(toDate).toISOString())
+    .order("kickoff_at",{ascending:false}).limit(2000);
   if(re)throw re;
-  const isFinal=(v:any)=>{const x=String(v||"").toUpperCase().replace(/[^A-Z0-9]+/g," ").trim();return ["FT","AET","PEN","FINISHED","ENDED","FULL TIME","AFTER EXTRA TIME","AFTER PENALTIES","MATCH FINISHED","FT PEN","FINISHED AET","FINISHED PENALTIES","AFTER EXTRA TIME FINISHED","FINISHED AFTER EXTRA TIME","FINISHED AFTER PENALTIES"].includes(x)||x.endsWith(" FINISHED")||x.startsWith("FINISHED ")};
-  const openCount=(ps||[]).length;
-  const linkedCount=(linked||[]).length;
-  const linkedFinished=(linked||[]).filter((m:any)=>isFinal(m.status)&&m.home_score!=null&&m.away_score!=null).length;
-  const recentFinished=(recent||[]).filter((m:any)=>isFinal(m.status)&&m.home_score!=null&&m.away_score!=null);
-  const finishedOpen=linkedFinished>0;const status=pe||le||re?"ERROR":openCount===0?"OK":linkedCount<ids.length||finishedOpen?"WARNING":"OK";
-  return {status,checked_at:new Date().toISOString(),open_predictions_sample:openCount,open_with_match_id:openWithMatchId,unique_linked_match_ids:ids.length,open_without_match_id:openCount-openWithMatchId,linked_match_rows:linkedCount,linked_finished_with_scores:linkedFinished,linked_rows:(linked||[]).slice(0,25),recent_matches_scanned:(recent||[]).length,recent_finished_with_scores:recentFinished.length,recent_finished_sample:recentFinished.slice(0,10),notes:openCount===0?["Ingen åpne prediksjoner i utvalget."]:linkedCount<ids.length?["Noen prediksjoner peker på kamp-ID-er som ikke ble funnet."]:finishedOpen?["Minst én kamp er registrert som ferdig med resultat, men har fortsatt OPEN-prediksjoner. Kjør evaluate etter resultat-sync."]:[]};
+  const finalStates=new Set(["FT","AET","PEN","FINISHED","ENDED","FULL TIME","AFTER EXTRA TIME","AFTER PENALTIES","MATCH FINISHED","FT PEN","FINISHED AET","FINISHED PENALTIES","AFTER EXTRA TIME FINISHED","FINISHED AFTER EXTRA TIME","FINISHED AFTER PENALTIES","AWARDED"]);
+  const isFinal=(m:any)=>{
+    const raw=String(m?.status||"").trim().toUpperCase();
+    const status=raw.replace(/[^A-Z0-9]+/g," ").trim();
+    return !VOID.has(raw.toLowerCase())&&finalStates.has(status);
+  };
+  const hasScore=(m:any)=>m&&m.home_score!=null&&m.away_score!=null&&Number.isFinite(Number(m.home_score))&&Number.isFinite(Number(m.away_score));
+  const normTeam=(v:any)=>norm(String(v??"").replace(/æ/g,"ae").replace(/ø/g,"o").replace(/å/g,"a"));
+  const byId=new Map(linked.map((m:any)=>[m.id,m]));
+  const finalRows=(recent||[]).filter((m:any)=>isFinal(m)&&hasScore(m));
+  const finalSibling=(p:any,linkedMatch:any)=>{
+    const fixture=p.reasoning?.fixture||p.reasoning||{};
+    const home=normTeam(linkedMatch?.home_team||fixture.home_team);
+    const away=normTeam(linkedMatch?.away_team||fixture.away_team);
+    const kickoff=new Date(linkedMatch?.kickoff_at||fixture.kickoff_at).getTime();
+    const league=normTeam(linkedMatch?.league||fixture.league);
+    if(!home||!away||!Number.isFinite(kickoff))return null;
+    return finalRows.filter((m:any)=>
+      normTeam(m.home_team)===home&&normTeam(m.away_team)===away&&
+      Math.abs(new Date(m.kickoff_at).getTime()-kickoff)<=6*3600000&&
+      (!league||!normTeam(m.league)||normTeam(m.league)===league)
+    ).sort((a:any,b:any)=>Math.abs(new Date(a.kickoff_at).getTime()-kickoff)-Math.abs(new Date(b.kickoff_at).getTime()-kickoff))[0]||null;
+  };
+  let missingLinked=0,linkedFinal=0,siblingFinal=0,postKickoffOpen=0;
+  const sample:any[]=[];
+  for(const p of predictions){
+    const linkedMatch=byId.get(p.match_id)||null;
+    if(p.match_id&&!linkedMatch)missingLinked++;
+    const linkedHasFinal=Boolean(linkedMatch&&isFinal(linkedMatch)&&hasScore(linkedMatch));
+    const sibling=linkedHasFinal?null:finalSibling(p,linkedMatch);
+    if(linkedHasFinal)linkedFinal++;
+    else if(sibling)siblingFinal++;
+    const kickoff=new Date(linkedMatch?.kickoff_at||p.reasoning?.fixture?.kickoff_at).getTime();
+    const created=new Date(p.created_at).getTime();
+    if(Number.isFinite(kickoff)&&Number.isFinite(created)&&created>kickoff)postKickoffOpen++;
+    if((linkedHasFinal||sibling)&&sample.length<12)sample.push({
+      prediction_id:p.id,match_id:p.match_id||null,
+      home_team:(sibling||linkedMatch)?.home_team||p.reasoning?.fixture?.home_team||null,
+      away_team:(sibling||linkedMatch)?.away_team||p.reasoning?.fixture?.away_team||null,
+      score:hasScore(sibling||linkedMatch)?String((sibling||linkedMatch).home_score)+"-"+String((sibling||linkedMatch).away_score):null,
+      fixture_status:(sibling||linkedMatch)?.status||null,
+      linked_match_is_final:linkedHasFinal,final_sibling_found:Boolean(sibling)
+    });
+  }
+  const missingMatchId=predictions.filter((p:any)=>!p.match_id).length;
+  const status=(missingMatchId||missingLinked||siblingFinal||linkedFinal||postKickoffOpen)?"WARNING":"OK";
+  const notes:string[]=[];
+  if(missingMatchId)notes.push("Åpne prediksjoner mangler match_id.");
+  if(missingLinked)notes.push("Prediksjoner peker på kamp-ID-er som ikke finnes i football_matches.");
+  if(linkedFinal+siblingFinal)notes.push("Ferdigspilte kamper har fortsatt OPEN-prediksjoner; evaluering eller resultatkobling må kontrolleres.");
+  if(postKickoffOpen)notes.push("Noen åpne prediksjoner er opprettet etter kampstart og skal ikke regnes som forhåndstips.");
+  return{
+    status,checked_at:new Date().toISOString(),read_only:true,
+    open_predictions_sample:predictions.length,open_with_match_id:predictions.filter((p:any)=>Boolean(p.match_id)).length,
+    unique_linked_match_ids:ids.length,open_without_match_id:missingMatchId,
+    linked_match_rows:linked.length,missing_linked_match_rows:missingLinked,
+    linked_finished_with_scores:linkedFinal,open_predictions_with_final_sibling:siblingFinal,
+    open_predictions_with_any_final_match:linkedFinal+siblingFinal,
+    open_predictions_created_after_kickoff:postKickoffOpen,
+    recent_matches_scanned:(recent||[]).length,recent_finished_with_scores:finalRows.length,
+    final_open_prediction_sample:sample,notes
+  };
 }
 async function evaluate(){
   const {data:ps,error:predictionError}=await sb.from("football_ai_predictions").select("id,match_id,prediction,selected_outcome,odds,reasoning,created_at").eq("status","OPEN").order("created_at",{ascending:true}).limit(500);
@@ -748,7 +816,42 @@ async function liveLearning(){
   return{status,samples:all.length,settled:settled.length,accuracy:calc(settled).accuracy,roi:calc(settled).roi,pnl:calc(settled).pnl,avg_edge:avg("edge_percent"),avg_ev:avg("expected_value_percent"),by_decision:byDecision,score_bins:scoreBins};
 }
 async function learning(){const {data:e}=await sb.from("football_ai_evaluations").select("prediction_id,correct,pnl,actual_result").order("evaluated_at",{ascending:false}).limit(1000);const rows=e||[];const ids=rows.map((x:any)=>x.prediction_id).filter(Boolean);const {data:ps}=ids.length?await sb.from("football_ai_predictions").select("id,prediction,reasoning").in("id",ids):{data:[]};const byId=new Map((ps||[]).map((x:any)=>[x.id,x]));const correct=rows.filter((x:any)=>x.correct).length,accuracy=rows.length?correct/rows.length:null,roi=rows.length?rows.reduce((a:any,x:any)=>a+Number(x.pnl||0),0)/rows.length:0;const engineRows=rows.map((x:any)=>({eval:x,p:byId.get(x.prediction_id)})).filter((x:any)=>x.p?.reasoning?.engine_prediction);const engineCorrect=engineRows.filter((x:any)=>String(x.p.reasoning.engine_prediction)===String(x.eval.actual_result)).length;const engineAccuracy=engineRows.length?engineCorrect/engineRows.length:null;const {data:old}=await sb.from("football_ai_model_weights").select("*").eq("model_name","trademindmz-v3").maybeSingle();const weights={...(old?.weights||{home:1,draw:.1,away:-1})};const lr=Number(old?.learning_rate||.02);if(accuracy!=null){weights.home+=lr*(accuracy-.5);weights.away-=lr*(accuracy-.5)}if(engineAccuracy!=null){weights.home+=lr*.5*(engineAccuracy-.5);weights.away-=lr*.5*(engineAccuracy-.5)}await sb.from("football_ai_model_weights").upsert({model_name:"trademindmz-v3",model_version:"v4."+rows.length,weights,bias:old?.bias||{home:0,draw:0,away:0},learning_rate:lr,training_samples:rows.length,accuracy,roi,updated_at:new Date().toISOString()});return{samples:rows.length,accuracy,roi,engine_samples:engineRows.length,engine_accuracy:engineAccuracy}}
-Deno.serve(async req=>{const requestId=crypto.randomUUID();if(req.method==="OPTIONS")return new Response(null,{status:204,headers:{"access-control-allow-origin":"*","access-control-allow-headers":"authorization,apikey,content-type,x-client-info,x-supabase-api-version","access-control-allow-methods":"POST,OPTIONS","access-control-max-age":"86400","x-request-id":requestId}});if(req.method!=="POST")return out(405,{error:"method_not_allowed",request_id:requestId},requestId);if(!SUPABASE_URL||!SUPABASE_KEY)return out(503,{error:"supabase_environment_not_configured",message:"Supabase URL or service key is missing in the Edge Function environment.",request_id:requestId},requestId);try{const contentLength=Number(req.headers.get("content-length")||0);if(Number.isFinite(contentLength)&&contentLength>16384)return out(413,{error:"request_body_too_large",max_bytes:16384,request_id:requestId},requestId);const rawBody=await req.text();if(new TextEncoder().encode(rawBody).byteLength>16384)return out(413,{error:"request_body_too_large",max_bytes:16384,request_id:requestId},requestId);let b:any;try{b=JSON.parse(rawBody)}catch{return out(400,{error:"invalid_json_body",request_id:requestId},requestId)}if(!b||typeof b!=="object"||Array.isArray(b))return out(400,{error:"invalid_json_body",request_id:requestId},requestId);const a=String(b.action||"top6");const allowed=new Set(["settings","connectivity","diagnostics","data_intake","xg_monitor","live_engine","live_learning","value_monitor","sync","update_settings","top6","pipeline","evaluate","evaluate_diagnostics","results","performance","learning","football_data_test"]);if(!allowed.has(a))return out(400,{error:"unknown_action",request_id:requestId},requestId);if(a==="settings")return out(200,await getSettings());if(a==="football_data_test")return out(200,await footballDataTest());if(a==="connectivity")return out(200,await connectivity());if(a==="diagnostics")return out(200,await diagnostics());if(a==="data_intake")return out(200,await dataIntakeAudit());if(a==="xg_monitor")return out(200,await xgMonitor(String(b.target_date||"")));if(a==="live_engine"){const result=await liveMatchEngine();return out(200,{...result,learning:await liveLearning()});}if(a==="live_learning")return out(200,await liveLearning());if(a==="value_monitor")return out(200,await valueMonitor(Boolean(b.refresh)));if(a==="sync"){const football=await syncFootball(true);if(football?.error)return out(200,{football,evaluation:null,note:"Result sync returned an error; evaluation was not run so predictions are not settled against stale data."});let evaluation:any=null;let evaluationError:string|null=null;try{evaluation=await evaluate()}catch(e){evaluationError=e instanceof Error?e.message:String(e)}return out(200,{football,evaluation,evaluation_error:evaluationError,note:"Result sync is followed by automatic evaluation. Predictions are settled only when a confirmed final score is available."});}if(a==="update_settings"){if(!b.settings||typeof b.settings!=="object"||Array.isArray(b.settings))return out(400,{error:"invalid_settings_payload",request_id:requestId},requestId);const allowedSettings=new Set(["football_api_enabled","odds_api_enabled","groq_enabled","openai_enabled"]);const patch:any={};for(const [key,value] of Object.entries(b.settings)){if(!allowedSettings.has(key))return out(400,{error:"unsupported_setting",setting:key,request_id:requestId},requestId);if(typeof value!=="boolean")return out(400,{error:"setting_must_be_boolean",setting:key,request_id:requestId},requestId);patch[key]=value;}if(!Object.keys(patch).length)return out(400,{error:"empty_settings_payload",request_id:requestId},requestId);const next={...patch,updated_at:new Date().toISOString(),id:true};const {data,error}=await sb.from("football_ai_settings").upsert(next).select().single();if(error)throw error;return out(200,{...(data||next),request_id:requestId},requestId);}if(a==="top6"||a==="pipeline")return out(200,await top6(Boolean(b.force)));if(a==="evaluate"){try{return out(200,await evaluate())}catch(e){console.error("Evaluation failed",JSON.stringify({request_id:requestId,message:e instanceof Error?e.message:String(e),code:e&&typeof e==="object"?(e as any).code:null}));return out(500,{error:"evaluation_failed",request_id:requestId},requestId)}}if(a==="evaluate_diagnostics"){try{return out(200,await evaluateDiagnostics())}catch(e){return out(500,{error:"evaluate_diagnostics_failed",message:e instanceof Error?e.message:String(e),request_id:requestId},requestId)}}if(a==="results"){
+Deno.serve(async req=>{const requestId=crypto.randomUUID();if(req.method==="OPTIONS")return new Response(null,{status:204,headers:{"access-control-allow-origin":"*","access-control-allow-headers":"authorization,apikey,content-type,x-client-info,x-supabase-api-version","access-control-allow-methods":"POST,OPTIONS","access-control-max-age":"86400","x-request-id":requestId}});if(req.method!=="POST")return out(405,{error:"method_not_allowed",request_id:requestId},requestId);if(!SUPABASE_URL||!SUPABASE_KEY)return out(503,{error:"supabase_environment_not_configured",message:"Supabase URL or service key is missing in the Edge Function environment.",request_id:requestId},requestId);try{const contentLength=Number(req.headers.get("content-length")||0);if(Number.isFinite(contentLength)&&contentLength>16384)return out(413,{error:"request_body_too_large",max_bytes:16384,request_id:requestId},requestId);const rawBody=await req.text();if(new TextEncoder().encode(rawBody).byteLength>16384)return out(413,{error:"request_body_too_large",max_bytes:16384,request_id:requestId},requestId);let b:any;try{b=JSON.parse(rawBody)}catch{return out(400,{error:"invalid_json_body",request_id:requestId},requestId)}if(!b||typeof b!=="object"||Array.isArray(b))return out(400,{error:"invalid_json_body",request_id:requestId},requestId);const a=String(b.action||"top6");const allowed=new Set(["settings","connectivity","diagnostics","data_intake","xg_monitor","live_engine","live_learning","value_monitor","sync","update_settings","top6","pipeline","evaluate","evaluate_diagnostics","results","results_audit","performance","learning","football_data_test"]);if(!allowed.has(a))return out(400,{error:"unknown_action",request_id:requestId},requestId);if(a==="settings")return out(200,await getSettings());if(a==="football_data_test")return out(200,await footballDataTest());if(a==="connectivity")return out(200,await connectivity());if(a==="diagnostics")return out(200,await diagnostics());if(a==="data_intake")return out(200,await dataIntakeAudit());if(a==="xg_monitor")return out(200,await xgMonitor(String(b.target_date||"")));if(a==="live_engine"){const result=await liveMatchEngine();return out(200,{...result,learning:await liveLearning()});}if(a==="live_learning")return out(200,await liveLearning());if(a==="value_monitor")return out(200,await valueMonitor(Boolean(b.refresh)));if(a==="sync"){const football=await syncFootball(true);if(football?.error)return out(200,{football,evaluation:null,note:"Result sync returned an error; evaluation was not run so predictions are not settled against stale data."});let evaluation:any=null;let evaluationError:string|null=null;try{evaluation=await evaluate()}catch(e){evaluationError=e instanceof Error?e.message:String(e)}return out(200,{football,evaluation,evaluation_error:evaluationError,note:"Result sync is followed by automatic evaluation. Predictions are settled only when a confirmed final score is available."});}if(a==="update_settings"){if(!b.settings||typeof b.settings!=="object"||Array.isArray(b.settings))return out(400,{error:"invalid_settings_payload",request_id:requestId},requestId);const allowedSettings=new Set(["football_api_enabled","odds_api_enabled","groq_enabled","openai_enabled"]);const patch:any={};for(const [key,value] of Object.entries(b.settings)){if(!allowedSettings.has(key))return out(400,{error:"unsupported_setting",setting:key,request_id:requestId},requestId);if(typeof value!=="boolean")return out(400,{error:"setting_must_be_boolean",setting:key,request_id:requestId},requestId);patch[key]=value;}if(!Object.keys(patch).length)return out(400,{error:"empty_settings_payload",request_id:requestId},requestId);const next={...patch,updated_at:new Date().toISOString(),id:true};const {data,error}=await sb.from("football_ai_settings").upsert(next).select().single();if(error)throw error;return out(200,{...(data||next),request_id:requestId},requestId);}if(a==="top6"||a==="pipeline")return out(200,await top6(Boolean(b.force)));if(a==="evaluate"){try{return out(200,await evaluate())}catch(e){console.error("Evaluation failed",JSON.stringify({request_id:requestId,message:e instanceof Error?e.message:String(e),code:e&&typeof e==="object"?(e as any).code:null}));return out(500,{error:"evaluation_failed",request_id:requestId},requestId)}}if(a==="evaluate_diagnostics"){try{return out(200,await evaluateDiagnostics())}catch(e){return out(500,{error:"evaluate_diagnostics_failed",message:e instanceof Error?e.message:String(e),request_id:requestId},requestId)}}if(a==="results_audit"){
+  // Strictly read-only audit for Mind-MZ. Never sync or settle predictions here.
+  const {date:today}=todayBounds();
+  const batchIds=Array.from({length:7},(_,i)=>"day-"+osloDate(new Date(Date.now()-i*86400000)));
+  const {data:ps,error:pe}=await sb.from("football_ai_predictions").select("id,match_id,prediction,status,settled_result,pnl,evaluated_at,created_at,reasoning").in("reasoning->>batch_id",batchIds).order("created_at",{ascending:false}).limit(500);
+  if(pe)throw pe;
+  const rows=ps||[],ids=[...new Set(rows.map((p:any)=>p.match_id).filter(Boolean))],matches:any[]=[];
+  for(let i=0;i<ids.length;i+=100){
+    const {data,error}=await sb.from("football_matches").select("id,home_team,away_team,league,kickoff_at,status,home_score,away_score").in("id",ids.slice(i,i+100));
+    if(error)throw error;matches.push(...(data||[]));
+  }
+  const {data:recent,error:re}=await sb.from("football_matches").select("id,home_team,away_team,league,kickoff_at,status,home_score,away_score").gte("kickoff_at",new Date(Date.now()-8*86400000).toISOString()).lte("kickoff_at",new Date(Date.now()+2*86400000).toISOString()).order("kickoff_at",{ascending:false}).limit(2000);
+  if(re)throw re;
+  const isFinal=(m:any)=>{const raw=String(m?.status||"").trim().toUpperCase(),st=raw.replace(/[^A-Z0-9]+/g," ").trim();return !VOID.has(raw.toLowerCase())&&["FT","AET","PEN","FINISHED","ENDED","FULL TIME","AFTER EXTRA TIME","AFTER PENALTIES","MATCH FINISHED","FT PEN","FINISHED AET","FINISHED PENALTIES","FINISHED AFTER EXTRA TIME","FINISHED AFTER PENALTIES","AWARDED"].includes(st)};
+  const hasScore=(m:any)=>m&&m.home_score!=null&&m.away_score!=null&&Number.isFinite(Number(m.home_score))&&Number.isFinite(Number(m.away_score));
+  const normTeam=(v:any)=>norm(String(v??"").replace(/æ/g,"ae").replace(/ø/g,"o").replace(/å/g,"a"));
+  const allMatches=[...new Map([...matches,...(recent||[])].map((m:any)=>[m.id,m])).values()];
+  const byId=new Map(allMatches.map((m:any)=>[m.id,m]));
+  let finalOpen=0,missingMatchId=0,missingLinked=0,finalWithoutScore=0;
+  const sample:any[]=[];
+  const settled=rows.filter((p:any)=>p.status==="WON"||p.status==="LOST");
+  for(const p of rows){
+    if(!p.match_id)missingMatchId++;
+    const linked=byId.get(p.match_id)||null;if(p.match_id&&!linked)missingLinked++;
+    const fixture=p.reasoning?.fixture||p.reasoning||{};
+    const home=normTeam(linked?.home_team||fixture.home_team),away=normTeam(linked?.away_team||fixture.away_team);
+    const kickoff=new Date(linked?.kickoff_at||fixture.kickoff_at).getTime(),league=normTeam(linked?.league||fixture.league);
+    const candidates=allMatches.filter((m:any)=>normTeam(m.home_team)===home&&normTeam(m.away_team)===away&&Number.isFinite(kickoff)&&Math.abs(new Date(m.kickoff_at).getTime()-kickoff)<=6*3600000&&(!league||!normTeam(m.league)||normTeam(m.league)===league));
+    candidates.sort((a:any,b:any)=>(Number(isFinal(b)&&hasScore(b))-Number(isFinal(a)&&hasScore(a)))||Math.abs(new Date(a.kickoff_at).getTime()-kickoff)-Math.abs(new Date(b.kickoff_at).getTime()-kickoff));
+    const best=candidates[0]||linked;
+    if(best&&isFinal(best)&&hasScore(best)&&p.status==="OPEN"){finalOpen++;if(sample.length<10)sample.push({prediction_id:p.id,home_team:best.home_team,away_team:best.away_team,score:String(best.home_score)+"-"+String(best.away_score),status:best.status,linked_match_id:p.match_id||null,final_match_id:best.id})}
+    if(best&&isFinal(best)&&!hasScore(best))finalWithoutScore++;
+  }
+  return out(200,{read_only:true,checked_at:new Date().toISOString(),batch_ids:batchIds,summary:{batch_size:rows.length,evaluated:settled.length,wins:settled.filter((p:any)=>p.status==="WON").length,losses:settled.filter((p:any)=>p.status==="LOST").length,pending:rows.filter((p:any)=>p.status==="OPEN").length,open_with_final_score:finalOpen,missing_match_id:missingMatchId,missing_linked_match:missingLinked,final_without_score:finalWithoutScore,market_ledger_present:rows.filter((p:any)=>Array.isArray(p.reasoning?.market_ledger?.items)).length,sample_open_final_matches:sample}});
+}
+if(a==="results"){
   const {date:today}=todayBounds();
   const batchIds=Array.from({length:7},(_,i)=>"day-"+osloDate(new Date(Date.now()-i*86400000)));
   const {data:allPs,error:predError}=await sb.from("football_ai_predictions")
