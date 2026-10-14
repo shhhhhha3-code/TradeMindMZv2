@@ -680,7 +680,22 @@ async function evaluate(){
     const validSettlementOdds=Number.isFinite(marketOdds)&&marketOdds>1&&marketOdds<1000;
     const pnl=validSettlementOdds?(correct?Number((marketOdds-1).toFixed(4)):-1):null;
     const evaluatedAt=new Date().toISOString();
-    const {data:claimed,error:claimError}=await sb.from("football_ai_predictions").update({status:correct?"WON":"LOST",settled_result:result,pnl,evaluated_at:evaluatedAt}).eq("id",p.id).eq("status","OPEN").select("id").maybeSingle();
+    // Persist independent market-level outcomes against the exact final score.
+    // Probabilities/odds are copied from the prediction snapshot created before kickoff.
+    const probabilities=p.reasoning?.ensemble_probabilities||{};
+    const storedMarkets=Array.isArray(p.reasoning?.markets)?p.reasoning.markets:[];
+    const marketProb=(type:string,selection:string)=>storedMarkets.find((x:any)=>String(x.type||"").toUpperCase()===type&&String(x.selection||"").toUpperCase()===selection)?.probability??null;
+    const marketOddsFor=(type:string,selection:string)=>{const x=storedMarkets.find((v:any)=>String(v.type||"").toUpperCase()===type&&String(v.selection||"").toUpperCase()===selection);const o=Number(x?.market_odds);return Number.isFinite(o)&&o>1?o:null};
+    const totalGoals=Number(m.home_score)+Number(m.away_score);
+    const marketSettlements=[
+      {key:"H",label:"H · Hjemmeseier",selection:"1",probability:Number.isFinite(Number(probabilities.home))?Number(probabilities.home):null,odds:marketOddsFor("1X2","1"),status:result==="1"?"WON":"LOST"},
+      {key:"U",label:"U · Uavgjort",selection:"X",probability:Number.isFinite(Number(probabilities.draw))?Number(probabilities.draw):null,odds:marketOddsFor("1X2","X"),status:result==="X"?"WON":"LOST"},
+      {key:"B",label:"B · Borteseier",selection:"2",probability:Number.isFinite(Number(probabilities.away))?Number(probabilities.away):null,odds:marketOddsFor("1X2","2"),status:result==="2"?"WON":"LOST"},
+      {key:"OVER_2_5",label:"Over 2,5",selection:"OVER 2.5",probability:marketProb("OVER_UNDER","OVER 2.5"),odds:marketOddsFor("OVER_UNDER","OVER 2.5"),status:totalGoals>2.5?"WON":"LOST"},
+      {key:"UNDER_2_5",label:"Under 2,5",selection:"UNDER 2.5",probability:marketProb("OVER_UNDER","UNDER 2.5"),odds:marketOddsFor("OVER_UNDER","UNDER 2.5"),status:totalGoals<2.5?"WON":"LOST"}
+    ].map((x:any)=>({...x,probability:x.probability==null?null:Number.isFinite(Number(x.probability))?Number(x.probability):null}));
+    const reasoningSnapshot={...(p.reasoning||{}),market_settlements:{evaluated_at:evaluatedAt,match_id:m.id,home_score:Number(m.home_score),away_score:Number(m.away_score),actual_result:result,total_goals:totalGoals,markets:marketSettlements}};
+    const {data:claimed,error:claimError}=await sb.from("football_ai_predictions").update({status:correct?"WON":"LOST",settled_result:result,pnl,evaluated_at:evaluatedAt,reasoning:reasoningSnapshot}).eq("id",p.id).eq("status","OPEN").select("id").maybeSingle();
     if(claimError){settlementErrors++;console.error("Prediction settlement update failed",p.id,claimError.message);continue}
     if(!claimed?.id)continue;
     const {error:evaluationError}=await sb.from("football_ai_evaluations").upsert({prediction_id:p.id,match_id:m.id,actual_result:result,predicted_result:prediction,correct,stake:1,pnl,evaluated_at:evaluatedAt},{onConflict:"prediction_id"});
