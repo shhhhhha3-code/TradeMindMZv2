@@ -904,6 +904,49 @@ if(a==="results"){
     const best=candidates[0]||linked;
     return {...p,match:best||null};
   }).filter((x:any)=>x.match);
+  // Settle the visible seven-day ledger synchronously before returning it.
+  // This avoids relying on EdgeRuntime.waitUntil for the user's current result view.
+  const normalizeLedgerOutcome=(value:any)=>{
+    const v=String(value??"").trim().toUpperCase();
+    if(["1","HOME","HOME_WIN","HOME WIN","H"].includes(v))return"1";
+    if(["X","DRAW","D","TIE"].includes(v))return"X";
+    if(["2","AWAY","AWAY_WIN","AWAY WIN","A"].includes(v))return"2";
+    return null;
+  };
+  let settledNow=0,settlementErrors=0;
+  for(const row of rows){
+    if(row.status!=="OPEN"||!row.match||!isFinal(row.match)||!hasScore(row.match))continue;
+    const kickoffMs=new Date(row.match.kickoff_at).getTime(),createdMs=new Date(row.created_at).getTime();
+    if(Number.isFinite(kickoffMs)&&Number.isFinite(createdMs)&&createdMs>kickoffMs)continue;
+    const prediction=normalizeLedgerOutcome(row.selected_outcome??row.prediction);
+    if(!prediction)continue;
+    const actual=Number(row.match.home_score)>Number(row.match.away_score)?"1":Number(row.match.home_score)<Number(row.match.away_score)?"2":"X";
+    const correct=prediction===actual;
+    const rawOdds=row.reasoning?.market_odds??row.odds,odds=rawOdds==null?NaN:Number(rawOdds);
+    const validOdds=Number.isFinite(odds)&&odds>1&&odds<1000;
+    const pnl=validOdds?(correct?Number((odds-1).toFixed(4)):-1):null;
+    const evaluatedAt=new Date().toISOString();
+    const marketLedger=settleMarketLedger(row,actual,Number(row.match.home_score),Number(row.match.away_score),evaluatedAt);
+    const reasoningSnapshot={...(row.reasoning||{}),market_ledger:marketLedger};
+    const {data:claimed,error:claimError}=await sb.from("football_ai_predictions")
+      .update({status:correct?"WON":"LOST",settled_result:actual,pnl,evaluated_at:evaluatedAt,reasoning:reasoningSnapshot})
+      .eq("id",row.id).eq("status","OPEN").select("id").maybeSingle();
+    if(claimError){settlementErrors++;console.error("Visible results settlement failed",row.id,claimError.message);continue}
+    if(!claimed?.id)continue;
+    const {error:evaluationError}=await sb.from("football_ai_evaluations").upsert({
+      prediction_id:row.id,match_id:row.match.id,actual_result:actual,predicted_result:prediction,
+      correct,stake:1,pnl,evaluated_at:evaluatedAt
+    },{onConflict:"prediction_id"});
+    if(evaluationError){
+      settlementErrors++;
+      console.error("Visible results evaluation write failed",row.id,evaluationError.message);
+      await sb.from("football_ai_predictions").update({status:"OPEN",settled_result:null,pnl:null,evaluated_at:null,reasoning:row.reasoning||{}}).eq("id",row.id).eq("status",correct?"WON":"LOST");
+      continue;
+    }
+    Object.assign(row,{status:correct?"WON":"LOST",settled_result:actual,pnl,evaluated_at:evaluatedAt,reasoning:reasoningSnapshot});
+    settledNow++;
+  }
+  if(settledNow)console.log("Visible results settled before response",JSON.stringify({settled:settledNow,settlement_errors:settlementErrors}));
   const settled=rows.filter((x:any)=>x.status==="WON"||x.status==="LOST");
   const wins=settled.filter((x:any)=>x.status==="WON").length;
   const pnl=settled.reduce((sum:number,x:any)=>sum+(x.pnl==null?0:Number(x.pnl)),0);
@@ -929,7 +972,7 @@ if(a==="results"){
   else console.warn("EdgeRuntime.waitUntil unavailable for Results background refresh");
 
   const summary={
-    batch_date:today,batch_size:rows.length,history_days:7,evaluated:settled.length,wins,
+    batch_date:today,batch_size:rows.length,history_days:7,evaluated:settled.length,settled_this_request:settledNow,settlement_errors:settlementErrors,wins,
     losses:settled.filter((x:any)=>x.status==="LOST").length,
     pending:rows.filter((x:any)=>x.status==="OPEN").length,
     accuracy:settled.length?Math.round(wins/settled.length*100):null,
