@@ -90,6 +90,8 @@ jobs:
           test "$post_refresh_audit_code" = "200"
           grep -Eq '"read_only":true' /tmp/post-refresh-audit.json
           grep -Eq '"open_with_final_score":[0-9]+' /tmp/post-refresh-audit.json
+          grep -Eq '"open_with_final_score":0' /tmp/post-refresh-audit.json
+          grep -Eq '"pending":0' /tmp/post-refresh-audit.json
 
       - name: Fetch Supabase boot error logs
         if: failure()
