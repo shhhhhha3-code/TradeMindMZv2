@@ -422,8 +422,8 @@ async function syncFootball(lightweight=false){
   const {date:today}=todayBounds();
   // football-data.org rejects date ranges longer than 10 days.
   // Use a 9-calendar-day inclusive window to leave margin under the provider limit.
-  const from=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d-4,12,0,0)))})();
-  const to=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d+4,12,0,0)))})();
+  const from=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d-7,12,0,0)))})();
+  const to=(()=>{const [y,m,d]=today.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d+1,12,0,0)))})();
   let fixtures:any[];
   try{
     const payload=(await jsonFetch("https://api.football-data.org/v4/matches?dateFrom="+from+"&dateTo="+to,{headers:{"X-Auth-Token":key,"accept":"application/json"},},15000)).data;
@@ -706,41 +706,73 @@ async function learning(){const {data:e}=await sb.from("football_ai_evaluations"
 Deno.serve(async req=>{const requestId=crypto.randomUUID();if(req.method==="OPTIONS")return new Response(null,{status:204,headers:{"access-control-allow-origin":"*","access-control-allow-headers":"authorization,apikey,content-type,x-client-info,x-supabase-api-version","access-control-allow-methods":"POST,OPTIONS","access-control-max-age":"86400","x-request-id":requestId}});if(req.method!=="POST")return out(405,{error:"method_not_allowed",request_id:requestId},requestId);if(!SUPABASE_URL||!SUPABASE_KEY)return out(503,{error:"supabase_environment_not_configured",message:"Supabase URL or service key is missing in the Edge Function environment.",request_id:requestId},requestId);try{const contentLength=Number(req.headers.get("content-length")||0);if(Number.isFinite(contentLength)&&contentLength>16384)return out(413,{error:"request_body_too_large",max_bytes:16384,request_id:requestId},requestId);const rawBody=await req.text();if(new TextEncoder().encode(rawBody).byteLength>16384)return out(413,{error:"request_body_too_large",max_bytes:16384,request_id:requestId},requestId);let b:any;try{b=JSON.parse(rawBody)}catch{return out(400,{error:"invalid_json_body",request_id:requestId},requestId)}if(!b||typeof b!=="object"||Array.isArray(b))return out(400,{error:"invalid_json_body",request_id:requestId},requestId);const a=String(b.action||"top6");const allowed=new Set(["settings","connectivity","diagnostics","data_intake","xg_monitor","live_engine","live_learning","value_monitor","sync","update_settings","top6","pipeline","evaluate","evaluate_diagnostics","results","performance","learning","football_data_test"]);if(!allowed.has(a))return out(400,{error:"unknown_action",request_id:requestId},requestId);if(a==="settings")return out(200,await getSettings());if(a==="football_data_test")return out(200,await footballDataTest());if(a==="connectivity")return out(200,await connectivity());if(a==="diagnostics")return out(200,await diagnostics());if(a==="data_intake")return out(200,await dataIntakeAudit());if(a==="xg_monitor")return out(200,await xgMonitor(String(b.target_date||"")));if(a==="live_engine"){const result=await liveMatchEngine();return out(200,{...result,learning:await liveLearning()});}if(a==="live_learning")return out(200,await liveLearning());if(a==="value_monitor")return out(200,await valueMonitor(Boolean(b.refresh)));if(a==="sync"){const football=await syncFootball(true);if(football?.error)return out(200,{football,evaluation:null,note:"Result sync returned an error; evaluation was not run so predictions are not settled against stale data."});let evaluation:any=null;let evaluationError:string|null=null;try{evaluation=await evaluate()}catch(e){evaluationError=e instanceof Error?e.message:String(e)}return out(200,{football,evaluation,evaluation_error:evaluationError,note:"Result sync is followed by automatic evaluation. Predictions are settled only when a confirmed final score is available."});}if(a==="update_settings"){if(!b.settings||typeof b.settings!=="object"||Array.isArray(b.settings))return out(400,{error:"invalid_settings_payload",request_id:requestId},requestId);const allowedSettings=new Set(["football_api_enabled","odds_api_enabled","groq_enabled","openai_enabled"]);const patch:any={};for(const [key,value] of Object.entries(b.settings)){if(!allowedSettings.has(key))return out(400,{error:"unsupported_setting",setting:key,request_id:requestId},requestId);if(typeof value!=="boolean")return out(400,{error:"setting_must_be_boolean",setting:key,request_id:requestId},requestId);patch[key]=value;}if(!Object.keys(patch).length)return out(400,{error:"empty_settings_payload",request_id:requestId},requestId);const next={...patch,updated_at:new Date().toISOString(),id:true};const {data,error}=await sb.from("football_ai_settings").upsert(next).select().single();if(error)throw error;return out(200,{...(data||next),request_id:requestId},requestId);}if(a==="top6"||a==="pipeline")return out(200,await top6(Boolean(b.force)));if(a==="evaluate"){try{return out(200,await evaluate())}catch(e){console.error("Evaluation failed",JSON.stringify({request_id:requestId,message:e instanceof Error?e.message:String(e),code:e&&typeof e==="object"?(e as any).code:null}));return out(500,{error:"evaluation_failed",request_id:requestId},requestId)}}if(a==="evaluate_diagnostics"){try{return out(200,await evaluateDiagnostics())}catch(e){return out(500,{error:"evaluate_diagnostics_failed",message:e instanceof Error?e.message:String(e),request_id:requestId},requestId)}}if(a==="results"){
   const {date:today}=todayBounds();
   const historyStart=new Date(Date.now()-7*24*60*60*1000).toISOString();
-
-  // First settle against final scores already stored locally, then return a fresh
-  // ledger. Provider sync is intentionally backgrounded so the results endpoint
-  // remains responsive; the next poll sees newly synced scores and settles them.
-  let evaluation:any=null,evaluationError:string|null=null;
-  try{evaluation=await evaluate()}catch(e){evaluationError=e instanceof Error?e.message:String(e)}
-
   const {data:allPs,error:predError}=await sb.from("football_ai_predictions")
     .select("id,match_id,prediction,selected_outcome,confidence,odds,value_percent,provider,model,status,settled_result,pnl,evaluated_at,created_at,reasoning")
     .gte("created_at",historyStart).order("created_at",{ascending:false}).limit(500);
   if(predError)throw predError;
   const batchPs=(allPs||[]).slice(0,42);
   const ids=[...new Set(batchPs.map((x:any)=>x.match_id).filter(Boolean))];
-  const ms:any[]=[];
+  const matchRows:any[]=[];
   for(let i=0;i<ids.length;i+=100){
-    const {data,error}=await sb.from("football_matches").select("id,home_team,away_team,league,kickoff_at,home_score,away_score,status").in("id",ids.slice(i,i+100));
+    const {data,error}=await sb.from("football_matches")
+      .select("id,home_team,away_team,league,kickoff_at,home_score,away_score,status")
+      .in("id",ids.slice(i,i+100));
     if(error)throw error;
-    ms.push(...(data||[]));
+    matchRows.push(...(data||[]));
   }
-  const matches=new Map(ms.map((m:any)=>[m.id,m]));
-  const rows=batchPs.map((p:any)=>({...p,match:matches.get(p.match_id)||null})).filter((x:any)=>x.match);
+  // A prediction may reference a duplicate/scheduled fixture row while the
+  // provider has written the final score to a sibling row. Resolve by teams,
+  // same local match date, and a narrow kickoff window, preferring final scores.
+  const finalStates=new Set(["FT","AET","PEN","FINISHED","ENDED","FULL TIME","AFTER EXTRA TIME","AFTER PENALTIES","MATCH FINISHED","FT PEN","FINISHED AET","FINISHED PENALTIES","AFTER EXTRA TIME FINISHED","FINISHED AFTER EXTRA TIME","FINISHED AFTER PENALTIES","AWARDED"]);
+  const isFinal=(m:any)=>{
+    const raw=String(m?.status||"").trim().toUpperCase();
+    const status=raw.replace(/[^A-Z0-9]+/g," ").trim();
+    return !VOID.has(raw.toLowerCase())&&(finalStates.has(status)||status.endsWith(" FINISHED")||status.startsWith("FINISHED "));
+  };
+  const hasScore=(m:any)=>m&&m.home_score!=null&&m.away_score!=null&&Number.isFinite(Number(m.home_score))&&Number.isFinite(Number(m.away_score));
+  const normTeam=(v:any)=>norm(String(v??"").replace(/æ/g,"ae").replace(/ø/g,"o").replace(/å/g,"a"));
+  const fixtureKey=(m:any)=>[normTeam(m?.home_team),normTeam(m?.away_team),String(m?.kickoff_at||"").slice(0,10)].join("|");
+  const {data:recentFinals,error:finalError}=await sb.from("football_matches")
+    .select("id,home_team,away_team,league,kickoff_at,home_score,away_score,status")
+    .gte("kickoff_at",new Date(Date.now()-8*86400000).toISOString())
+    .lte("kickoff_at",new Date(Date.now()+2*86400000).toISOString())
+    .order("kickoff_at",{ascending:false}).limit(2000);
+  if(finalError)throw finalError;
+  const allMatches=[...new Map([...(matchRows||[]),...(recentFinals||[])].map((m:any)=>[m.id,m])).values()];
+  const rows=batchPs.map((p:any)=>{
+    const linked=allMatches.find((m:any)=>m.id===p.match_id)||null;
+    const fixture=p.reasoning?.fixture||p.reasoning||{};
+    const home=normTeam(linked?.home_team||fixture.home_team),away=normTeam(linked?.away_team||fixture.away_team);
+    const kickoff=new Date(linked?.kickoff_at||fixture.kickoff_at||p.created_at).getTime();
+    const candidates=allMatches.filter((m:any)=>{
+      if(normTeam(m.home_team)!==home||normTeam(m.away_team)!==away)return false;
+      const t=new Date(m.kickoff_at).getTime();
+      if(!Number.isFinite(t)||!Number.isFinite(kickoff)||Math.abs(t-kickoff)>6*3600000)return false;
+      return true;
+    }).sort((a:any,b:any)=>{
+      const af=isFinal(a)&&hasScore(a)?1:0,bf=isFinal(b)&&hasScore(b)?1:0;
+      return bf-af||Math.abs(new Date(a.kickoff_at).getTime()-kickoff)-Math.abs(new Date(b.kickoff_at).getTime()-kickoff);
+    });
+    const best=candidates[0]||linked;
+    return {...p,match:best||null};
+  }).filter((x:any)=>x.match);
   const settled=rows.filter((x:any)=>x.status==="WON"||x.status==="LOST");
   const wins=settled.filter((x:any)=>x.status==="WON").length;
   const pnl=settled.reduce((sum:number,x:any)=>sum+(x.pnl==null?0:Number(x.pnl)),0);
 
+  // Never make the UI wait for a provider network request or a full 500-row
+  // settlement pass. Kick off refresh/evaluation after constructing the current
+  // ledger; the frontend polls again while OPEN predictions remain.
   const runtime=(globalThis as any).EdgeRuntime;
   const task=(async()=>{
     try{
       const sync=await syncExternalData(false);
-      const nextEvaluation=await evaluate();
+      const evaluation=await evaluate();
       console.log("Results background refresh",JSON.stringify({
         football_synced:sync?.football?.synced??null,
         football_error:sync?.football?.error??null,
-        evaluated:nextEvaluation?.evaluated??0,
-        skipped:nextEvaluation?.skipped??null
+        evaluated:evaluation?.evaluated??0,
+        skipped:evaluation?.skipped??null
       }));
       await top6(false);
     }catch(e){console.error("Results background refresh failed",e instanceof Error?e.message:String(e))}
@@ -755,8 +787,5 @@ Deno.serve(async req=>{const requestId=crypto.randomUUID();if(req.method==="OPTI
     accuracy:settled.length?Math.round(wins/settled.length*100):null,
     roi:settled.length?Math.round(pnl/settled.length*1000)/10:0
   };
-  return out(200,{
-    status:rows.length?"READY":"SCANNING",results:rows,summary,
-    evaluation:{evaluated:evaluation?.evaluated??0,skipped:evaluation?.skipped??null,error:evaluationError}
-  });
+  return out(200,{status:rows.length?"READY":"SCANNING",results:rows,summary});
 }if(a==="performance"){const {data:e}=await sb.from("football_ai_evaluations").select("prediction_id,correct,pnl,evaluated_at,actual_result").order("evaluated_at",{ascending:false}).limit(1000);const rows=e||[];const ids=rows.map((x:any)=>x.prediction_id).filter(Boolean);const {data:ps}=ids.length?await sb.from("football_ai_predictions").select("id,reasoning,prediction,confidence,status,odds,created_at").in("id",ids):{data:[]};const byId=new Map((ps||[]).map((x:any)=>[x.id,x]));const enriched=rows.map((x:any)=>({e:x,p:byId.get(x.prediction_id)}));const engineRows=enriched.filter((x:any)=>x.p?.reasoning?.engine_prediction);const engineCorrect=engineRows.filter((x:any)=>String(x.p.reasoning.engine_prediction)===String(x.e.actual_result)).length;const engineAccuracy=engineRows.length?Math.round(engineCorrect/engineRows.length*100):null;const engineScores=engineRows.map((x:any)=>Number(x.p.reasoning.engine_score)).filter((x:any)=>Number.isFinite(x));const engineAvg=engineScores.length?Math.round(engineScores.reduce((a:number,b:number)=>a+b,0)/engineScores.length):null;const calc=(xs:any[])=>{const n=xs.length,wins=xs.filter(x=>x.correct).length,pnl=xs.reduce((a,x)=>a+Number(x.pnl||0),0);return{samples:n,wins,losses:n-wins,accuracy:n?Math.round(wins/n*100):null,roi:n?Math.round(pnl/n*1000)/10:0,pnl:Math.round(pnl*100)/100}};const recent=calc(rows.slice(0,20)),previous=calc(rows.slice(20,40));const trend=recent.accuracy==null||previous.accuracy==null?"STABLE":recent.accuracy>previous.accuracy?"IMPROVING":recent.accuracy<previous.accuracy?"ADJUSTING":"STABLE";const valueRows=enriched.filter((x:any)=>x.p?.reasoning?.value_signal);const valueCalc=(signal:string)=>calc(valueRows.filter((x:any)=>String(x.p.reasoning.value_signal)===signal).map((x:any)=>x.e));const valueBreakdown={VALUE:valueCalc("VALUE"),LEAN:valueCalc("LEAN"),"NO BET":valueCalc("NO BET")};let cumulative=0,peak=0,maxDrawdown=0;for(const x of [...rows].reverse()){cumulative+=Number(x.pnl||0);peak=Math.max(peak,cumulative);maxDrawdown=Math.min(maxDrawdown,cumulative-peak)}const settledWithOdds=rows.filter((x:any)=>x.pnl!=null&&Number.isFinite(Number(x.pnl)));const avgEdge=valueRows.map((x:any)=>Number(x.p.reasoning.edge_percent)).filter((x:any)=>Number.isFinite(x));const avgEv=valueRows.map((x:any)=>Number(x.p.reasoning.expected_value_percent)).filter((x:any)=>Number.isFinite(x));const backtest={status:rows.length?"ACTIVE_DATASET":"WAITING_FOR_RESULTS",samples:rows.length,settled_with_odds:settledWithOdds.length,accuracy:calc(rows).accuracy,roi:calc(rows).roi,pnl:calc(rows).pnl,avg_edge:avgEdge.length?Math.round(avgEdge.reduce((a:number,b:number)=>a+b,0)/avgEdge.length*10)/10:null,avg_ev:avgEv.length?Math.round(avgEv.reduce((a:number,b:number)=>a+b,0)/avgEv.length*10)/10:null,max_drawdown:Math.round(maxDrawdown*100)/100,value_breakdown:valueBreakdown};const {data:w}=await sb.from("football_ai_model_weights").select("*").eq("model_name","trademindmz-v3").maybeSingle();const weights=w?.weights||{home:1,draw:.1,away:-1};const engineStatus=engineAccuracy==null?"COLLECTING":engineAccuracy>=65?"STRONG":engineAccuracy>=50?"LEARNING":"ADJUSTING";const calibration=await confidenceCalibration();return out(200,{model:{name:"TMZ-AI",version:w?.model_version||"v4.0",samples:w?.training_samples||rows.length,learning_rate:w?.learning_rate||.02,updated_at:w?.updated_at||null,trend,weights},engine:{name:"TradeMindMZ Engine",version:"v1.0",status:engineStatus,samples:engineRows.length,accuracy:engineAccuracy,average_score:engineAvg,learning_active:true,description:"Kvantitativ motor som scorer kampene før AI og justerer vekter fra fasit."},metrics:{...calc(rows),recent,previous},backtest,calibration,pipeline:["Data intake","Engine Score","Deep AI","Resultat","Error scan","Weight update","Validation"],signals:[{name:"ACCURACY",value:recent.accuracy||0,status:trend},{name:"ENGINE",value:engineAccuracy||0,status:engineStatus},{name:"VALUE",value:Math.max(0,Math.min(100,50+recent.roi*4)),status:recent.roi>=0?"POSITIVE":"NEGATIVE"},{name:"DATA QUALITY",value:Math.min(100,Math.round(rows.length/10)),status:rows.length>=100?"STRONG":rows.length>=30?"BUILDING":"COLLECTING"},{name:"LEARNING",value:Math.min(100,Math.round((w?.training_samples||rows.length)/5)),status:trend}]});}if(a==="learning")return out(200,await learning());return out(400,{error:"unknown_action"});}catch(e){console.error("football-ai request failed",JSON.stringify({request_id:requestId,message:e instanceof Error?e.message:String(e),code:e&&typeof e==="object"?(e as any).code:null}));return out(500,{error:"internal_error",request_id:requestId},requestId);}});
