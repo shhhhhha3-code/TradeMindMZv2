@@ -39,7 +39,7 @@ const contextReady=hasObj(model.lineup)||hasObj(model.tactical)||hasObj(model.ma
 const layers=[
 {name:"FORM",ready:formReady,detail:formReady?"Motorens lagform/strength-data er til stede":"Ingen form-/styrkedata i denne prediksjonen"},
 {name:"HOME / AWAY",ready:homeAwayReady,detail:homeAwayReady?"Hjemme-/bortefaktorer er beregnet":"Ingen hjemme-/bortefaktorer tilgjengelig"},
-{name:"xG PROFILE",ready:xgReady,detail:xgReady?"Hjemme xG "+fmt(reasoning.xg_home)+" · Borte xG "+fmt(reasoning.xg_away)},
+{name:"xG PROFILE",ready:xgReady,detail:xgReady?"Hjemme xG "+fmt(reasoning.xg_home)+" · Borte xG "+fmt(reasoning.xg_away):"xG ikke validert eller tilgjengelig"},
 {name:"MARKET",ready:oddsReady,detail:oddsReady?markets.filter(m=>hasNum(m.market_odds)&&Number(m.market_odds)>1).length+" markedspriser lagret":"Ingen gyldige odds lagret for denne kampen"},
 {name:"CONTEXT",ready:contextReady,detail:contextReady?"Taktikk/lagoppstilling/dommerkontekst finnes":"Ingen kontekstdata dokumentert"}
 ];
