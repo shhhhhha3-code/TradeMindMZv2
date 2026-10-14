@@ -730,7 +730,7 @@ async function evaluateDiagnostics(){
   };
 }
 async function evaluate(){
-  const {data:ps,error:predictionError}=await sb.from("football_ai_predictions").select("id,match_id,prediction,selected_outcome,odds,reasoning,created_at").eq("status","OPEN").order("created_at",{ascending:true}).limit(500);
+  const {data:ps,error:predictionError}=await sb.from("football_ai_predictions").select("id,match_id,prediction,selected_outcome,odds,reasoning,created_at").eq("status","OPEN").order("created_at",{ascending:false}).limit(500);
   if(predictionError)throw predictionError;
   if(!ps?.length)return{evaluated:0,open_predictions:0,reason:"no_open_predictions"};
   const linkedIds=[...new Set(ps.map((p:any)=>p.match_id).filter(Boolean))];
