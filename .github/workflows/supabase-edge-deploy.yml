@@ -58,7 +58,7 @@ jobs:
           unknown_action_code="$(curl -sS -o /tmp/unknown-action.json -w '%{http_code}' -X POST "$url" -H 'Content-Type: application/json' --data '{"action":"__phase7_unknown_action__"}')"
           echo "Unknown action HTTP: $unknown_action_code"
           test "$unknown_action_code" = "400"
-          oversized_body="$(printf '{"action":"diagnostics","padding":"'; head -c 16400 /dev/zero | tr '\\0' 'a'; printf '"}')"
+          oversized_body="$(printf '{"action":"diagnostics","padding":"%*s"}' 16400 '')"
           oversized_code="$(curl -sS -o /tmp/oversized.json -w '%{http_code}' -X POST "$url" -H 'Content-Type: application/json' --data-binary "$oversized_body")"
           echo "Oversized body HTTP: $oversized_code"
           test "$oversized_code" = "413"
