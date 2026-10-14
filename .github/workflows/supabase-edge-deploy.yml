@@ -66,6 +66,17 @@ jobs:
           echo "Diagnostics HTTP: $post_code"
           cat /tmp/diagnostics.json
           test "$post_code" = "200"
+          eval_diag_code="$(curl -sS --max-time 20 -o /tmp/evaluate-diagnostics.json -w '%{http_code}' -X POST "$url" -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"evaluate_diagnostics"}')"
+          echo "Evaluation diagnostics HTTP: $eval_diag_code"
+          cat /tmp/evaluate-diagnostics.json
+          test "$eval_diag_code" = "200"
+          grep -Eq '"status":"(OK|WARNING)"' /tmp/evaluate-diagnostics.json
+          results_audit_code="$(curl -sS --max-time 20 -o /tmp/results-audit.json -w '%{http_code}' -X POST "$url" -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"results_audit"}')"
+          echo "Read-only results audit HTTP: $results_audit_code"
+          cat /tmp/results-audit.json
+          test "$results_audit_code" = "200"
+          grep -Eq '"read_only":true' /tmp/results-audit.json
+          grep -Eq '"open_with_final_score":[0-9]+' /tmp/results-audit.json
           results_code="$(curl -sS --max-time 20 -o /tmp/results.json -w '%{http_code}' -X POST "$url" -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"results"}')"
           echo "Results HTTP: $results_code"
           cat /tmp/results.json
