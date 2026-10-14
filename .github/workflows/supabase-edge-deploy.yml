@@ -82,6 +82,14 @@ jobs:
           cat /tmp/results.json
           test "$results_code" = "200"
           grep -Eq '"status":"(READY|SCANNING)"' /tmp/results.json
+          # Results refresh runs settlement asynchronously; audit again after it has time to finish.
+          sleep 20
+          post_refresh_audit_code="$(curl -sS --max-time 20 -o /tmp/post-refresh-audit.json -w '%{http_code}' -X POST "$url" -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"action":"results_audit"}')"
+          echo "Post-refresh results audit HTTP: $post_refresh_audit_code"
+          cat /tmp/post-refresh-audit.json
+          test "$post_refresh_audit_code" = "200"
+          grep -Eq '"read_only":true' /tmp/post-refresh-audit.json
+          grep -Eq '"open_with_final_score":[0-9]+' /tmp/post-refresh-audit.json
 
       - name: Fetch Supabase boot error logs
         if: failure()
