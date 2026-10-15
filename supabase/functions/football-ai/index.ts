@@ -689,7 +689,7 @@ async function resultsAudit(){
     status:finishedOpen?"WARNING":"OK",read_only:true,checked_at:new Date().toISOString(),
     summary:{batch_size:predictions.length,evaluated:settled.length,wins:settled.filter((p:any)=>p.status==="WON").length,losses:settled.filter((p:any)=>p.status==="LOST").length,pending:pending.length,finished_open:finishedOpen,finished_open_without_ledger:finishedNoLedger,with_market_ledger:predictionsWithLedger},
     market_ledger:ledgerCounts,
-    sample:predictions.slice(0,8).map((p:any)=>{const m=byId.get(p.match_id);return{id:p.id,home_team:m?.home_team||p.reasoning?.fixture?.home_team||null,away_team:m?.away_team||p.reasoning?.fixture?.away_team||null,score:hasScore(m)?String(m.home_score)+"-"+String(m.away_score):null,fixture_status:m?.status||null,prediction_status:p.status,has_market_ledger:Array.isArray(p.reasoning?.market_ledger?.items)}),
+    sample:predictions.slice(0,8).map((p:any)=>{const m=byId.get(p.match_id);return{id:p.id,home_team:m?.home_team||p.reasoning?.fixture?.home_team||null,away_team:m?.away_team||p.reasoning?.fixture?.away_team||null,score:hasScore(m)?String(m.home_score)+"-"+String(m.away_score):null,fixture_status:m?.status||null,prediction_status:p.status,has_market_ledger:Array.isArray(p.reasoning?.market_ledger?.items)}}),
     note:"Read-only audit; does not sync providers or settle predictions."
   };
 }
