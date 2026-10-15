@@ -555,7 +555,7 @@ function settleMarketLedger(p:any,result:string,homeScore:number,awayScore:numbe
     const prob=item.probability==null?null:Number(item.probability),odds=item.odds==null?null:Number(item.odds);
     const hasModel=prob!=null&&Number.isFinite(prob)&&prob>=0&&prob<=1;
     const hasOdds=odds!=null&&Number.isFinite(odds)&&odds>1&&odds<1000;
-    return{...item,actual_result:actual,status:hasModel?(won?"WON":"LOST"):"NO_MODEL_DATA",pnl:hasModel&&hasOdds?(won?Number((odds-1).toFixed(4)):-1):null,evaluated_at:evaluatedAt};
+    return{...item,actual_result:actual,status:won?"WON":"LOST",model_data_status:hasModel?"AVAILABLE":"NO_MODEL_DATA",probability_available:hasModel,odds_available:hasOdds,pnl:hasOdds?(won?Number((odds-1).toFixed(4)):-1):null,evaluated_at:evaluatedAt};
   });
   return{...ledger,settled_at:evaluatedAt,actual_score:{home:homeScore,away:awayScore},items};
 }
@@ -676,7 +676,7 @@ async function evaluateDiagnostics(){
   const normTeam=(v:any)=>norm(String(v??"").replace(/æ/g,"ae").replace(/ø/g,"o").replace(/å/g,"a"));
   const byId=new Map(linked.map((m:any)=>[m.id,m]));
   const finalRows=(recent||[]).filter((m:any)=>isFinal(m)&&hasScore(m));
-  const finalSibling=(p:any,linkedMatch:any)=>{
+  const findFinalSibling=(p:any,linkedMatch:any)=>{
     const fixture=p.reasoning?.fixture||p.reasoning||{};
     const home=normTeam(linkedMatch?.home_team||fixture.home_team);
     const away=normTeam(linkedMatch?.away_team||fixture.away_team);
@@ -695,36 +695,32 @@ async function evaluateDiagnostics(){
     const linkedMatch=byId.get(p.match_id)||null;
     if(p.match_id&&!linkedMatch)missingLinked++;
     const linkedHasFinal=Boolean(linkedMatch&&isFinal(linkedMatch)&&hasScore(linkedMatch));
-    const sibling=linkedHasFinal?null:finalSibling(p,linkedMatch);
+    const sibling=linkedHasFinal?null:findFinalSibling(p,linkedMatch);
     if(linkedHasFinal)linkedFinal++;
     else if(sibling)siblingFinal++;
     const kickoff=new Date(linkedMatch?.kickoff_at||p.reasoning?.fixture?.kickoff_at).getTime();
     const created=new Date(p.created_at).getTime();
     if(Number.isFinite(kickoff)&&Number.isFinite(created)&&created>kickoff)postKickoffOpen++;
-    if((linkedHasFinal||sibling)&&sample.length<12)sample.push({
-      prediction_id:p.id,match_id:p.match_id||null,
-      home_team:(sibling||linkedMatch)?.home_team||p.reasoning?.fixture?.home_team||null,
-      away_team:(sibling||linkedMatch)?.away_team||p.reasoning?.fixture?.away_team||null,
-      score:hasScore(sibling||linkedMatch)?String((sibling||linkedMatch).home_score)+"-"+String((sibling||linkedMatch).away_score):null,
-      fixture_status:(sibling||linkedMatch)?.status||null,
-      linked_match_is_final:linkedHasFinal,final_sibling_found:Boolean(sibling)
-    });
+    if((linkedHasFinal||sibling)&&sample.length<12){
+      const m=sibling||linkedMatch;
+      sample.push({prediction_id:p.id,match_id:p.match_id||null,home_team:m?.home_team||p.reasoning?.fixture?.home_team||null,away_team:m?.away_team||p.reasoning?.fixture?.away_team||null,score:hasScore(m)?String(m.home_score)+"-"+String(m.away_score):null,fixture_status:m?.status||null,linked_match_is_final:linkedHasFinal,final_sibling_found:Boolean(sibling)});
+    }
   }
   const missingMatchId=predictions.filter((p:any)=>!p.match_id).length;
-  const status=(missingMatchId||missingLinked||siblingFinal||linkedFinal||postKickoffOpen)?"WARNING":"OK";
+  const finalOpen=linkedFinal+siblingFinal;
   const notes:string[]=[];
   if(missingMatchId)notes.push("Åpne prediksjoner mangler match_id.");
   if(missingLinked)notes.push("Prediksjoner peker på kamp-ID-er som ikke finnes i football_matches.");
-  if(linkedFinal+siblingFinal)notes.push("Ferdigspilte kamper har fortsatt OPEN-prediksjoner; evaluering eller resultatkobling må kontrolleres.");
-  if(postKickoffOpen)notes.push("Noen åpne prediksjoner er opprettet etter kampstart og skal ikke regnes som forhåndstips.");
+  if(finalOpen)notes.push("Ferdigspilte kamper med sluttresultat har fortsatt OPEN-prediksjoner.");
+  if(postKickoffOpen)notes.push("Åpne prediksjoner opprettet etter avspark må kontrolleres og skal ikke regnes som forhåndstips.");
   return{
-    status,checked_at:new Date().toISOString(),read_only:true,
+    status:missingMatchId||missingLinked||finalOpen?"WARNING":"OK",
+    checked_at:new Date().toISOString(),read_only:true,
     open_predictions_sample:predictions.length,open_with_match_id:predictions.filter((p:any)=>Boolean(p.match_id)).length,
     unique_linked_match_ids:ids.length,open_without_match_id:missingMatchId,
     linked_match_rows:linked.length,missing_linked_match_rows:missingLinked,
     linked_finished_with_scores:linkedFinal,open_predictions_with_final_sibling:siblingFinal,
-    open_predictions_with_any_final_match:linkedFinal+siblingFinal,
-    open_predictions_created_after_kickoff:postKickoffOpen,
+    open_predictions_with_any_final_match:finalOpen,open_predictions_created_after_kickoff:postKickoffOpen,
     recent_matches_scanned:(recent||[]).length,recent_finished_with_scores:finalRows.length,
     final_open_prediction_sample:sample,notes
   };
