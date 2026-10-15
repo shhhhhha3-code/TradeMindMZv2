@@ -953,6 +953,29 @@ if(a==="results"){
     settledNow++;
   }
   if(settledNow)console.log("Visible results settled before response",JSON.stringify({settled:settledNow,settlement_errors:settlementErrors}));
+  // Backfill old settled rows whose ledger was written before market outcomes
+  // were separated from model-probability availability. Never change the main
+  // prediction verdict; only refresh the five market outcomes when score and
+  // stored 1X2 settlement agree.
+  let ledgerBackfilled=0,ledgerBackfillErrors=0;
+  for(const row of rows){
+    if(!["WON","LOST"].includes(String(row.status))||!row.match||!isFinal(row.match)||!hasScore(row.match))continue;
+    const actual=Number(row.match.home_score)>Number(row.match.away_score)?"1":Number(row.match.home_score)<Number(row.match.away_score)?"2":"X";
+    if(String(row.settled_result||"").toUpperCase()!==actual)continue;
+    const items=row.reasoning?.market_ledger?.items;
+    if(!Array.isArray(items)||!items.length)continue;
+    const needsBackfill=items.some((item:any)=>item.status==="NO_MODEL_DATA"||item.status==="OPEN"||item.status==="PENDING");
+    if(!needsBackfill)continue;
+    const evaluatedAt=row.evaluated_at||new Date().toISOString();
+    const marketLedger=settleMarketLedger(row,actual,Number(row.match.home_score),Number(row.match.away_score),evaluatedAt);
+    const reasoningSnapshot={...(row.reasoning||{}),market_ledger:marketLedger};
+    const {error}=await sb.from("football_ai_predictions").update({reasoning:reasoningSnapshot}).eq("id",row.id).in("status",["WON","LOST"]);
+    if(error){ledgerBackfillErrors++;console.error("Market ledger backfill failed",row.id,error.message);continue}
+    row.reasoning=reasoningSnapshot;
+    ledgerBackfilled++;
+  }
+  if(ledgerBackfilled||ledgerBackfillErrors)console.log("Market ledger backfill",JSON.stringify({updated:ledgerBackfilled,errors:ledgerBackfillErrors}));
+
   const settled=rows.filter((x:any)=>x.status==="WON"||x.status==="LOST");
   const wins=settled.filter((x:any)=>x.status==="WON").length;
   const pnl=settled.reduce((sum:number,x:any)=>sum+(x.pnl==null?0:Number(x.pnl)),0);
