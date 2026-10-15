@@ -555,7 +555,7 @@ function settleMarketLedger(p:any,result:string,homeScore:number,awayScore:numbe
     const prob=item.probability==null?null:Number(item.probability),odds=item.odds==null?null:Number(item.odds);
     const hasModel=prob!=null&&Number.isFinite(prob)&&prob>=0&&prob<=1;
     const hasOdds=odds!=null&&Number.isFinite(odds)&&odds>1&&odds<1000;
-    return{...item,actual_result:actual,status:hasModel?(won?"WON":"LOST"):"NO_MODEL_DATA",pnl:hasModel&&hasOdds?(won?Number((odds-1).toFixed(4)):-1):null,evaluated_at:evaluatedAt};
+    return{...item,actual_result:actual,status:won?"WON":"LOST",model_data_status:hasModel?"AVAILABLE":"NO_MODEL_DATA",probability_available:hasModel,odds_available:hasOdds,pnl:hasOdds?(won?Number((odds-1).toFixed(4)):-1):null,evaluated_at:evaluatedAt};
   });
   return{...ledger,settled_at:evaluatedAt,actual_score:{home:homeScore,away:awayScore},items};
 }
