@@ -662,8 +662,8 @@ async function evaluateDiagnostics(){
   const toDate=(()=>{const [y,m,d]=date.split("-").map(Number);return osloDate(new Date(Date.UTC(y,m-1,d+2,12,0,0)))})();
   const {data:recent,error:re}=await sb.from("football_matches")
     .select("id,home_team,away_team,league,kickoff_at,status,home_score,away_score")
-    .gte("kickoff_at",osloMidnight(fromDate).toISOString())
-    .lt("kickoff_at",osloMidnight(toDate).toISOString())
+    .gte("kickoff_at",new Date(Date.now()-30*86400000).toISOString())
+    .lte("kickoff_at",new Date(Date.now()+2*86400000).toISOString())
     .order("kickoff_at",{ascending:false}).limit(2000);
   if(re)throw re;
   const finalStates=new Set(["FT","AET","PEN","FINISHED","ENDED","FULL TIME","AFTER EXTRA TIME","AFTER PENALTIES","MATCH FINISHED","FT PEN","FINISHED AET","FINISHED PENALTIES","AFTER EXTRA TIME FINISHED","FINISHED AFTER EXTRA TIME","FINISHED AFTER PENALTIES","AWARDED"]);
